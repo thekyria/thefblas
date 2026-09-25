@@ -14,6 +14,40 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Compile-time overflow policies for `thefblas::fixed`: the new third template
+  parameter selects `thefblas::checked` (default), `thefblas::wrap` or
+  `thefblas::saturate`. The policy governs `+`, `-`, unary negation, `*`, `/`,
+  the compound assignments, `abs`, and construction from floating-point or
+  integral values (`include/thefblas/overflow.hpp`).
+- Convenience aliases `q7`, `q15`, `q31`, `q16_16` and their `_sat` variants.
+- Wide accumulators for all internal reductions. `dot`, `dotu`, `dotc`, `nrm2`
+  and `asum` now accumulate unshifted products at twice the fractional width,
+  and the Level 2 reductions use a doubly wide `temp` accumulator, so
+  intermediate values no longer overflow the caller's Q format. Floating-point
+  results are unchanged.
+- `tests/test_accumulators.cpp` and an overflow-policy matrix in
+  `tests/test_fixed.cpp`.
+- Repository infrastructure ported from theblas: CMake presets and toolchain
+  files, quality options, linter/formatter configuration, CI workflows, Conan
+  and vcpkg packaging, and the community/documentation files.
+
+### Changed
+
+- `thefblas::fixed` now takes three template parameters; the third is
+  defaulted, so existing two-parameter uses continue to compile.
+- Release builds no longer have undefined behaviour on fixed-point overflow:
+  every policy, including `checked`, is well defined once `NDEBUG` is set.
+
+### Fixed
+
+- Multiplication of negative fixed-point values rounded towards negative
+  infinity instead of to nearest, ties away from zero, introducing a one-ULP
+  bias. Rounding is now symmetric about zero.
+- `FracBits` equal to the number of value bits of `IntType` (the canonical
+  Q1.15 / Q1.31 formats) is now accepted.
+
 ## [0.1.0] - 2026-09-25
 
 ### Added

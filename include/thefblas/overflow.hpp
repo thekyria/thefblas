@@ -45,74 +45,69 @@ namespace detail {
 /// Reduces `value` modulo 2^bits(IntType) and reinterprets the result as a
 /// two's-complement signed value, without relying on implementation-defined
 /// signed conversion or on signed overflow.
-template <typename IntType, typename Wide>
-constexpr IntType wrap_narrow(Wide value) noexcept {
-  using Unsigned = typename std::make_unsigned<IntType>::type;
-  const Unsigned bits = static_cast<Unsigned>(value);
-  if (bits <= static_cast<Unsigned>((std::numeric_limits<IntType>::max)())) {
-    return static_cast<IntType>(bits);
-  }
-  const Unsigned offset =
-      static_cast<Unsigned>(bits - static_cast<Unsigned>((std::numeric_limits<IntType>::min)()));
-  return static_cast<IntType>(static_cast<IntType>(offset) +
-                              (std::numeric_limits<IntType>::min)());
+template <typename IntType, typename Wide> constexpr IntType wrap_narrow(Wide value) noexcept {
+    using Unsigned = typename std::make_unsigned<IntType>::type;
+    const Unsigned bits = static_cast<Unsigned>(value);
+    if (bits <= static_cast<Unsigned>((std::numeric_limits<IntType>::max)())) {
+        return static_cast<IntType>(bits);
+    }
+    const Unsigned offset =
+        static_cast<Unsigned>(bits - static_cast<Unsigned>((std::numeric_limits<IntType>::min)()));
+    return static_cast<IntType>(static_cast<IntType>(offset) +
+                                (std::numeric_limits<IntType>::min)());
 }
 
-template <typename IntType>
-constexpr IntType clamp_limit(bool positive) noexcept {
-  return positive ? (std::numeric_limits<IntType>::max)() : (std::numeric_limits<IntType>::min)();
+template <typename IntType> constexpr IntType clamp_limit(bool positive) noexcept {
+    return positive ? (std::numeric_limits<IntType>::max)() : (std::numeric_limits<IntType>::min)();
 }
 
-}  // namespace detail
+} // namespace detail
 
 /// Modular overflow policy: results wrap around, as on raw DSP hardware.
 struct wrap {
-  template <typename IntType, typename Wide>
-  static constexpr IntType narrow(Wide value) noexcept {
-    return detail::wrap_narrow<IntType>(value);
-  }
+    template <typename IntType, typename Wide>
+    static constexpr IntType narrow(Wide value) noexcept {
+        return detail::wrap_narrow<IntType>(value);
+    }
 
-  /// Floating-point sources outside the representable range cannot be reduced
-  /// modularly in a meaningful way and are clamped instead.
-  template <typename IntType>
-  static constexpr IntType from_out_of_range(bool positive) noexcept {
-    return detail::clamp_limit<IntType>(positive);
-  }
+    /// Floating-point sources outside the representable range cannot be reduced
+    /// modularly in a meaningful way and are clamped instead.
+    template <typename IntType> static constexpr IntType from_out_of_range(bool positive) noexcept {
+        return detail::clamp_limit<IntType>(positive);
+    }
 };
 
 /// Saturating overflow policy: results clamp to the representable range.
 struct saturate {
-  template <typename IntType, typename Wide>
-  static constexpr IntType narrow(Wide value) noexcept {
-    return value > static_cast<Wide>((std::numeric_limits<IntType>::max)())
-               ? (std::numeric_limits<IntType>::max)()
-               : (value < static_cast<Wide>((std::numeric_limits<IntType>::min)())
-                      ? (std::numeric_limits<IntType>::min)()
-                      : static_cast<IntType>(value));
-  }
+    template <typename IntType, typename Wide>
+    static constexpr IntType narrow(Wide value) noexcept {
+        return value > static_cast<Wide>((std::numeric_limits<IntType>::max)())
+                   ? (std::numeric_limits<IntType>::max)()
+                   : (value < static_cast<Wide>((std::numeric_limits<IntType>::min)())
+                          ? (std::numeric_limits<IntType>::min)()
+                          : static_cast<IntType>(value));
+    }
 
-  template <typename IntType>
-  static constexpr IntType from_out_of_range(bool positive) noexcept {
-    return detail::clamp_limit<IntType>(positive);
-  }
+    template <typename IntType> static constexpr IntType from_out_of_range(bool positive) noexcept {
+        return detail::clamp_limit<IntType>(positive);
+    }
 };
 
 /// Debug-checked overflow policy (the default): asserts on overflow, and
 /// otherwise behaves like `wrap` so that release builds stay well defined.
 struct checked {
-  template <typename IntType, typename Wide>
-  static constexpr IntType narrow(Wide value) noexcept {
-    return (assert(value >= static_cast<Wide>((std::numeric_limits<IntType>::min)()) &&
-                   value <= static_cast<Wide>((std::numeric_limits<IntType>::max)()) &&
-                   "thefblas::fixed<>: arithmetic overflow"),
-            detail::wrap_narrow<IntType>(value));
-  }
+    template <typename IntType, typename Wide>
+    static constexpr IntType narrow(Wide value) noexcept {
+        return (assert(value >= static_cast<Wide>((std::numeric_limits<IntType>::min)()) &&
+                       value <= static_cast<Wide>((std::numeric_limits<IntType>::max)()) &&
+                       "thefblas::fixed<>: arithmetic overflow"),
+                detail::wrap_narrow<IntType>(value));
+    }
 
-  template <typename IntType>
-  static constexpr IntType from_out_of_range(bool positive) noexcept {
-    return (assert(false && "thefblas::fixed<>: value out of range for this Q format"),
-            detail::clamp_limit<IntType>(positive));
-  }
+    template <typename IntType> static constexpr IntType from_out_of_range(bool positive) noexcept {
+        return (assert(false && "thefblas::fixed<>: value out of range for this Q format"),
+                detail::clamp_limit<IntType>(positive));
+    }
 };
 
-}  // namespace thefblas
+} // namespace thefblas

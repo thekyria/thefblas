@@ -35,7 +35,20 @@ a single function template instantiated with the corresponding element type:
 | `z` | `std::complex<double>` |
 
 In addition, every routine may be instantiated with a fixed-point element type
-`thefblas::fixed<IntType, FracBits>` (for example `thefblas::fixed<std::int32_t, 20>`).
+`thefblas::fixed<IntType, FracBits, Policy>` (for example
+`thefblas::fixed<std::int32_t, 20>`). For fixed-point instantiations the
+formulas below describe the exact mathematical result; the computed result
+differs from it by the quantization of the element format and, where the exact
+result leaves the representable range, by the element type's overflow policy
+(`checked`, `wrap` or `saturate`).
+
+Internal reductions — the sums in `dot`, `dotu`, `dotc`, `nrm2`, `asum`, and
+the row/column sums of the Level 2 routines — are accumulated in a type twice
+as wide as the element type and narrowed exactly once, at the end. Intermediate
+values therefore do not overflow, and in the Level 1 reductions the products
+are accumulated unshifted, so no per-product rounding occurs either. The one
+exception is the non-transposed form of `gemv` and `gbmv`, which accumulates
+in place in `y` to avoid an `O(m)` temporary.
 
 ---
 
