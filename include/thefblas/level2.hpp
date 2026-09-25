@@ -1,6 +1,7 @@
 // NOLINTNEXTLINE(portability-avoid-pragma-once)
 #pragma once
 
+#include "thefblas/detail.hpp"
 #include "thefblas/fixed.hpp"
 
 #include <cassert>
@@ -29,10 +30,6 @@ namespace thefblas {
 
 namespace detail {
 
-inline int start_index(int n, int inc) {
-  return (inc > 0) ? 0 : (1 - n) * inc;
-}
-
 inline char to_upper(char value) {
   return static_cast<char>(std::toupper(static_cast<unsigned char>(value)));
 }
@@ -50,17 +47,6 @@ inline bool valid_uplo(char value) {
 inline bool valid_diag(char value) {
   const char upper = to_upper(value);
   return upper == 'U' || upper == 'N';
-}
-
-template <typename T>
-inline T conj_value(const T& value) {
-  return value;
-}
-
-template <typename T>
-inline std::complex<T> conj_value(const std::complex<T>& value) {
-  using std::conj;
-  return conj(value);
 }
 
 template <typename T>

@@ -1,1 +1,2 @@
-# Examples are added incrementally as routines are implemented.
+add_executable(thefblas_example_fixed_point_ops fixed_point_ops.cpp)
+target_link_libraries(thefblas_example_fixed_point_ops PRIVATE thefblas::thefblas)

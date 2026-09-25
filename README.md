@@ -40,12 +40,23 @@ by instantiating with `float`, `double`, `thefblas::fixed<IntType, FracBits>`
   `nrm2`, `asum`, `rot`, `rotg`, `rotm`, `rotmg`, `iamax`.
 - **Level 2, dense** (`include/thefblas/level2.hpp`): `gemv`, `ger`, `geru`,
   `gerc`, `symv`, `hemv`, `syr`, `her`, `syr2`, `her2`, `trmv`, `trsv`.
+- **Level 2, banded** (`include/thefblas/level2_banded.hpp`): `gbmv`, `sbmv`,
+  `hbmv`, `tbmv`, `tbsv`.
+- **Level 2, packed** (`include/thefblas/level2_packed.hpp`): `spmv`, `hpmv`,
+  `tpmv`, `tpsv`, `spr`, `hpr`, `spr2`, `hpr2`.
 
-Banded and packed Level 2 storage variants, and integer division/sqrt
-algorithms optimized for a specific embedded target (e.g. CORDIC or
-Cortex-M DSP intrinsics), are not yet implemented; the current `fixed<>`
-division/sqrt are portable, dependency-free integer algorithms suitable as a
-baseline for any target, including bare-metal ARM.
+Matrices are column-major. Banded matrices use the classic BLAS band storage
+(`ab[(ku + i - j) + j * ldab]` for general bands, `ab[(k + i - j) + j * ldab]`
+/ `ab[(i - j) + j * ldab]` for upper/lower symmetric, Hermitian and triangular
+bands), and packed matrices store the referenced triangle column by column
+(`ap[i + j * (j + 1) / 2]` for upper, `ap[(i - j) + j * (2n - j + 1) / 2]` for
+lower); see the header comments for details.
+
+Level 3 routines, and integer division/sqrt algorithms optimized for a
+specific embedded target (e.g. CORDIC or Cortex-M DSP intrinsics), are not yet
+implemented; the current `fixed<>` division/sqrt are portable, dependency-free
+integer algorithms suitable as a baseline for any target, including bare-metal
+ARM.
 
 ## Building and testing
 
@@ -56,5 +67,12 @@ ctest --test-dir build --output-on-failure
 ```
 
 The library itself is header-only (`INTERFACE` CMake target); the build only
-compiles the test suite.
+compiles the test suite and the examples.
+
+`examples/fixed_point_ops.cpp` shows Level 1, dense, banded and packed Level 2
+calls on a `fixed<std::int32_t, 20>` (Q11.20) element type:
+
+```sh
+./build/examples/thefblas_example_fixed_point_ops
+```
 

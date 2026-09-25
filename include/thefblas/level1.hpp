@@ -1,6 +1,7 @@
 // NOLINTNEXTLINE(portability-avoid-pragma-once)
 #pragma once
 
+#include "thefblas/detail.hpp"
 #include "thefblas/fixed.hpp"
 
 #include <cassert>
@@ -54,20 +55,6 @@ constexpr bool is_fixed_v = is_fixed<T>::value;
 
 template <typename T>
 using enable_if_real_t = typename std::enable_if<!is_complex_v<T>, int>::type;
-
-inline int start_index(int n, int inc) {
-  return (inc > 0) ? 0 : (1 - n) * inc;
-}
-
-template <typename T>
-inline T conj_value(const T& value) {
-  return value;
-}
-
-template <typename T>
-inline std::complex<T> conj_value(const std::complex<T>& value) {
-  return std::conj(value);
-}
 
 template <typename T>
 inline T abs_value(const T& value) {
