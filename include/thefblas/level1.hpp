@@ -1,6 +1,7 @@
 // NOLINTNEXTLINE(portability-avoid-pragma-once)
 #pragma once
 
+#include "thefblas/detail.hpp"
 #include "thefblas/fixed.hpp"
 
 #include <cassert>
@@ -34,88 +35,48 @@ namespace thefblas {
 
 namespace detail {
 
-template <typename T>
-struct is_complex : std::false_type {};
+// is_complex, is_fixed, enable_if_real_t and the accumulator machinery live in
+// detail.hpp, which both level1.hpp and level2.hpp include.
 
-template <typename T>
-struct is_complex<std::complex<T>> : std::true_type {};
-
-template <typename T>
-constexpr bool is_complex_v = is_complex<T>::value;
-
-template <typename T>
-struct is_fixed : std::false_type {};
-
-template <typename IntType, int FracBits>
-struct is_fixed<fixed<IntType, FracBits>> : std::true_type {};
-
-template <typename T>
-constexpr bool is_fixed_v = is_fixed<T>::value;
-
-template <typename T>
-using enable_if_real_t = typename std::enable_if<!is_complex_v<T>, int>::type;
-
-inline int start_index(int n, int inc) {
-  return (inc > 0) ? 0 : (1 - n) * inc;
+template <typename T> inline T abs_value(const T &value) {
+    using std::abs;
+    return abs(value);
 }
 
-template <typename T>
-inline T conj_value(const T& value) {
-  return value;
+template <typename T> inline T sqrt_value(const T &value) {
+    using std::sqrt;
+    return sqrt(value);
 }
 
-template <typename T>
-inline std::complex<T> conj_value(const std::complex<T>& value) {
-  return std::conj(value);
+template <typename T> inline T abs1(const std::complex<T> &value) {
+    return abs_value(value.real()) + abs_value(value.imag());
 }
 
-template <typename T>
-inline T abs_value(const T& value) {
-  using std::abs;
-  return abs(value);
+template <typename T> inline T norm_square(const T &value) {
+    return value * value;
 }
 
-template <typename T>
-inline T sqrt_value(const T& value) {
-  using std::sqrt;
-  return sqrt(value);
+template <typename T> inline T norm_square(const std::complex<T> &value) {
+    return (value.real() * value.real()) + (value.imag() * value.imag());
 }
 
-template <typename T>
-inline T abs1(const std::complex<T>& value) {
-  return abs_value(value.real()) + abs_value(value.imag());
+template <typename T> inline T complex_abs(const std::complex<T> &value) {
+    return sqrt_value(norm_square(value));
 }
 
-template <typename T>
-inline T norm_square(const T& value) {
-  return value * value;
+template <typename T> inline T signed_magnitude(T magnitude, const T &sign_source) {
+    return sign_source < T(0) ? -magnitude : magnitude;
 }
 
-template <typename T>
-inline T norm_square(const std::complex<T>& value) {
-  return (value.real() * value.real()) + (value.imag() * value.imag());
+template <typename T> inline T tiny_value() {
+    if constexpr (is_fixed_v<T>) {
+        return T::from_raw(1);
+    } else {
+        return T(1e-30);
+    }
 }
 
-template <typename T>
-inline T complex_abs(const std::complex<T>& value) {
-  return sqrt_value(norm_square(value));
-}
-
-template <typename T>
-inline T signed_magnitude(T magnitude, const T& sign_source) {
-  return sign_source < T(0) ? -magnitude : magnitude;
-}
-
-template <typename T>
-inline T tiny_value() {
-  if constexpr (is_fixed_v<T>) {
-    return T::from_raw(1);
-  } else {
-    return T(1e-30);
-  }
-}
-
-}  // namespace detail
+} // namespace detail
 
 /**
  * @brief Swap two vectors element-wise.
@@ -125,21 +86,20 @@ inline T tiny_value() {
  * @param y Second vector, updated in place.
  * @param incy Stride between elements of y.
  */
-template <typename T>
-inline void swap(int n, T* x, int incx, T* y, int incy) {
-  if (n <= 0 || incx == 0 || incy == 0) {
-    return;
-  }
+template <typename T> inline void swap(int n, T *x, int incx, T *y, int incy) {
+    if (n <= 0 || incx == 0 || incy == 0) {
+        return;
+    }
 
-  int ix = detail::start_index(n, incx);
-  int iy = detail::start_index(n, incy);
-  for (int i = 0; i < n; ++i) {
-    const T tmp = x[ix];
-    x[ix] = y[iy];
-    y[iy] = tmp;
-    ix += incx;
-    iy += incy;
-  }
+    int ix = detail::start_index(n, incx);
+    int iy = detail::start_index(n, incy);
+    for (int i = 0; i < n; ++i) {
+        const T tmp = x[ix];
+        x[ix] = y[iy];
+        y[iy] = tmp;
+        ix += incx;
+        iy += incy;
+    }
 }
 
 /**
@@ -150,19 +110,18 @@ inline void swap(int n, T* x, int incx, T* y, int incy) {
  * @param y Destination vector.
  * @param incy Stride between elements of y.
  */
-template <typename T>
-inline void copy(int n, const T* x, int incx, T* y, int incy) {
-  if (n <= 0 || incx == 0 || incy == 0) {
-    return;
-  }
+template <typename T> inline void copy(int n, const T *x, int incx, T *y, int incy) {
+    if (n <= 0 || incx == 0 || incy == 0) {
+        return;
+    }
 
-  int ix = detail::start_index(n, incx);
-  int iy = detail::start_index(n, incy);
-  for (int i = 0; i < n; ++i) {
-    y[iy] = x[ix];
-    ix += incx;
-    iy += incy;
-  }
+    int ix = detail::start_index(n, incx);
+    int iy = detail::start_index(n, incy);
+    for (int i = 0; i < n; ++i) {
+        y[iy] = x[ix];
+        ix += incx;
+        iy += incy;
+    }
 }
 
 /**
@@ -174,19 +133,18 @@ inline void copy(int n, const T* x, int incx, T* y, int incy) {
  * @param y Input/output vector y.
  * @param incy Stride between elements of y.
  */
-template <typename T>
-inline void axpy(int n, T alpha, const T* x, int incx, T* y, int incy) {
-  if (n <= 0 || incx == 0 || incy == 0) {
-    return;
-  }
+template <typename T> inline void axpy(int n, T alpha, const T *x, int incx, T *y, int incy) {
+    if (n <= 0 || incx == 0 || incy == 0) {
+        return;
+    }
 
-  int ix = detail::start_index(n, incx);
-  int iy = detail::start_index(n, incy);
-  for (int i = 0; i < n; ++i) {
-    y[iy] += alpha * x[ix];
-    ix += incx;
-    iy += incy;
-  }
+    int ix = detail::start_index(n, incx);
+    int iy = detail::start_index(n, incy);
+    for (int i = 0; i < n; ++i) {
+        y[iy] += alpha * x[ix];
+        ix += incx;
+        iy += incy;
+    }
 }
 
 /**
@@ -196,17 +154,16 @@ inline void axpy(int n, T alpha, const T* x, int incx, T* y, int incy) {
  * @param x Vector to scale in place.
  * @param incx Stride between elements of x.
  */
-template <typename T>
-inline void scal(int n, T alpha, T* x, int incx) {
-  if (n <= 0 || incx == 0) {
-    return;
-  }
+template <typename T> inline void scal(int n, T alpha, T *x, int incx) {
+    if (n <= 0 || incx == 0) {
+        return;
+    }
 
-  int ix = detail::start_index(n, incx);
-  for (int i = 0; i < n; ++i) {
-    x[ix] *= alpha;
-    ix += incx;
-  }
+    int ix = detail::start_index(n, incx);
+    for (int i = 0; i < n; ++i) {
+        x[ix] *= alpha;
+        ix += incx;
+    }
 }
 
 /**
@@ -216,17 +173,16 @@ inline void scal(int n, T alpha, T* x, int incx) {
  * @param x Complex vector to scale in place.
  * @param incx Stride between elements of x.
  */
-template <typename T>
-inline void scal(int n, T alpha, std::complex<T>* x, int incx) {
-  if (n <= 0 || incx == 0) {
-    return;
-  }
+template <typename T> inline void scal(int n, T alpha, std::complex<T> *x, int incx) {
+    if (n <= 0 || incx == 0) {
+        return;
+    }
 
-  int ix = detail::start_index(n, incx);
-  for (int i = 0; i < n; ++i) {
-    x[ix] *= alpha;
-    ix += incx;
-  }
+    int ix = detail::start_index(n, incx);
+    for (int i = 0; i < n; ++i) {
+        x[ix] *= alpha;
+        ix += incx;
+    }
 }
 
 /**
@@ -239,20 +195,20 @@ inline void scal(int n, T alpha, std::complex<T>* x, int incx) {
  * @return Dot product value.
  */
 template <typename T, detail::enable_if_real_t<T> = 0>
-inline T dot(int n, const T* x, int incx, const T* y, int incy) {
-  if (n <= 0 || incx == 0 || incy == 0) {
-    return T(0);
-  }
+inline T dot(int n, const T *x, int incx, const T *y, int incy) {
+    if (n <= 0 || incx == 0 || incy == 0) {
+        return T(0);
+    }
 
-  T acc = T(0);
-  int ix = detail::start_index(n, incx);
-  int iy = detail::start_index(n, incy);
-  for (int i = 0; i < n; ++i) {
-    acc += x[ix] * y[iy];
-    ix += incx;
-    iy += incy;
-  }
-  return acc;
+    detail::real_mac<T> acc;
+    int ix = detail::start_index(n, incx);
+    int iy = detail::start_index(n, incy);
+    for (int i = 0; i < n; ++i) {
+        acc.add_product(x[ix], y[iy]);
+        ix += incx;
+        iy += incy;
+    }
+    return acc.value();
 }
 
 /**
@@ -265,21 +221,21 @@ inline T dot(int n, const T* x, int incx, const T* y, int incy) {
  * @return Complex dot product value.
  */
 template <typename T>
-inline std::complex<T> dotu(int n, const std::complex<T>* x, int incx,
-                            const std::complex<T>* y, int incy) {
-  if (n <= 0 || incx == 0 || incy == 0) {
-    return std::complex<T>(T(0), T(0));
-  }
+inline std::complex<T> dotu(int n, const std::complex<T> *x, int incx, const std::complex<T> *y,
+                            int incy) {
+    if (n <= 0 || incx == 0 || incy == 0) {
+        return std::complex<T>(T(0), T(0));
+    }
 
-  std::complex<T> acc(T(0), T(0));
-  int ix = detail::start_index(n, incx);
-  int iy = detail::start_index(n, incy);
-  for (int i = 0; i < n; ++i) {
-    acc += x[ix] * y[iy];
-    ix += incx;
-    iy += incy;
-  }
-  return acc;
+    detail::complex_mac<T> acc;
+    int ix = detail::start_index(n, incx);
+    int iy = detail::start_index(n, incy);
+    for (int i = 0; i < n; ++i) {
+        acc.add_product(x[ix], y[iy]);
+        ix += incx;
+        iy += incy;
+    }
+    return acc.value();
 }
 
 /**
@@ -292,21 +248,21 @@ inline std::complex<T> dotu(int n, const std::complex<T>* x, int incx,
  * @return Complex dot product value.
  */
 template <typename T>
-inline std::complex<T> dotc(int n, const std::complex<T>* x, int incx,
-                            const std::complex<T>* y, int incy) {
-  if (n <= 0 || incx == 0 || incy == 0) {
-    return std::complex<T>(T(0), T(0));
-  }
+inline std::complex<T> dotc(int n, const std::complex<T> *x, int incx, const std::complex<T> *y,
+                            int incy) {
+    if (n <= 0 || incx == 0 || incy == 0) {
+        return std::complex<T>(T(0), T(0));
+    }
 
-  std::complex<T> acc(T(0), T(0));
-  int ix = detail::start_index(n, incx);
-  int iy = detail::start_index(n, incy);
-  for (int i = 0; i < n; ++i) {
-    acc += detail::conj_value(x[ix]) * y[iy];
-    ix += incx;
-    iy += incy;
-  }
-  return acc;
+    detail::complex_mac<T> acc;
+    int ix = detail::start_index(n, incx);
+    int iy = detail::start_index(n, incy);
+    for (int i = 0; i < n; ++i) {
+        acc.add_conj_product(x[ix], y[iy]);
+        ix += incx;
+        iy += incy;
+    }
+    return acc.value();
 }
 
 /**
@@ -316,19 +272,21 @@ inline std::complex<T> dotc(int n, const std::complex<T>* x, int incx,
  * @param incx Stride between elements of x.
  * @return Euclidean norm of x.
  */
-template <typename T, detail::enable_if_real_t<T> = 0>
-inline T nrm2(int n, const T* x, int incx) {
-  if (n <= 0 || incx == 0) {
-    return T(0);
-  }
+template <typename T, detail::enable_if_real_t<T> = 0> inline T nrm2(int n, const T *x, int incx) {
+    if (n <= 0 || incx == 0) {
+        return T(0);
+    }
 
-  T sum = T(0);
-  int ix = detail::start_index(n, incx);
-  for (int i = 0; i < n; ++i) {
-    sum += detail::norm_square(x[ix]);
-    ix += incx;
-  }
-  return detail::sqrt_value(sum);
+    detail::real_mac<T> sum;
+    int ix = detail::start_index(n, incx);
+    for (int i = 0; i < n; ++i) {
+        sum.add_product(x[ix], x[ix]);
+        ix += incx;
+    }
+    // The sum of squares can legitimately exceed the range of T even when the
+    // norm itself does not, so the square root is taken in the wide accumulator
+    // type and only its result is narrowed back to T.
+    return detail::from_accumulator<T>(detail::sqrt_value(sum.wide_value()));
 }
 
 /**
@@ -338,19 +296,19 @@ inline T nrm2(int n, const T* x, int incx) {
  * @param incx Stride between elements of x.
  * @return Euclidean norm of x.
  */
-template <typename T>
-inline T nrm2(int n, const std::complex<T>* x, int incx) {
-  if (n <= 0 || incx == 0) {
-    return T(0);
-  }
+template <typename T> inline T nrm2(int n, const std::complex<T> *x, int incx) {
+    if (n <= 0 || incx == 0) {
+        return T(0);
+    }
 
-  T sum = T(0);
-  int ix = detail::start_index(n, incx);
-  for (int i = 0; i < n; ++i) {
-    sum += detail::norm_square(x[ix]);
-    ix += incx;
-  }
-  return detail::sqrt_value(sum);
+    detail::real_mac<T> sum;
+    int ix = detail::start_index(n, incx);
+    for (int i = 0; i < n; ++i) {
+        sum.add_product(x[ix].real(), x[ix].real());
+        sum.add_product(x[ix].imag(), x[ix].imag());
+        ix += incx;
+    }
+    return detail::from_accumulator<T>(detail::sqrt_value(sum.wide_value()));
 }
 
 /**
@@ -360,19 +318,18 @@ inline T nrm2(int n, const std::complex<T>* x, int incx) {
  * @param incx Stride between elements of x.
  * @return Sum of absolute values.
  */
-template <typename T, detail::enable_if_real_t<T> = 0>
-inline T asum(int n, const T* x, int incx) {
-  if (n <= 0 || incx == 0) {
-    return T(0);
-  }
+template <typename T, detail::enable_if_real_t<T> = 0> inline T asum(int n, const T *x, int incx) {
+    if (n <= 0 || incx == 0) {
+        return T(0);
+    }
 
-  T sum = T(0);
-  int ix = detail::start_index(n, incx);
-  for (int i = 0; i < n; ++i) {
-    sum += detail::abs_value(x[ix]);
-    ix += incx;
-  }
-  return sum;
+    detail::real_mac<T> sum;
+    int ix = detail::start_index(n, incx);
+    for (int i = 0; i < n; ++i) {
+        sum.add(detail::abs_value(x[ix]));
+        ix += incx;
+    }
+    return sum.value();
 }
 
 /**
@@ -382,19 +339,19 @@ inline T asum(int n, const T* x, int incx) {
  * @param incx Stride between elements of x.
  * @return Sum of absolute component values.
  */
-template <typename T>
-inline T asum(int n, const std::complex<T>* x, int incx) {
-  if (n <= 0 || incx == 0) {
-    return T(0);
-  }
+template <typename T> inline T asum(int n, const std::complex<T> *x, int incx) {
+    if (n <= 0 || incx == 0) {
+        return T(0);
+    }
 
-  T sum = T(0);
-  int ix = detail::start_index(n, incx);
-  for (int i = 0; i < n; ++i) {
-    sum += detail::abs1(x[ix]);
-    ix += incx;
-  }
-  return sum;
+    detail::real_mac<T> sum;
+    int ix = detail::start_index(n, incx);
+    for (int i = 0; i < n; ++i) {
+        sum.add(detail::abs_value(x[ix].real()));
+        sum.add(detail::abs_value(x[ix].imag()));
+        ix += incx;
+    }
+    return sum.value();
 }
 
 /**
@@ -408,21 +365,21 @@ inline T asum(int n, const std::complex<T>* x, int incx) {
  * @param s Sine-like rotation coefficient.
  */
 template <typename T, detail::enable_if_real_t<T> = 0>
-inline void rot(int n, T* x, int incx, T* y, int incy, T c, T s) {
-  if (n <= 0 || incx == 0 || incy == 0) {
-    return;
-  }
+inline void rot(int n, T *x, int incx, T *y, int incy, T c, T s) {
+    if (n <= 0 || incx == 0 || incy == 0) {
+        return;
+    }
 
-  int ix = detail::start_index(n, incx);
-  int iy = detail::start_index(n, incy);
-  for (int i = 0; i < n; ++i) {
-    const T w = x[ix];
-    const T z = y[iy];
-    x[ix] = (c * w) + (s * z);
-    y[iy] = (c * z) - (s * w);
-    ix += incx;
-    iy += incy;
-  }
+    int ix = detail::start_index(n, incx);
+    int iy = detail::start_index(n, incy);
+    for (int i = 0; i < n; ++i) {
+        const T w = x[ix];
+        const T z = y[iy];
+        x[ix] = (c * w) + (s * z);
+        y[iy] = (c * z) - (s * w);
+        ix += incx;
+        iy += incy;
+    }
 }
 
 /**
@@ -436,22 +393,21 @@ inline void rot(int n, T* x, int incx, T* y, int incy, T c, T s) {
  * @param s Real sine-like rotation coefficient.
  */
 template <typename T>
-inline void rot(int n, std::complex<T>* x, int incx, std::complex<T>* y, int incy,
-                T c, T s) {
-  if (n <= 0 || incx == 0 || incy == 0) {
-    return;
-  }
+inline void rot(int n, std::complex<T> *x, int incx, std::complex<T> *y, int incy, T c, T s) {
+    if (n <= 0 || incx == 0 || incy == 0) {
+        return;
+    }
 
-  int ix = detail::start_index(n, incx);
-  int iy = detail::start_index(n, incy);
-  for (int i = 0; i < n; ++i) {
-    const std::complex<T> w = x[ix];
-    const std::complex<T> z = y[iy];
-    x[ix] = (c * w) + (s * z);
-    y[iy] = (c * z) - (s * w);
-    ix += incx;
-    iy += incy;
-  }
+    int ix = detail::start_index(n, incx);
+    int iy = detail::start_index(n, incy);
+    for (int i = 0; i < n; ++i) {
+        const std::complex<T> w = x[ix];
+        const std::complex<T> z = y[iy];
+        x[ix] = (c * w) + (s * z);
+        y[iy] = (c * z) - (s * w);
+        ix += incx;
+        iy += incy;
+    }
 }
 
 /**
@@ -461,32 +417,31 @@ inline void rot(int n, std::complex<T>* x, int incx, std::complex<T>* y, int inc
  * @param c Output cosine coefficient.
  * @param s Output sine coefficient.
  */
-template <typename T, detail::enable_if_real_t<T> = 0>
-inline void rotg(T* a, T* b, T* c, T* s) {
-  const T abs_a = detail::abs_value(*a);
-  const T abs_b = detail::abs_value(*b);
-  const T roe = abs_a > abs_b ? *a : *b;
-  const T scale = abs_a + abs_b;
-  if (scale == T(0)) {
-    *c = T(1);
-    *s = T(0);
-    *a = T(0);
-    *b = T(0);
-    return;
-  }
+template <typename T, detail::enable_if_real_t<T> = 0> inline void rotg(T *a, T *b, T *c, T *s) {
+    const T abs_a = detail::abs_value(*a);
+    const T abs_b = detail::abs_value(*b);
+    const T roe = abs_a > abs_b ? *a : *b;
+    const T scale = abs_a + abs_b;
+    if (scale == T(0)) {
+        *c = T(1);
+        *s = T(0);
+        *a = T(0);
+        *b = T(0);
+        return;
+    }
 
-  T r = scale * detail::sqrt_value(((*a / scale) * (*a / scale)) + ((*b / scale) * (*b / scale)));
-  r = detail::signed_magnitude(r, roe);
-  *c = *a / r;
-  *s = *b / r;
-  T z = T(1);
-  if (abs_a > abs_b) {
-    z = *s;
-  } else if (*c != T(0)) {
-    z = T(1) / *c;
-  }
-  *a = r;
-  *b = z;
+    T r = scale * detail::sqrt_value(((*a / scale) * (*a / scale)) + ((*b / scale) * (*b / scale)));
+    r = detail::signed_magnitude(r, roe);
+    *c = *a / r;
+    *s = *b / r;
+    T z = T(1);
+    if (abs_a > abs_b) {
+        z = *s;
+    } else if (*c != T(0)) {
+        z = T(1) / *c;
+    }
+    *a = r;
+    *b = z;
 }
 
 /**
@@ -497,22 +452,23 @@ inline void rotg(T* a, T* b, T* c, T* s) {
  * @param s Output complex sine-like coefficient.
  */
 template <typename T>
-inline void rotg(std::complex<T>* a, std::complex<T> b, T* c, std::complex<T>* s) {
-  const T abs_a = detail::complex_abs(*a);
-  if (abs_a == T(0)) {
-    *c = T(0);
-    *s = std::complex<T>(T(1), T(0));
-    *a = b;
-    return;
-  }
+inline void rotg(std::complex<T> *a, std::complex<T> b, T *c, std::complex<T> *s) {
+    const T abs_a = detail::complex_abs(*a);
+    if (abs_a == T(0)) {
+        *c = T(0);
+        *s = std::complex<T>(T(1), T(0));
+        *a = b;
+        return;
+    }
 
-  const T abs_b = detail::complex_abs(b);
-  const T scale = abs_a + abs_b;
-  const T norm = scale * detail::sqrt_value(detail::norm_square(*a / scale) + detail::norm_square(b / scale));
-  const std::complex<T> alpha = *a / abs_a;
-  *c = abs_a / norm;
-  *s = alpha * detail::conj_value(b) / norm;
-  *a = alpha * norm;
+    const T abs_b = detail::complex_abs(b);
+    const T scale = abs_a + abs_b;
+    const T norm = scale * detail::sqrt_value(detail::norm_square(*a / scale) +
+                                              detail::norm_square(b / scale));
+    const std::complex<T> alpha = *a / abs_a;
+    *c = abs_a / norm;
+    *s = alpha * detail::conj_value(b) / norm;
+    *a = alpha * norm;
 }
 
 /**
@@ -525,39 +481,39 @@ inline void rotg(std::complex<T>* a, std::complex<T> b, T* c, std::complex<T>* s
  * @param param Pointer to a 5-element modified Givens parameter array.
  */
 template <typename T, detail::enable_if_real_t<T> = 0>
-inline void rotm(int n, T* x, int incx, T* y, int incy, const T* param) {
-  if (n <= 0 || incx == 0 || incy == 0) {
-    return;
-  }
-
-  const T flag = param[0];
-  if (flag == T(-2)) {
-    return;
-  }
-
-  const T h11 = param[1];
-  const T h21 = param[2];
-  const T h12 = param[3];
-  const T h22 = param[4];
-
-  int ix = detail::start_index(n, incx);
-  int iy = detail::start_index(n, incy);
-  for (int i = 0; i < n; ++i) {
-    const T w = x[ix];
-    const T z = y[iy];
-    if (flag < T(0)) {
-      x[ix] = (w * h11) + (z * h12);
-      y[iy] = (w * h21) + (z * h22);
-    } else if (flag == T(0)) {
-      x[ix] = w + (z * h12);
-      y[iy] = (w * h21) + z;
-    } else {
-      x[ix] = (w * h11) + z;
-      y[iy] = -w + (z * h22);
+inline void rotm(int n, T *x, int incx, T *y, int incy, const T *param) {
+    if (n <= 0 || incx == 0 || incy == 0) {
+        return;
     }
-    ix += incx;
-    iy += incy;
-  }
+
+    const T flag = param[0];
+    if (flag == T(-2)) {
+        return;
+    }
+
+    const T h11 = param[1];
+    const T h21 = param[2];
+    const T h12 = param[3];
+    const T h22 = param[4];
+
+    int ix = detail::start_index(n, incx);
+    int iy = detail::start_index(n, incy);
+    for (int i = 0; i < n; ++i) {
+        const T w = x[ix];
+        const T z = y[iy];
+        if (flag < T(0)) {
+            x[ix] = (w * h11) + (z * h12);
+            y[iy] = (w * h21) + (z * h22);
+        } else if (flag == T(0)) {
+            x[ix] = w + (z * h12);
+            y[iy] = (w * h21) + z;
+        } else {
+            x[ix] = (w * h11) + z;
+            y[iy] = -w + (z * h22);
+        }
+        ix += incx;
+        iy += incy;
+    }
 }
 
 /**
@@ -569,36 +525,36 @@ inline void rotm(int n, T* x, int incx, T* y, int incy, const T* param) {
  * @param param Output 5-element modified Givens parameter array.
  */
 template <typename T, detail::enable_if_real_t<T> = 0>
-inline void rotmg(T* d1, T* d2, T* b1, T b2, T* param) {
-  if (*d1 <= T(0) || *d2 <= T(0)) {
-    param[0] = T(-2);
-    param[1] = T(0);
-    param[2] = T(0);
-    param[3] = T(0);
-    param[4] = T(0);
-    return;
-  }
+inline void rotmg(T *d1, T *d2, T *b1, T b2, T *param) {
+    if (*d1 <= T(0) || *d2 <= T(0)) {
+        param[0] = T(-2);
+        param[1] = T(0);
+        param[2] = T(0);
+        param[3] = T(0);
+        param[4] = T(0);
+        return;
+    }
 
-  T a = detail::sqrt_value(*d1) * (*b1);
-  T b = detail::sqrt_value(*d2) * b2;
-  T c = T(0);
-  T s = T(0);
-  rotg(&a, &b, &c, &s);
+    T a = detail::sqrt_value(*d1) * (*b1);
+    T b = detail::sqrt_value(*d2) * b2;
+    T c = T(0);
+    T s = T(0);
+    rotg(&a, &b, &c, &s);
 
-  param[0] = T(-1);
-  param[1] = c;
-  param[2] = -s;
-  param[3] = s;
-  param[4] = c;
+    param[0] = T(-1);
+    param[1] = c;
+    param[2] = -s;
+    param[3] = s;
+    param[4] = c;
 
-  const T c2 = c * c;
-  const T s2 = s * s;
-  const T d1_old = *d1;
-  const T d2_old = *d2;
-  *d1 = (d1_old * c2) + (d2_old * s2);
-  *d2 = (d1_old * s2) + (d2_old * c2);
-  const T floor = *d1 > detail::tiny_value<T>() ? *d1 : detail::tiny_value<T>();
-  *b1 = a / detail::sqrt_value(floor);
+    const T c2 = c * c;
+    const T s2 = s * s;
+    const T d1_old = *d1;
+    const T d2_old = *d2;
+    *d1 = (d1_old * c2) + (d2_old * s2);
+    *d2 = (d1_old * s2) + (d2_old * c2);
+    const T floor = *d1 > detail::tiny_value<T>() ? *d1 : detail::tiny_value<T>();
+    *b1 = a / detail::sqrt_value(floor);
 }
 
 /**
@@ -609,24 +565,24 @@ inline void rotmg(T* d1, T* d2, T* b1, T b2, T* param) {
  * @return Netlib-style 1-based index, or 0 when `n <= 0` or `incx <= 0`.
  */
 template <typename T, detail::enable_if_real_t<T> = 0>
-inline int iamax(int n, const T* x, int incx) {
-  if (n <= 0 || incx <= 0) {
-    return 0;
-  }
-
-  int best_logical = 0;
-  int ix = 0;
-  T best = detail::abs_value(x[ix]);
-  for (int i = 1; i < n; ++i) {
-    ix += incx;
-    const T cand = detail::abs_value(x[ix]);
-    if (cand > best) {
-      best = cand;
-      best_logical = i;
+inline int iamax(int n, const T *x, int incx) {
+    if (n <= 0 || incx <= 0) {
+        return 0;
     }
-  }
 
-  return best_logical + 1;
+    int best_logical = 0;
+    int ix = 0;
+    T best = detail::abs_value(x[ix]);
+    for (int i = 1; i < n; ++i) {
+        ix += incx;
+        const T cand = detail::abs_value(x[ix]);
+        if (cand > best) {
+            best = cand;
+            best_logical = i;
+        }
+    }
+
+    return best_logical + 1;
 }
 
 /**
@@ -636,25 +592,24 @@ inline int iamax(int n, const T* x, int incx) {
  * @param incx Stride between elements of x; must be positive.
  * @return Netlib-style 1-based index, or 0 when `n <= 0` or `incx <= 0`.
  */
-template <typename T>
-inline int iamax(int n, const std::complex<T>* x, int incx) {
-  if (n <= 0 || incx <= 0) {
-    return 0;
-  }
-
-  int best_logical = 0;
-  int ix = 0;
-  T best = detail::abs1(x[ix]);
-  for (int i = 1; i < n; ++i) {
-    ix += incx;
-    const T cand = detail::abs1(x[ix]);
-    if (cand > best) {
-      best = cand;
-      best_logical = i;
+template <typename T> inline int iamax(int n, const std::complex<T> *x, int incx) {
+    if (n <= 0 || incx <= 0) {
+        return 0;
     }
-  }
 
-  return best_logical + 1;
+    int best_logical = 0;
+    int ix = 0;
+    T best = detail::abs1(x[ix]);
+    for (int i = 1; i < n; ++i) {
+        ix += incx;
+        const T cand = detail::abs1(x[ix]);
+        if (cand > best) {
+            best = cand;
+            best_logical = i;
+        }
+    }
+
+    return best_logical + 1;
 }
 
-}  // namespace thefblas
+} // namespace thefblas

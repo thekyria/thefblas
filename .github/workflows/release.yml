@@ -1,0 +1,124 @@
+name: Release
+
+on:
+  push:
+    branches: ["master"]
+    paths:
+      - "CMakeLists.txt"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Create Release on Version Bump
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Extract version from CMakeLists.txt
+        id: version
+        run: |
+          VERSION=$(grep -oP 'VERSION\s+\K[0-9]+\.[0-9]+\.[0-9]+' CMakeLists.txt | head -1)
+          if [[ -z "${VERSION}" ]]; then
+            echo "::error::Could not extract version from CMakeLists.txt"
+            exit 1
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Check if release already exists
+        id: release_check
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view "${{ steps.version.outputs.tag }}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Release ${{ steps.version.outputs.tag }} already exists; skipping."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Extract release notes and update files
+        if: steps.release_check.outputs.exists == 'false'
+        run: python3 scripts/extract-changelog.py > /tmp/release-notes.md
+
+      - name: Update CHANGELOG.md and CMakeLists.txt
+        if: steps.release_check.outputs.exists == 'false'
+        run: python3 scripts/prepare-release.py ${{ steps.version.outputs.version }}
+
+      - name: Create GitHub Release
+        if: steps.release_check.outputs.exists == 'false'
+        id: create_release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ steps.version.outputs.tag }}" \
+            --title "thefblas ${{ steps.version.outputs.tag }}" \
+            --notes-file /tmp/release-notes.md \
+            --target master
+
+      - name: Update vcpkg port files
+        if: steps.release_check.outputs.exists == 'false'
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          TAG="${{ steps.version.outputs.tag }}"
+          TARBALL_URL="https://github.com/${{ github.repository }}/archive/refs/tags/${TAG}.tar.gz"
+
+          curl -sL "${TARBALL_URL}" -o /tmp/thefblas-${VERSION}.tar.gz
+          SHA512=$(sha512sum /tmp/thefblas-${VERSION}.tar.gz | awk '{print $1}')
+
+          # Update SHA512 in portfile.cmake
+          sed -i "s|SHA512 [0-9a-f]*|SHA512 ${SHA512}|" ports/thefblas/portfile.cmake
+
+          # Update version in ports/thefblas/vcpkg.json
+          sed -i "s|\"version\": \".*\"|\"version\": \"${VERSION}\"|" ports/thefblas/vcpkg.json
+
+          # Stage port changes to compute tree hash
+          git add ports/thefblas/
+          TREE_HASH=$(git write-tree --prefix=ports/thefblas/)
+
+          # Prepend new version entry to the versions database
+          python3 - "${VERSION}" "${TREE_HASH}" <<'EOF'
+          import json, sys
+          version, tree = sys.argv[1], sys.argv[2]
+          with open("versions/t-/thefblas.json") as f:
+              data = json.load(f)
+          entries = data.get("versions", [])
+          # Avoid duplicates
+          if not any(e.get("version") == version for e in entries):
+              entries.insert(0, {"version": version, "git-tree": tree})
+          data["versions"] = entries
+          with open("versions/t-/thefblas.json", "w") as f:
+              json.dump(data, f, indent=2)
+              f.write("\n")
+          EOF
+
+          # Update baseline
+          python3 - "${VERSION}" <<'EOF'
+          import json, sys
+          version = sys.argv[1]
+          with open("versions/baseline.json") as f:
+              data = json.load(f)
+          data["default"]["thefblas"] = {"baseline": version, "port-version": 0}
+          with open("versions/baseline.json", "w") as f:
+              json.dump(data, f, indent=2)
+              f.write("\n")
+          EOF
+
+      - name: Commit updated files
+        if: steps.release_check.outputs.exists == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md ports/ versions/
+          git diff --cached --quiet || git commit -m "chore(release): update changelog and vcpkg port for ${{ steps.version.outputs.tag }} [skip ci]"
+          git push

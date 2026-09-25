@@ -1,0 +1,52 @@
+name: Conan Integration Test
+
+on:
+  push:
+    branches: ["master"]
+    paths:
+      - "conanfile.py"
+      - "test_package/**"
+      - "include/**"
+      - "CMakeLists.txt"
+  pull_request:
+    branches: ["master"]
+    paths:
+      - "conanfile.py"
+      - "test_package/**"
+      - "include/**"
+      - "CMakeLists.txt"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: conan-test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  conan-test:
+    name: conan create (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install Conan
+        run: pip install conan
+
+      - name: Detect Conan profile
+        run: conan profile detect --force
+
+      - name: Create and test package
+        run: conan create . --build=missing -s build_type=Release

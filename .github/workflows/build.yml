@@ -1,0 +1,101 @@
+# This starter workflow is for a CMake project running on a single platform. There is a different starter workflow if you need cross-platform coverage.
+# See: https://github.com/actions/starter-workflows/blob/main/ci/cmake-multi-platform.yml
+name: CMake on a single platform
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+permissions:
+  contents: read
+
+env:
+  # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
+  BUILD_TYPE: Release
+
+jobs:
+  build:
+    # The CMake configure and build commands are platform agnostic and should work equally well on Windows or Mac.
+    # You can convert this to a matrix build if you need cross-platform coverage.
+    # See: https://docs.github.com/en/free-pro-team@latest/actions/learn-github-actions/managing-complex-workflows#using-a-build-matrix
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v7
+
+    - name: Install dependencies
+      run: sudo apt-get update && sudo apt-get install -y cppcheck clang-tidy clang-tools
+
+    - name: Run cppcheck
+      # thefblas is header-only: there is no src/ directory.
+      run: |
+        cppcheck \
+          --enable=warning,style,performance,portability \
+          --std=c++17 \
+          --language=c++ \
+          --error-exitcode=1 \
+          --inline-suppr \
+          --suppress=missingIncludeSystem \
+          -I include \
+          include tests examples
+
+    - name: Configure CMake
+      # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
+      # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
+      run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+
+    - name: Run clang-tidy
+      # Header-only: analyse every translation unit (tests + examples), which
+      # transitively covers all headers. File names are discovered dynamically
+      # so the workflow tolerates added/removed test and example sources.
+      run: |
+        mapfile -t SOURCES < <(git ls-files 'tests/*.cpp' 'examples/*.cpp')
+        clang-tidy -p ${{github.workspace}}/build "${SOURCES[@]}"
+
+    - name: Build
+      # Build your program with the given configuration
+      # scan-build wraps the compiler to run the Clang Static Analyzer and
+      # emit an HTML report; the build artifacts land in build/ as normal.
+      run: |
+        scan-build -o ${{github.workspace}}/scan-results \
+          cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}
+
+    - name: Upload scan-build report
+      uses: actions/upload-artifact@v7
+      with:
+        name: scan-build-report
+        path: ${{github.workspace}}/scan-results/
+        if-no-files-found: ignore
+
+    - name: Test
+      working-directory: ${{github.workspace}}/build
+      # Execute tests defined by the CMake configuration.
+      # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
+      run: ctest -C ${{env.BUILD_TYPE}}
+
+    - name: Build and test (wrapper for CMake)
+      run: make test
+
+  docs:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Install Doxygen
+      run: sudo apt-get update && sudo apt-get install -y doxygen graphviz
+
+    - uses: actions/checkout@v7
+
+    - name: Generate Doxygen docs
+      run: doxygen Doxyfile
+
+    - name: Upload Doxygen HTML
+      uses: actions/upload-artifact@v7
+      with:
+        name: doxygen-html
+        path: docs/doxygen/html
+        if-no-files-found: error
+
+    - name: Create documentation (wrapper for doxygen)
+      run: make docs

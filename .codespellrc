@@ -1,0 +1,5 @@
+[codespell]
+skip = .git,.github,build,install,docs/doxygen,tests/.git,*.po,*.pot
+check-filenames =
+check-hidden =
+ignore-words-list = thefblas

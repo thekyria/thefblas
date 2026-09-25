@@ -1,0 +1,106 @@
+name: vcpkg Integration Test
+
+on:
+  push:
+    branches: ["master"]
+    paths:
+      - "ports/**"
+      - "versions/**"
+      - "include/**"
+      - "CMakeLists.txt"
+  pull_request:
+    branches: ["master"]
+    paths:
+      - "ports/**"
+      - "versions/**"
+      - "include/**"
+      - "CMakeLists.txt"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vcpkg-test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  vcpkg-test:
+    name: vcpkg install (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Bootstrap vcpkg (Unix)
+        run: |
+          git clone https://github.com/microsoft/vcpkg "$HOME/vcpkg" --depth=1
+          "$HOME/vcpkg/bootstrap-vcpkg.sh" -disableMetrics
+          echo "VCPKG_ROOT=$HOME/vcpkg" >> "$GITHUB_ENV"
+
+      - name: Create consumer project (Unix)
+        run: |
+          mkdir -p /tmp/thefblas-consumer
+          cat > /tmp/thefblas-consumer/CMakeLists.txt << 'EOF'
+          cmake_minimum_required(VERSION 3.15)
+          project(consumer CXX)
+          set(CMAKE_CXX_STANDARD 17)
+          find_package(thefblas CONFIG REQUIRED)
+          add_executable(main main.cpp)
+          target_link_libraries(main PRIVATE thefblas::thefblas)
+          EOF
+
+          cat > /tmp/thefblas-consumer/main.cpp << 'EOF'
+          #include "thefblas/thefblas.h"
+          #include <cstdio>
+          #include <cmath>
+          int main() {
+              float v[] = {3.0f, 4.0f};
+              float n = thefblas::nrm2(2, v, 1);
+              std::printf("nrm2([3,4]) = %.4f\n", n);
+              return (std::fabs(n - 5.0f) < 1e-5f) ? 0 : 1;
+          }
+          EOF
+
+          cat > /tmp/thefblas-consumer/vcpkg.json << 'EOF'
+          {
+            "name": "thefblas-consumer",
+            "version": "0.0.1",
+            "dependencies": ["thefblas"]
+          }
+          EOF
+
+          VCPKG_BUILTIN_BASELINE="$(git -C "$VCPKG_ROOT" rev-parse HEAD)"
+          THEFBLAS_REGISTRY_BASELINE="${GITHUB_SHA}"
+          THEFBLAS_REGISTRY_REPOSITORY="file://${GITHUB_WORKSPACE}"
+
+          cat > /tmp/thefblas-consumer/vcpkg-configuration.json << EOF
+          {
+            "default-registry": {
+              "kind": "builtin",
+              "baseline": "${VCPKG_BUILTIN_BASELINE}"
+            },
+            "registries": [
+              {
+                "kind": "git",
+                "repository": "${THEFBLAS_REGISTRY_REPOSITORY}",
+                "baseline": "${THEFBLAS_REGISTRY_BASELINE}",
+                "packages": ["thefblas"]
+              }
+            ]
+          }
+          EOF
+
+      - name: Build and run consumer (Unix)
+        run: |
+          cmake -B /tmp/thefblas-consumer/build \
+            -S /tmp/thefblas-consumer \
+            -DCMAKE_TOOLCHAIN_FILE="${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake" \
+            -DVCPKG_OVERLAY_PORTS="${GITHUB_WORKSPACE}/ports"
+          cmake --build /tmp/thefblas-consumer/build
+          /tmp/thefblas-consumer/build/main

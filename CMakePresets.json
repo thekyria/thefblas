@@ -1,0 +1,260 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 21,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_CXX_STANDARD": "17",
+        "THEFBLAS_BUILD_TESTS": "ON",
+        "THEFBLAS_ENABLE_STRICT_WARNINGS": "ON",
+        "THEFBLAS_WARNINGS_AS_ERRORS": "OFF",
+        "THEFBLAS_ENABLE_SANITIZERS": "OFF"
+      }
+    },
+    {
+      "name": "gcc-debug",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "gcc-release",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "gcc-debug-sanitized",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "THEFBLAS_ENABLE_SANITIZERS": "ON",
+        "THEFBLAS_WARNINGS_AS_ERRORS": "ON"
+      }
+    },
+    {
+      "name": "gcc-debug-coverage",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "THEFBLAS_ENABLE_COVERAGE": "ON",
+        "THEFBLAS_ENABLE_IPO": "OFF"
+      }
+    },
+    {
+      "name": "clang-debug",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/cmake/toolchains/clang.cmake"
+      }
+    },
+    {
+      "name": "clang-debug-sanitized",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/cmake/toolchains/clang.cmake",
+        "THEFBLAS_ENABLE_SANITIZERS": "ON",
+        "THEFBLAS_WARNINGS_AS_ERRORS": "ON"
+      }
+    },
+    {
+      "name": "clang-release",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/cmake/toolchains/clang.cmake"
+      }
+    },
+    {
+      "name": "msvc-release",
+      "inherits": "base",
+      "generator": "Ninja Multi-Config",
+      "cacheVariables": {
+        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/cmake/toolchains/msvc.cmake",
+        "THEFBLAS_WARNINGS_AS_ERRORS": "ON"
+      }
+    },
+    {
+      "name": "arm-linux-debug",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/cmake/toolchains/arm-linux-gnueabihf.cmake"
+      }
+    },
+    {
+      "name": "arm-linux-release",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/cmake/toolchains/arm-linux-gnueabihf.cmake"
+      }
+    },
+    {
+      "name": "arm-none-eabi-debug",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/cmake/toolchains/arm-none-eabi.cmake"
+      }
+    },
+    {
+      "name": "arm-none-eabi-release",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/cmake/toolchains/arm-none-eabi.cmake"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "gcc-debug",
+      "configurePreset": "gcc-debug"
+    },
+    {
+      "name": "gcc-release",
+      "configurePreset": "gcc-release"
+    },
+    {
+      "name": "gcc-debug-sanitized",
+      "configurePreset": "gcc-debug-sanitized"
+    },
+    {
+      "name": "gcc-debug-coverage",
+      "configurePreset": "gcc-debug-coverage"
+    },
+    {
+      "name": "clang-debug",
+      "configurePreset": "clang-debug"
+    },
+    {
+      "name": "clang-debug-sanitized",
+      "configurePreset": "clang-debug-sanitized"
+    },
+    {
+      "name": "clang-release",
+      "configurePreset": "clang-release"
+    },
+    {
+      "name": "msvc-release",
+      "configurePreset": "msvc-release",
+      "configuration": "Release"
+    },
+    {
+      "name": "arm-linux-debug",
+      "configurePreset": "arm-linux-debug"
+    },
+    {
+      "name": "arm-linux-release",
+      "configurePreset": "arm-linux-release"
+    },
+    {
+      "name": "arm-none-eabi-debug",
+      "configurePreset": "arm-none-eabi-debug"
+    },
+    {
+      "name": "arm-none-eabi-release",
+      "configurePreset": "arm-none-eabi-release"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "gcc-debug",
+      "configurePreset": "gcc-debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "gcc-release",
+      "configurePreset": "gcc-release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "gcc-debug-sanitized",
+      "configurePreset": "gcc-debug-sanitized",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "gcc-debug-coverage",
+      "configurePreset": "gcc-debug-coverage",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "clang-debug",
+      "configurePreset": "clang-debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "clang-debug-sanitized",
+      "configurePreset": "clang-debug-sanitized",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "clang-release",
+      "configurePreset": "clang-release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "msvc-release",
+      "configurePreset": "msvc-release",
+      "configuration": "Release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "arm-linux-debug",
+      "configurePreset": "arm-linux-debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "arm-linux-release",
+      "configurePreset": "arm-linux-release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "arm-none-eabi-debug",
+      "configurePreset": "arm-none-eabi-debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "arm-none-eabi-release",
+      "configurePreset": "arm-none-eabi-release",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ]
+}

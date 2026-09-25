@@ -1,0 +1,49 @@
+name: Microsoft C++ Code Analysis
+
+on:
+  push:
+    branches: ["master"]
+  pull_request:
+    branches: ["master"]
+  schedule:
+    # Run weekly on Monday at 08:00 UTC alongside the CodeQL scan.
+    - cron: "0 8 * * 1"
+
+permissions:
+  contents: read
+  security-events: write
+
+env:
+  BUILD_DIR: "${{ github.workspace }}/build"
+  BUILD_TYPE: Debug
+
+jobs:
+  analyze:
+    name: Analyze (MSVC)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Configure CMake
+        run: |
+          cmake -S . -B ${{ env.BUILD_DIR }} `
+            -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} `
+            -DTHEFBLAS_BUILD_TESTS=ON `
+            -DTHEFBLAS_BUILD_EXAMPLES=ON
+
+      - name: Run MSVC Code Analysis
+        uses: microsoft/msvc-code-analysis-action@v0.1.1
+        id: run-analysis
+        with:
+          cmakeBuildDirectory: ${{ env.BUILD_DIR }}
+          buildConfiguration: ${{ env.BUILD_TYPE }}
+          # NativeRecommendedRules covers the most impactful C++ checks:
+          # buffer overruns, use-after-free, null dereference, integer overflow.
+          ruleset: NativeRecommendedRules.ruleset
+
+      - name: Upload SARIF to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: ${{ steps.run-analysis.outputs.sarif }}
