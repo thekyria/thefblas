@@ -1,0 +1,156 @@
+name: Coverage
+
+on:
+  push:
+    branches: ["master"]
+  pull_request:
+    branches: ["master"]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: coverage-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  COVERAGE_MIN_LINES: 100
+  COVERAGE_MIN_FUNCTIONS: 100
+  # ID of the GitHub Gist used for the dynamic coverage badge.
+  # Create a secret gist at https://gist.github.com, then paste its ID here.
+  # Also add a GitHub PAT with the 'gist' scope as repo secret GIST_TOKEN.
+  COVERAGE_GIST_ID: 8e1037ada9fe1e598aefebfe56b920ca
+
+jobs:
+  coverage:
+    name: Generate coverage report
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install lcov
+        run: sudo apt-get update && sudo apt-get install -y lcov ninja-build
+
+      - name: Configure (coverage preset)
+        run: cmake --preset gcc-debug-coverage
+
+      - name: Build
+        run: cmake --build --preset gcc-debug-coverage
+
+      - name: Reset counters
+        run: lcov --directory build/gcc-debug-coverage --zerocounters
+
+      - name: Run tests
+        run: ctest --preset gcc-debug-coverage
+
+      - name: Capture coverage
+        run: |
+          lcov \
+            --capture \
+            --directory build/gcc-debug-coverage \
+            --output-file build/gcc-debug-coverage/coverage.info \
+            --exclude '/usr/*' \
+            --exclude '*/tests/*'
+
+      - name: Generate HTML report
+        run: |
+          genhtml build/gcc-debug-coverage/coverage.info \
+            --output-directory coverage_html \
+            --title "thefblas coverage" \
+            --legend \
+            --show-details
+
+      - name: Upload HTML report
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-html-${{ github.sha }}
+          path: coverage_html/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Generate Cobertura XML (for PR comment)
+        run: |
+          pip install lcov_cobertura
+          lcov_cobertura build/gcc-debug-coverage/coverage.info \
+            --output coverage.xml \
+            --base-dir .
+
+      - name: Enforce coverage thresholds
+        id: coverage_gate
+        run: |
+          SUMMARY=$(lcov --summary build/gcc-debug-coverage/coverage.info 2>&1)
+          LINE_PCT=$(echo "$SUMMARY" | grep 'lines' | grep -oP '[0-9]+\.[0-9]+(?=%)')
+          FUNC_PCT=$(echo "$SUMMARY" | grep 'functions' | grep -oP '[0-9]+\.[0-9]+(?=%)')
+          echo "Line coverage:     ${LINE_PCT}%  (minimum: ${{ env.COVERAGE_MIN_LINES }}%)"
+          echo "Function coverage: ${FUNC_PCT}%  (minimum: ${{ env.COVERAGE_MIN_FUNCTIONS }}%)"
+          # Determine badge colour
+          if   [ "$(echo "$LINE_PCT >= 100" | bc -l)" = "1" ]; then COLOR=brightgreen
+          elif [ "$(echo "$LINE_PCT >= 90"  | bc -l)" = "1" ]; then COLOR=green
+          elif [ "$(echo "$LINE_PCT >= 80"  | bc -l)" = "1" ]; then COLOR=yellowgreen
+          elif [ "$(echo "$LINE_PCT >= 70"  | bc -l)" = "1" ]; then COLOR=yellow
+          else COLOR=red; fi
+          echo "line_pct=${LINE_PCT}" >> "$GITHUB_OUTPUT"
+          echo "color=${COLOR}"      >> "$GITHUB_OUTPUT"
+          FAIL=0
+          if [ "$(echo "$LINE_PCT < ${{ env.COVERAGE_MIN_LINES }}" | bc -l)" = "1" ]; then
+            echo "::error::Line coverage ${LINE_PCT}% is below the required ${{ env.COVERAGE_MIN_LINES }}%"
+            FAIL=1
+          fi
+          if [ "$(echo "$FUNC_PCT < ${{ env.COVERAGE_MIN_FUNCTIONS }}" | bc -l)" = "1" ]; then
+            echo "::error::Function coverage ${FUNC_PCT}% is below the required ${{ env.COVERAGE_MIN_FUNCTIONS }}%"
+            FAIL=1
+          fi
+          exit $FAIL
+
+      - name: Post coverage summary to job
+        if: always()
+        run: |
+          SUMMARY=$(lcov --summary build/gcc-debug-coverage/coverage.info 2>&1)
+          echo "## Coverage Report" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Metric | Result | Minimum |"\ >> "$GITHUB_STEP_SUMMARY"
+          echo "| --- | --- | --- |" >> "$GITHUB_STEP_SUMMARY"
+          LINE_PCT=$(echo "$SUMMARY" | grep 'lines' | grep -oP '[0-9]+\.[0-9]+(?=%)')
+          FUNC_PCT=$(echo "$SUMMARY" | grep 'functions' | grep -oP '[0-9]+\.[0-9]+(?=%)')
+          echo "| lines | ${LINE_PCT}% | ${{ env.COVERAGE_MIN_LINES }}% |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| functions | ${FUNC_PCT}% | ${{ env.COVERAGE_MIN_FUNCTIONS }}% |" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Full HTML report uploaded as artifact \`coverage-html-${{ github.sha }}\`." \
+            >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Post coverage comment on PR
+        if: github.event_name == 'pull_request' && always()
+        uses: irongut/CodeCoverageSummary@v1.3.0
+        with:
+          filename: coverage.xml
+          badge: true
+          fail_below_min: true
+          format: markdown
+          hide_branch_rate: true
+          hide_complexity: true
+          indicators: true
+          output: both
+          thresholds: "${{ env.COVERAGE_MIN_LINES }} 100"
+
+      - name: Add PR comment
+        if: github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v3
+        with:
+          recreate: true
+          path: code-coverage-results.md
+
+      - name: Update dynamic coverage badge
+        # Only update the badge when merging to master so PRs don't clobber it.
+        # Requires a GitHub PAT with the 'gist' scope stored as secret GIST_TOKEN.
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        uses: schneegans/dynamic-badges-action@v1.9.0
+        with:
+          auth: ${{ secrets.GIST_TOKEN }}
+          gistID: ${{ env.COVERAGE_GIST_ID }}
+          filename: thefblas-coverage.json
+          label: coverage
+          message: ${{ steps.coverage_gate.outputs.line_pct }}%
+          color: ${{ steps.coverage_gate.outputs.color }}

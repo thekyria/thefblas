@@ -35,26 +35,8 @@ namespace thefblas {
 
 namespace detail {
 
-template <typename T>
-struct is_complex : std::false_type {};
-
-template <typename T>
-struct is_complex<std::complex<T>> : std::true_type {};
-
-template <typename T>
-constexpr bool is_complex_v = is_complex<T>::value;
-
-template <typename T>
-struct is_fixed : std::false_type {};
-
-template <typename IntType, int FracBits>
-struct is_fixed<fixed<IntType, FracBits>> : std::true_type {};
-
-template <typename T>
-constexpr bool is_fixed_v = is_fixed<T>::value;
-
-template <typename T>
-using enable_if_real_t = typename std::enable_if<!is_complex_v<T>, int>::type;
+// is_complex, is_fixed, enable_if_real_t and the accumulator machinery live in
+// detail.hpp, which both level1.hpp and level2.hpp include.
 
 template <typename T>
 inline T abs_value(const T& value) {
@@ -231,15 +213,15 @@ inline T dot(int n, const T* x, int incx, const T* y, int incy) {
     return T(0);
   }
 
-  T acc = T(0);
+  detail::real_mac<T> acc;
   int ix = detail::start_index(n, incx);
   int iy = detail::start_index(n, incy);
   for (int i = 0; i < n; ++i) {
-    acc += x[ix] * y[iy];
+    acc.add_product(x[ix], y[iy]);
     ix += incx;
     iy += incy;
   }
-  return acc;
+  return acc.value();
 }
 
 /**
@@ -258,15 +240,15 @@ inline std::complex<T> dotu(int n, const std::complex<T>* x, int incx,
     return std::complex<T>(T(0), T(0));
   }
 
-  std::complex<T> acc(T(0), T(0));
+  detail::complex_mac<T> acc;
   int ix = detail::start_index(n, incx);
   int iy = detail::start_index(n, incy);
   for (int i = 0; i < n; ++i) {
-    acc += x[ix] * y[iy];
+    acc.add_product(x[ix], y[iy]);
     ix += incx;
     iy += incy;
   }
-  return acc;
+  return acc.value();
 }
 
 /**
@@ -285,15 +267,15 @@ inline std::complex<T> dotc(int n, const std::complex<T>* x, int incx,
     return std::complex<T>(T(0), T(0));
   }
 
-  std::complex<T> acc(T(0), T(0));
+  detail::complex_mac<T> acc;
   int ix = detail::start_index(n, incx);
   int iy = detail::start_index(n, incy);
   for (int i = 0; i < n; ++i) {
-    acc += detail::conj_value(x[ix]) * y[iy];
+    acc.add_conj_product(x[ix], y[iy]);
     ix += incx;
     iy += incy;
   }
-  return acc;
+  return acc.value();
 }
 
 /**
@@ -309,13 +291,16 @@ inline T nrm2(int n, const T* x, int incx) {
     return T(0);
   }
 
-  T sum = T(0);
+  detail::real_mac<T> sum;
   int ix = detail::start_index(n, incx);
   for (int i = 0; i < n; ++i) {
-    sum += detail::norm_square(x[ix]);
+    sum.add_product(x[ix], x[ix]);
     ix += incx;
   }
-  return detail::sqrt_value(sum);
+  // The sum of squares can legitimately exceed the range of T even when the
+  // norm itself does not, so the square root is taken in the wide accumulator
+  // type and only its result is narrowed back to T.
+  return detail::from_accumulator<T>(detail::sqrt_value(sum.wide_value()));
 }
 
 /**
@@ -331,13 +316,14 @@ inline T nrm2(int n, const std::complex<T>* x, int incx) {
     return T(0);
   }
 
-  T sum = T(0);
+  detail::real_mac<T> sum;
   int ix = detail::start_index(n, incx);
   for (int i = 0; i < n; ++i) {
-    sum += detail::norm_square(x[ix]);
+    sum.add_product(x[ix].real(), x[ix].real());
+    sum.add_product(x[ix].imag(), x[ix].imag());
     ix += incx;
   }
-  return detail::sqrt_value(sum);
+  return detail::from_accumulator<T>(detail::sqrt_value(sum.wide_value()));
 }
 
 /**
@@ -353,13 +339,13 @@ inline T asum(int n, const T* x, int incx) {
     return T(0);
   }
 
-  T sum = T(0);
+  detail::real_mac<T> sum;
   int ix = detail::start_index(n, incx);
   for (int i = 0; i < n; ++i) {
-    sum += detail::abs_value(x[ix]);
+    sum.add(detail::abs_value(x[ix]));
     ix += incx;
   }
-  return sum;
+  return sum.value();
 }
 
 /**
@@ -375,13 +361,14 @@ inline T asum(int n, const std::complex<T>* x, int incx) {
     return T(0);
   }
 
-  T sum = T(0);
+  detail::real_mac<T> sum;
   int ix = detail::start_index(n, incx);
   for (int i = 0; i < n; ++i) {
-    sum += detail::abs1(x[ix]);
+    sum.add(detail::abs_value(x[ix].real()));
+    sum.add(detail::abs_value(x[ix].imag()));
     ix += incx;
   }
-  return sum;
+  return sum.value();
 }
 
 /**

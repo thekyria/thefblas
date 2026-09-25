@@ -1,7 +1,57 @@
+# Build artifacts
 build/
 build-*/
+/build/
+/build-scan/
+!build/.gitkeep
+/CMakeFiles/
+/CMakeCache.txt
+/*.cmake
+/*.log
 *.o
 *.obj
 *.exe
 compile_commands.json
 .cache/
+
+# profiling outputs
+*.prof
+*.gcda
+*.gcno
+*.gcov
+perf*.data
+callgrind.out.*
+
+# Visual Studio
+*.vcxproj*
+*.sln
+
+# macOS
+.DS_Store
+
+# Editor
+*~
+*.swp
+
+# VS Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/tasks.json
+!.vscode/launch.json
+
+# Doxygen generated documentation
+docs/doxygen/*
+!docs/doxygen/.gitkeep
+
+# Local install artifacts (keep only marker ignore file)
+install/*
+!install/.gitkeep
+
+# Coverage reports
+coverage/*
+!coverage/.gitkeep
+coverage_html/*
+!coverage_html/.gitkeep
+
+.env

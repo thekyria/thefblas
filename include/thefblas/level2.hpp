@@ -106,25 +106,25 @@ inline void gemv_impl(char trans, int m, int n, T alpha, const T* a, int lda, co
   } else if (tr == 'T') {
     int jy = start_index(leny, incy);
     for (int j = 0; j < n; ++j) {
-      T temp = value_constants<T>::zero();
+      accumulator_t<T> temp = value_constants<accumulator_t<T>>::zero();
       int ix = start_index(lenx, incx);
       for (int i = 0; i < m; ++i) {
-        temp += a[i + j * lda] * x[ix];
+        temp += acc_mul(a[i + j * lda], x[ix]);
         ix += incx;
       }
-      y[jy] += alpha * temp;
+      y[jy] += alpha * from_accumulator<T>(temp);
       jy += incy;
     }
   } else {
     int jy = start_index(leny, incy);
     for (int j = 0; j < n; ++j) {
-      T temp = value_constants<T>::zero();
+      accumulator_t<T> temp = value_constants<accumulator_t<T>>::zero();
       int ix = start_index(lenx, incx);
       for (int i = 0; i < m; ++i) {
-        temp += conj_value(a[i + j * lda]) * x[ix];
+        temp += acc_mul(conj_value(a[i + j * lda]), x[ix]);
         ix += incx;
       }
-      y[jy] += alpha * temp;
+      y[jy] += alpha * from_accumulator<T>(temp);
       jy += incy;
     }
   }
@@ -148,16 +148,16 @@ inline void symv_impl(char uplo, int n, T alpha, const T* a, int lda, const T* x
     int jy = start_index(n, incy);
     for (int j = 0; j < n; ++j) {
       const T temp1 = alpha * x[jx];
-      T temp2 = value_constants<T>::zero();
+      accumulator_t<T> temp2 = value_constants<accumulator_t<T>>::zero();
       int ix = start_index(n, incx);
       int iy = start_index(n, incy);
       for (int i = 0; i < j; ++i) {
         y[iy] += temp1 * a[i + j * lda];
-        temp2 += a[i + j * lda] * x[ix];
+        temp2 += acc_mul(a[i + j * lda], x[ix]);
         ix += incx;
         iy += incy;
       }
-      y[jy] += temp1 * a[j + j * lda] + alpha * temp2;
+      y[jy] += temp1 * a[j + j * lda] + alpha * from_accumulator<T>(temp2);
       jx += incx;
       jy += incy;
     }
@@ -166,7 +166,7 @@ inline void symv_impl(char uplo, int n, T alpha, const T* a, int lda, const T* x
     int jy = start_index(n, incy);
     for (int j = 0; j < n; ++j) {
       const T temp1 = alpha * x[jx];
-      T temp2 = value_constants<T>::zero();
+      accumulator_t<T> temp2 = value_constants<accumulator_t<T>>::zero();
       y[jy] += temp1 * a[j + j * lda];
       int ix = jx;
       int iy = jy;
@@ -174,9 +174,9 @@ inline void symv_impl(char uplo, int n, T alpha, const T* a, int lda, const T* x
         ix += incx;
         iy += incy;
         y[iy] += temp1 * a[i + j * lda];
-        temp2 += a[i + j * lda] * x[ix];
+        temp2 += acc_mul(a[i + j * lda], x[ix]);
       }
-      y[jy] += alpha * temp2;
+      y[jy] += alpha * from_accumulator<T>(temp2);
       jx += incx;
       jy += incy;
     }
@@ -203,16 +203,16 @@ inline void hemv_impl(char uplo, int n, std::complex<T> alpha, const std::comple
     int jy = start_index(n, incy);
     for (int j = 0; j < n; ++j) {
       const C temp1 = alpha * x[jx];
-      C temp2 = value_constants<C>::zero();
+      accumulator_t<C> temp2 = value_constants<accumulator_t<C>>::zero();
       int ix = start_index(n, incx);
       int iy = start_index(n, incy);
       for (int i = 0; i < j; ++i) {
         y[iy] += temp1 * a[i + j * lda];
-        temp2 += conj_value(a[i + j * lda]) * x[ix];
+        temp2 += acc_mul(conj_value(a[i + j * lda]), x[ix]);
         ix += incx;
         iy += incy;
       }
-      y[jy] += temp1 * C(a[j + j * lda].real(), T{}) + alpha * temp2;
+      y[jy] += temp1 * C(a[j + j * lda].real(), T{}) + alpha * from_accumulator<C>(temp2);
       jx += incx;
       jy += incy;
     }
@@ -221,7 +221,7 @@ inline void hemv_impl(char uplo, int n, std::complex<T> alpha, const std::comple
     int jy = start_index(n, incy);
     for (int j = 0; j < n; ++j) {
       const C temp1 = alpha * x[jx];
-      C temp2 = value_constants<C>::zero();
+      accumulator_t<C> temp2 = value_constants<accumulator_t<C>>::zero();
       y[jy] += temp1 * C(a[j + j * lda].real(), T{});
       int ix = jx;
       int iy = jy;
@@ -229,9 +229,9 @@ inline void hemv_impl(char uplo, int n, std::complex<T> alpha, const std::comple
         ix += incx;
         iy += incy;
         y[iy] += temp1 * a[i + j * lda];
-        temp2 += conj_value(a[i + j * lda]) * x[ix];
+        temp2 += acc_mul(conj_value(a[i + j * lda]), x[ix]);
       }
-      y[jy] += alpha * temp2;
+      y[jy] += alpha * from_accumulator<C>(temp2);
       jx += incx;
       jy += incy;
     }
@@ -288,31 +288,31 @@ inline void trmv_impl(char uplo, char trans, char diag, int n, const T* a, int l
     if (ul == 'U') {
       int jx = start_index(n, incx) + (n - 1) * incx;
       for (int j = n - 1; j >= 0; --j) {
-        T temp = x[jx];
+        accumulator_t<T> temp = to_accumulator(x[jx]);
         if (!unit) {
-          temp *= conjugate ? conj_value(a[j + j * lda]) : a[j + j * lda];
+          temp *= to_accumulator(conjugate ? conj_value(a[j + j * lda]) : a[j + j * lda]);
         }
         int ix = jx;
         for (int i = j - 1; i >= 0; --i) {
           ix -= incx;
-          temp += (conjugate ? conj_value(a[i + j * lda]) : a[i + j * lda]) * x[ix];
+          temp += acc_mul(conjugate ? conj_value(a[i + j * lda]) : a[i + j * lda], x[ix]);
         }
-        x[jx] = temp;
+        x[jx] = from_accumulator<T>(temp);
         jx -= incx;
       }
     } else {
       int jx = start_index(n, incx);
       for (int j = 0; j < n; ++j) {
-        T temp = x[jx];
+        accumulator_t<T> temp = to_accumulator(x[jx]);
         if (!unit) {
-          temp *= conjugate ? conj_value(a[j + j * lda]) : a[j + j * lda];
+          temp *= to_accumulator(conjugate ? conj_value(a[j + j * lda]) : a[j + j * lda]);
         }
         int ix = jx;
         for (int i = j + 1; i < n; ++i) {
           ix += incx;
-          temp += (conjugate ? conj_value(a[i + j * lda]) : a[i + j * lda]) * x[ix];
+          temp += acc_mul(conjugate ? conj_value(a[i + j * lda]) : a[i + j * lda], x[ix]);
         }
-        x[jx] = temp;
+        x[jx] = from_accumulator<T>(temp);
         jx += incx;
       }
     }
@@ -365,31 +365,31 @@ inline void trsv_impl(char uplo, char trans, char diag, int n, const T* a, int l
     if (ul == 'U') {
       int jx = start_index(n, incx);
       for (int j = 0; j < n; ++j) {
-        T temp = x[jx];
+        accumulator_t<T> temp = to_accumulator(x[jx]);
         int ix = start_index(n, incx);
         for (int i = 0; i < j; ++i) {
-          temp -= (conjugate ? conj_value(a[i + j * lda]) : a[i + j * lda]) * x[ix];
+          temp -= acc_mul(conjugate ? conj_value(a[i + j * lda]) : a[i + j * lda], x[ix]);
           ix += incx;
         }
         if (!unit) {
-          temp /= conjugate ? conj_value(a[j + j * lda]) : a[j + j * lda];
+          temp /= to_accumulator(conjugate ? conj_value(a[j + j * lda]) : a[j + j * lda]);
         }
-        x[jx] = temp;
+        x[jx] = from_accumulator<T>(temp);
         jx += incx;
       }
     } else {
       int jx = start_index(n, incx) + (n - 1) * incx;
       for (int j = n - 1; j >= 0; --j) {
-        T temp = x[jx];
+        accumulator_t<T> temp = to_accumulator(x[jx]);
         int ix = start_index(n, incx) + (n - 1) * incx;
         for (int i = n - 1; i > j; --i) {
-          temp -= (conjugate ? conj_value(a[i + j * lda]) : a[i + j * lda]) * x[ix];
+          temp -= acc_mul(conjugate ? conj_value(a[i + j * lda]) : a[i + j * lda], x[ix]);
           ix -= incx;
         }
         if (!unit) {
-          temp /= conjugate ? conj_value(a[j + j * lda]) : a[j + j * lda];
+          temp /= to_accumulator(conjugate ? conj_value(a[j + j * lda]) : a[j + j * lda]);
         }
-        x[jx] = temp;
+        x[jx] = from_accumulator<T>(temp);
         jx -= incx;
       }
     }

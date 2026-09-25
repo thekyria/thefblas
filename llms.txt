@@ -1,0 +1,95 @@
+# thefblas
+
+> thefblas is a minimal C++17 library implementing all Netlib BLAS Level 1 routines for real and complex vectors (swap, copy, axpy, scal, dot, nrm2, asum, iamax, rot, rotg, rotm, rotmg) in s/d/c/z precision variants. It ships with a CMake build system, cross-compilation toolchains, vcpkg and Conan 2.x packaging, comprehensive static analysis, and automated GitHub Releases with a GitHub Pages documentation site.
+
+The library honours BLAS-style stride parameters (`incx`, `incy`), negative strides, and 1-based index returns. Mixed-precision scaling variants (`csscal`, `zdscal`) and conjugated dot products (`cdotc`, `zdotc`) are included. The project serves as a compact, well-tested reference implementation in idiomatic C++17.
+
+## Documentation
+
+- [README](README.md): Project overview, implemented routines, build instructions, CMake options, presets, cross-compilation, static analysis, pre-commit, vcpkg and Conan integration, and Doxygen generation
+- [docs/math-reference.md](docs/math-reference.md): Mathematical definitions for every Level 1 BLAS operation — notation, formulas, and parameter conventions in Diátaxis Reference format
+- [CHANGELOG](CHANGELOG.md): Version history following Keep a Changelog format
+- [CONTRIBUTING](CONTRIBUTING.md): Guidelines for contributing, code style, and pull request process
+- [Code of Conduct](CODE_OF_CONDUCT.md): Community guidelines for respectful participation
+- [SECURITY](SECURITY.md): Security policy and vulnerability reporting process
+- [AGENTS](AGENTS.md): Available Copilot agents (CodeReviewer, Tester, DocWriter, SecurityAuditor, PerfAnalyzer, Explore) and reusable AI skills
+
+## Source Code
+
+- [include/thefblas/thefblas.h](include/thefblas/thefblas.h): Complete public C++ API — all Level 1 and Level 2 BLAS declarations with Doxygen comments and parameter descriptions
+- [src/level1.cpp](src/level1.cpp): Level 1 BLAS implementations, including vector operations, reductions, indexes, and rotations
+- [src/level2_dense.cpp](src/level2_dense.cpp): Dense Level 2 matrix-vector and rank-update implementations
+- [src/level2_banded.cpp](src/level2_banded.cpp): Banded Level 2 matrix-vector and triangular implementations
+- [src/level2_packed.cpp](src/level2_packed.cpp): Packed Level 2 matrix-vector, triangular, and rank-update implementations
+- [src/thefblas_detail.hpp](src/thefblas_detail.hpp): Private shared indexing, option-validation, and conjugation helpers
+- [tests/test_main.cpp](tests/test_main.cpp): Single CTest executable runner
+- [tests/test_level1.cpp](tests/test_level1.cpp): Level 1 unit tests using `assert` and `almost_equal` helpers
+- [tests/test_level2_core.cpp](tests/test_level2_core.cpp): Representative Level 2 operation tests
+- [tests/test_level2_variants.cpp](tests/test_level2_variants.cpp): Level 2 precision, edge-case, and coverage-variant tests
+
+## Examples
+
+- [examples/vector_ops.cpp](examples/vector_ops.cpp): Demonstrates `snrm2`, `sscal`, `saxpy`, `sdot`, `isamax` with annotated output
+- [examples/complex_ops.cpp](examples/complex_ops.cpp): Demonstrates `dznrm2`, `zdscal`, `zaxpy`, `zdotc` with annotated output
+- [examples/benchmark.cpp](examples/benchmark.cpp): Timing benchmark for core routines
+
+## Build and Configuration
+
+- [CMakeLists.txt](CMakeLists.txt): Root CMake build — library target, install rules, options (`THEFBLAS_ENABLE_IPO`, `THEFBLAS_ENABLE_RELEASE_HARDENING`, `THEFBLAS_ENABLE_SANITIZERS`, `THEFBLAS_ENABLE_STRICT_WARNINGS`, `THEFBLAS_WARNINGS_AS_ERRORS`), `CMAKE_EXPORT_COMPILE_COMMANDS ON`
+- [CMakePresets.json](CMakePresets.json): Configure/build/test presets for `gcc-debug`, `gcc-release`, `gcc-debug-sanitized`, `clang-debug`, `clang-debug-sanitized`, `clang-release`, `msvc-release`, `arm-linux-debug`, `arm-linux-release`, `arm-none-eabi-debug`, `arm-none-eabi-release`
+- [tests/CMakeLists.txt](tests/CMakeLists.txt): CTest integration for the test suite
+- [examples/CMakeLists.txt](examples/CMakeLists.txt): Example targets (`example_vector_ops`, `example_complex_ops`, `example_benchmark`)
+- [Makefile](Makefile): Convenience wrapper for `build`, `test`, `install`, `docs`, `clean` with `BUILD_DIR` and `CONFIG` variables
+
+## Toolchains
+
+- [cmake/toolchains/clang.cmake](cmake/toolchains/clang.cmake): Clang/LLVM compiler toolchain with LLVM archiver/ranlib
+- [cmake/toolchains/msvc.cmake](cmake/toolchains/msvc.cmake): MSVC toolchain for Windows
+- [cmake/toolchains/arm-linux-gnueabihf.cmake](cmake/toolchains/arm-linux-gnueabihf.cmake): ARM 32-bit hard-float EABI cross-compilation for embedded Linux (`-march=armv7-a -mfpu=neon`)
+- [cmake/toolchains/arm-none-eabi.cmake](cmake/toolchains/arm-none-eabi.cmake): ARM Cortex-M bare-metal cross-compilation with `THEFBLAS_ARM_MCU` variable (default `cortex-m4`)
+
+## Package Management
+
+- [conanfile.py](conanfile.py): Conan 2.x recipe — exports sources, disables optional CMake flags, sets `cmake_target_name = "thefblas::thefblas"`
+- [test_package/conanfile.py](test_package/conanfile.py): Conan test package recipe that validates the installed CMake target
+- [test_package/CMakeLists.txt](test_package/CMakeLists.txt): CMake consumer project for the Conan test package
+- [test_package/main.cpp](test_package/main.cpp): Minimal smoke test exercising `saxpy` and `sdot` via the installed package
+- [ports/thefblas/vcpkg.json](ports/thefblas/vcpkg.json): vcpkg manifest for the thefblas port — name, version, description, homepage
+- [ports/thefblas/portfile.cmake](ports/thefblas/portfile.cmake): vcpkg build instructions using `vcpkg_from_github`, `vcpkg_cmake_configure`, and `vcpkg_cmake_config_fixup`
+- [versions/baseline.json](versions/baseline.json): vcpkg versions database baseline (updated automatically on release)
+
+## Release Automation
+
+- [scripts/extract-changelog.py](scripts/extract-changelog.py): Reads the `[Unreleased]` section from `CHANGELOG.md` and prints it to stdout for use as GitHub Release notes
+- [scripts/prepare-release.py](scripts/prepare-release.py): Moves `[Unreleased]` content into a versioned section in `CHANGELOG.md` and bumps `VERSION` in `CMakeLists.txt`
+
+## Static Analysis and Code Quality
+
+- [.clang-tidy](.clang-tidy): clang-tidy configuration — enables `bugprone-*`, `modernize-*`, `performance-*`, `portability-*`, `readability-*`, `clang-analyzer-*`; `WarningsAsErrors: "*"`; `HeaderFilterRegex` scoped to `include/thefblas/`
+- [.pre-commit-config.yaml](.pre-commit-config.yaml): Pre-commit hooks — trailing-whitespace, end-of-file-fixer, YAML/JSON/TOML validation, codespell, cmake-format, cmake-lint, clang-format, clang-tidy, conventional-commit, markdownlint-cli2
+- [.codespellrc](.codespellrc): codespell configuration — skip patterns and ignore-words-list
+- [.markdownlint-cli2.yaml](.markdownlint-cli2.yaml): markdownlint configuration (MD013 line-length rule disabled)
+- [sonar-project.properties](sonar-project.properties): SonarCloud project configuration for continuous code quality analysis
+
+## CI/CD Workflows
+
+- [.github/workflows/build.yml](.github/workflows/build.yml): Main CI pipeline — cppcheck, clang-tidy, CMake build, CTest, artifact upload, Doxygen
+- [.github/workflows/msvc.yml](.github/workflows/msvc.yml): Windows/MSVC build and test pipeline
+- [.github/workflows/coverage.yml](.github/workflows/coverage.yml): Code coverage report generation and upload
+- [.github/workflows/release.yml](.github/workflows/release.yml): Automated GitHub Release on version bump — reads version from CMakeLists.txt, runs prepare-release.py, creates git tag, publishes release notes from changelog, and updates vcpkg port SHA512 and version database
+- [.github/workflows/docs.yml](.github/workflows/docs.yml): GitHub Pages deployment — runs Doxygen, converts math-reference.md to HTML with MathJax via pandoc, assembles and publishes a unified documentation site
+- [.github/workflows/vcpkg-test.yml](.github/workflows/vcpkg-test.yml): Matrix CI (Ubuntu/Windows/macOS) — bootstraps vcpkg, installs thefblas via overlay port, builds and runs a consumer CMake project
+- [.github/workflows/conan-test.yml](.github/workflows/conan-test.yml): Matrix CI (Ubuntu/Windows/macOS) — installs Conan 2.x, runs `conan create` on the recipe, validates the test package
+- [.github/workflows/codeql.yml](.github/workflows/codeql.yml): CodeQL static security analysis for C++
+- [.github/workflows/grype.yml](.github/workflows/grype.yml): Generates an SPDX SBOM and scans it with Grype for known vulnerabilities; uploads SARIF to GitHub Security
+- [.github/workflows/sbom.yml](.github/workflows/sbom.yml): Software Bill of Materials generation and artifact upload
+- [.github/workflows/sonarcloud.yml](.github/workflows/sonarcloud.yml): SonarCloud code quality and security analysis
+
+## Optional
+
+- [LICENSE](LICENSE): MIT license
+- [Doxyfile](Doxyfile): Doxygen configuration — HTML output with call/caller graphs to `docs/doxygen/html/`, uses README as main page
+- [docs/index.html](docs/index.html): Landing page for the GitHub Pages documentation site linking to the API reference and math reference
+- [.editorconfig](.editorconfig): Editor configuration for consistent indentation and line endings
+- [.clang-format](.clang-format): clang-format style configuration for C++ source files
+- [.github/](.github/): Copilot agent definitions, reusable skills, and repository instructions

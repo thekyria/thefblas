@@ -4,6 +4,7 @@
 #include <cassert>
 #include <cmath>
 #include <cstdint>
+#include <type_traits>
 
 using thefblas::fixed;
 
@@ -77,6 +78,96 @@ void test_different_widths() {
   assert(std::fabs(big.to_float<double>() - 123.456) < 1e-6);
 }
 
+// ---------------------------------------------------------------------------
+// Overflow policy matrix
+// ---------------------------------------------------------------------------
+
+template <typename F>
+constexpr F raw(typename F::rep v) {
+  return F::from_raw(v);
+}
+
+void test_wrap_policy() {
+  // Q1.7: raw range [-128, 127], one unit = 1/128.
+  using F = fixed<std::int8_t, 7, thefblas::wrap>;
+  constexpr std::int8_t lo = -128;
+  constexpr std::int8_t hi = 127;
+
+  // Addition past the top wraps around to the bottom.
+  assert((raw<F>(hi) + raw<F>(1)).raw() == lo);
+  assert((raw<F>(hi) + raw<F>(hi)).raw() == -2);
+  // Subtraction past the bottom wraps around to the top.
+  assert((raw<F>(lo) - raw<F>(1)).raw() == hi);
+  // Negating the most negative value is its own negation.
+  assert((-raw<F>(lo)).raw() == lo);
+  assert(thefblas::abs(raw<F>(lo)).raw() == lo);
+  // Division overflow wraps: 65/128 divided by 1/128 is 65, whose scaled raw
+  // value 8320 reduces to -128 in eight bits.
+  assert((raw<F>(65) / raw<F>(1)).raw() == lo);
+  // Out-of-range construction is clamped under every policy.
+  assert(F(10.0).raw() == hi);
+  assert(F(-10.0).raw() == lo);
+}
+
+void test_saturate_policy() {
+  using F = fixed<std::int8_t, 7, thefblas::saturate>;
+  constexpr std::int8_t lo = -128;
+  constexpr std::int8_t hi = 127;
+
+  assert((raw<F>(hi) + raw<F>(1)).raw() == hi);
+  assert((raw<F>(hi) + raw<F>(hi)).raw() == hi);
+  assert((raw<F>(lo) - raw<F>(1)).raw() == lo);
+  assert((-raw<F>(lo)).raw() == hi);
+  assert(thefblas::abs(raw<F>(lo)).raw() == hi);
+  assert((raw<F>(64) / raw<F>(1)).raw() == hi);
+  assert((raw<F>(-64) / raw<F>(1)).raw() == lo);
+  assert(F(10.0).raw() == hi);
+  assert(F(-10.0).raw() == lo);
+
+  // In-range results are unaffected by the policy.
+  assert((raw<F>(40) + raw<F>(40)).raw() == 80);
+
+  // Saturating arithmetic is not associative: clamping happens per operation.
+  const F a = raw<F>(100);
+  const F b = raw<F>(100);
+  const F c = raw<F>(-100);
+  assert(((a + b) + c).raw() == 27);   // clamped to 127 first
+  assert((a + (b + c)).raw() == 100);  // no intermediate overflow
+}
+
+void test_checked_policy_in_range() {
+  // The default policy asserts on overflow, so only in-range behaviour can be
+  // exercised portably here; the defined release fallback is wrap.
+  using F = fixed<std::int8_t, 7>;
+  static_assert(std::is_same<typename F::policy, thefblas::checked>::value,
+                "checked must be the default overflow policy");
+  assert((raw<F>(60) + raw<F>(60)).raw() == 120);
+  assert((raw<F>(-60) - raw<F>(60)).raw() == -120);
+  assert(thefblas::abs(raw<F>(-120)).raw() == 120);
+}
+
+void test_nan_construction() {
+  using F = fixed<std::int32_t, 16>;
+  const double nan = std::nan("");
+  assert(F(nan).raw() == 0);
+}
+
+void test_rounding() {
+  // Round to nearest, ties away from zero, symmetric about zero.
+  using F = fixed<std::int32_t, 2>;
+  assert((F(0.75) * F(0.75)).raw() == 2);    // 0.5625 -> 0.5
+  assert((F(-0.75) * F(0.75)).raw() == -2);  // symmetric
+  assert((F(0.25) * F(0.25)).raw() == 0);
+  assert((F(-0.25) * F(-0.25)).raw() == 0);
+}
+
+void test_policy_aliases() {
+  static_assert(std::is_same<thefblas::q15, fixed<std::int16_t, 15>>::value, "q15");
+  static_assert(
+      std::is_same<thefblas::q15_sat, fixed<std::int16_t, 15, thefblas::saturate>>::value,
+      "q15_sat");
+}
+
 }  // namespace
 
 int main() {
@@ -86,5 +177,11 @@ int main() {
   test_negation_and_abs();
   test_sqrt();
   test_different_widths();
+  test_wrap_policy();
+  test_saturate_policy();
+  test_checked_policy_in_range();
+  test_nan_construction();
+  test_rounding();
+  test_policy_aliases();
   return 0;
 }

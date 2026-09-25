@@ -71,16 +71,16 @@ inline void gbmv_impl(char trans, int m, int n, int kl, int ku, T alpha, const T
     int jy = start_index(leny, incy);
     int kx = start_index(lenx, incx);
     for (int j = 0; j < n; ++j) {
-      T temp = value_constants<T>::zero();
+      accumulator_t<T> temp = value_constants<accumulator_t<T>>::zero();
       const int first = (j - ku > 0) ? (j - ku) : 0;
       const int last = (j + kl < m - 1) ? (j + kl) : (m - 1);
       int ix = kx;
       for (int i = first; i <= last; ++i) {
         const T value = a[(ku + i - j) + j * lda];
-        temp += (conjugate ? conj_value(value) : value) * x[ix];
+        temp += acc_mul(conjugate ? conj_value(value) : value, x[ix]);
         ix += incx;
       }
-      y[jy] += alpha * temp;
+      y[jy] += alpha * from_accumulator<T>(temp);
       jy += incy;
       if (j >= ku) {
         kx += incx;
@@ -109,18 +109,18 @@ inline void sbmv_impl(char uplo, int n, int k, T alpha, const T* a, int lda, con
     int ky = jy;
     for (int j = 0; j < n; ++j) {
       const T temp1 = alpha * x[jx];
-      T temp2 = value_constants<T>::zero();
+      accumulator_t<T> temp2 = value_constants<accumulator_t<T>>::zero();
       const int first = (j - k > 0) ? (j - k) : 0;
       int ix = kx;
       int iy = ky;
       for (int i = first; i < j; ++i) {
         const T value = a[(k + i - j) + j * lda];
         y[iy] += temp1 * value;
-        temp2 += value * x[ix];
+        temp2 += acc_mul(value, x[ix]);
         ix += incx;
         iy += incy;
       }
-      y[jy] += temp1 * a[k + j * lda] + alpha * temp2;
+      y[jy] += temp1 * a[k + j * lda] + alpha * from_accumulator<T>(temp2);
       jx += incx;
       jy += incy;
       if (j >= k) {
@@ -133,7 +133,7 @@ inline void sbmv_impl(char uplo, int n, int k, T alpha, const T* a, int lda, con
     int jy = start_index(n, incy);
     for (int j = 0; j < n; ++j) {
       const T temp1 = alpha * x[jx];
-      T temp2 = value_constants<T>::zero();
+      accumulator_t<T> temp2 = value_constants<accumulator_t<T>>::zero();
       y[jy] += temp1 * a[j * lda];
       const int last = (j + k < n - 1) ? (j + k) : (n - 1);
       int ix = jx;
@@ -143,9 +143,9 @@ inline void sbmv_impl(char uplo, int n, int k, T alpha, const T* a, int lda, con
         iy += incy;
         const T value = a[(i - j) + j * lda];
         y[iy] += temp1 * value;
-        temp2 += value * x[ix];
+        temp2 += acc_mul(value, x[ix]);
       }
-      y[jy] += alpha * temp2;
+      y[jy] += alpha * from_accumulator<T>(temp2);
       jx += incx;
       jy += incy;
     }
@@ -174,18 +174,18 @@ inline void hbmv_impl(char uplo, int n, int k, std::complex<T> alpha, const std:
     int ky = jy;
     for (int j = 0; j < n; ++j) {
       const C temp1 = alpha * x[jx];
-      C temp2 = value_constants<C>::zero();
+      accumulator_t<C> temp2 = value_constants<accumulator_t<C>>::zero();
       const int first = (j - k > 0) ? (j - k) : 0;
       int ix = kx;
       int iy = ky;
       for (int i = first; i < j; ++i) {
         const C value = a[(k + i - j) + j * lda];
         y[iy] += temp1 * value;
-        temp2 += conj_value(value) * x[ix];
+        temp2 += acc_mul(conj_value(value), x[ix]);
         ix += incx;
         iy += incy;
       }
-      y[jy] += temp1 * C(a[k + j * lda].real(), T{}) + alpha * temp2;
+      y[jy] += temp1 * C(a[k + j * lda].real(), T{}) + alpha * from_accumulator<C>(temp2);
       jx += incx;
       jy += incy;
       if (j >= k) {
@@ -198,7 +198,7 @@ inline void hbmv_impl(char uplo, int n, int k, std::complex<T> alpha, const std:
     int jy = start_index(n, incy);
     for (int j = 0; j < n; ++j) {
       const C temp1 = alpha * x[jx];
-      C temp2 = value_constants<C>::zero();
+      accumulator_t<C> temp2 = value_constants<accumulator_t<C>>::zero();
       y[jy] += temp1 * C(a[j * lda].real(), T{});
       const int last = (j + k < n - 1) ? (j + k) : (n - 1);
       int ix = jx;
@@ -208,9 +208,9 @@ inline void hbmv_impl(char uplo, int n, int k, std::complex<T> alpha, const std:
         iy += incy;
         const C value = a[(i - j) + j * lda];
         y[iy] += temp1 * value;
-        temp2 += conj_value(value) * x[ix];
+        temp2 += acc_mul(conj_value(value), x[ix]);
       }
-      y[jy] += alpha * temp2;
+      y[jy] += alpha * from_accumulator<C>(temp2);
       jx += incx;
       jy += incy;
     }
@@ -275,37 +275,37 @@ inline void tbmv_impl(char uplo, char trans, char diag, int n, int k, const T* a
     if (upper) {
       int jx = start_index(n, incx) + (n - 1) * incx;
       for (int j = n - 1; j >= 0; --j) {
-        T temp = x[jx];
+        accumulator_t<T> temp = to_accumulator(x[jx]);
         if (!unit) {
           const T d = a[diag_row + j * lda];
-          temp *= conjugate ? conj_value(d) : d;
+          temp *= to_accumulator(conjugate ? conj_value(d) : d);
         }
         const int first = (j - k > 0) ? (j - k) : 0;
         int ix = jx;
         for (int i = j - 1; i >= first; --i) {
           ix -= incx;
           const T value = a[band(i, j) + j * lda];
-          temp += (conjugate ? conj_value(value) : value) * x[ix];
+          temp += acc_mul(conjugate ? conj_value(value) : value, x[ix]);
         }
-        x[jx] = temp;
+        x[jx] = from_accumulator<T>(temp);
         jx -= incx;
       }
     } else {
       int jx = start_index(n, incx);
       for (int j = 0; j < n; ++j) {
-        T temp = x[jx];
+        accumulator_t<T> temp = to_accumulator(x[jx]);
         if (!unit) {
           const T d = a[diag_row + j * lda];
-          temp *= conjugate ? conj_value(d) : d;
+          temp *= to_accumulator(conjugate ? conj_value(d) : d);
         }
         const int last = (j + k < n - 1) ? (j + k) : (n - 1);
         int ix = jx;
         for (int i = j + 1; i <= last; ++i) {
           ix += incx;
           const T value = a[band(i, j) + j * lda];
-          temp += (conjugate ? conj_value(value) : value) * x[ix];
+          temp += acc_mul(conjugate ? conj_value(value) : value, x[ix]);
         }
-        x[jx] = temp;
+        x[jx] = from_accumulator<T>(temp);
         jx += incx;
       }
     }
@@ -365,37 +365,37 @@ inline void tbsv_impl(char uplo, char trans, char diag, int n, int k, const T* a
     if (upper) {
       int jx = start_index(n, incx);
       for (int j = 0; j < n; ++j) {
-        T temp = x[jx];
+        accumulator_t<T> temp = to_accumulator(x[jx]);
         const int first = (j - k > 0) ? (j - k) : 0;
         int ix = jx - (j - first) * incx;
         for (int i = first; i < j; ++i) {
           const T value = a[band(i, j) + j * lda];
-          temp -= (conjugate ? conj_value(value) : value) * x[ix];
+          temp -= acc_mul(conjugate ? conj_value(value) : value, x[ix]);
           ix += incx;
         }
         if (!unit) {
           const T d = a[diag_row + j * lda];
-          temp /= conjugate ? conj_value(d) : d;
+          temp /= to_accumulator(conjugate ? conj_value(d) : d);
         }
-        x[jx] = temp;
+        x[jx] = from_accumulator<T>(temp);
         jx += incx;
       }
     } else {
       int jx = start_index(n, incx) + (n - 1) * incx;
       for (int j = n - 1; j >= 0; --j) {
-        T temp = x[jx];
+        accumulator_t<T> temp = to_accumulator(x[jx]);
         const int last = (j + k < n - 1) ? (j + k) : (n - 1);
         int ix = jx + (last - j) * incx;
         for (int i = last; i > j; --i) {
           const T value = a[band(i, j) + j * lda];
-          temp -= (conjugate ? conj_value(value) : value) * x[ix];
+          temp -= acc_mul(conjugate ? conj_value(value) : value, x[ix]);
           ix -= incx;
         }
         if (!unit) {
           const T d = a[diag_row + j * lda];
-          temp /= conjugate ? conj_value(d) : d;
+          temp /= to_accumulator(conjugate ? conj_value(d) : d);
         }
-        x[jx] = temp;
+        x[jx] = from_accumulator<T>(temp);
         jx -= incx;
       }
     }
