@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v7
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
     - name: Install dependencies
       run: sudo apt-get update && sudo apt-get install -y cppcheck clang-tidy clang-tools
@@ -63,7 +63,7 @@ jobs:
           cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}
 
     - name: Upload scan-build report
-      uses: actions/upload-artifact@v7
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
       with:
         name: scan-build-report
         path: ${{github.workspace}}/scan-results/
@@ -85,13 +85,13 @@ jobs:
     - name: Install Doxygen
       run: sudo apt-get update && sudo apt-get install -y doxygen graphviz
 
-    - uses: actions/checkout@v7
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
     - name: Generate Doxygen docs
       run: doxygen Doxyfile
 
     - name: Upload Doxygen HTML
-      uses: actions/upload-artifact@v7
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
       with:
         name: doxygen-html
         path: docs/doxygen/html

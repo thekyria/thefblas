@@ -104,6 +104,10 @@ template <typename T> inline accumulator_t<T> acc_mul(const T &a, const T &b) {
     return to_accumulator(a) * to_accumulator(b);
 }
 
+template <typename T> inline T acc_scale_and_narrow(const T &alpha, const accumulator_t<T> &value) {
+    return from_accumulator<T>(to_accumulator(alpha) * value);
+}
+
 // ---------------------------------------------------------------------------
 // Exact multiply-accumulate for the Level 1 reductions
 // ---------------------------------------------------------------------------
@@ -140,7 +144,8 @@ template <typename T> class real_mac<T, typename std::enable_if<is_fixed_v<T>>::
     }
     /// Adds a plain value, lifting it to the accumulator's `2 * FracBits` scale.
     void add(const T &a) {
-        sum_ = static_cast<wide>(sum_ + (static_cast<wide>(a.raw()) << T::frac_bits));
+        sum_ = static_cast<wide>(
+            sum_ + scale_pow2(static_cast<wide>(a.raw()), T::frac_bits));
     }
 
     /// The sum as a value of the *widened* fixed-point type, rounded once from

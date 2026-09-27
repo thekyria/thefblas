@@ -46,8 +46,9 @@ social media account, or acting as an appointed representative at an online or o
 
 ## Enforcement
 
-Instances of abusive, harassing, or otherwise unacceptable behavior may be reported by
-contacting the project team at [insert email address]. All complaints will be reviewed and
+Instances of abusive, harassing, or otherwise unacceptable behavior may be reported via
+[GitHub Security Advisories](https://github.com/thekyria/thefblas/security/advisories/new).
+All complaints will be reviewed and
 investigated and will result in a response that is deemed necessary and appropriate to
 the circumstances. The project team is obligated to maintain confidentiality with
 respect to the reporter of an incident.

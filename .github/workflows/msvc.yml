@@ -24,7 +24,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Configure CMake
         run: |
@@ -34,7 +34,7 @@ jobs:
             -DTHEFBLAS_BUILD_EXAMPLES=ON
 
       - name: Run MSVC Code Analysis
-        uses: microsoft/msvc-code-analysis-action@v0.1.1
+        uses: microsoft/msvc-code-analysis-action@24c285ab36952c9e9182f4b78dfafbac38a7e5ee # v0.1.1
         id: run-analysis
         with:
           cmakeBuildDirectory: ${{ env.BUILD_DIR }}
@@ -44,6 +44,6 @@ jobs:
           ruleset: NativeRecommendedRules.ruleset
 
       - name: Upload SARIF to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4
         with:
           sarif_file: ${{ steps.run-analysis.outputs.sarif }}

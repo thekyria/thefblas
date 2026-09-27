@@ -7,7 +7,7 @@ This guide explains how to set up your environment, make changes, and open high-
 ## Project Basics
 
 - Language: C++17
-- Build system: CMake (minimum 3.15)
+- Build system: CMake (minimum 3.21)
 - Tests: CTest with tests in `tests/`
 
 ## Development Setup
@@ -16,7 +16,7 @@ This guide explains how to set up your environment, make changes, and open high-
 
 Requirements:
 
-- CMake 3.15+
+- CMake 3.21+
 - A C++ compiler (GCC, Clang, or MSVC)
 
 Build and test:

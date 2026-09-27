@@ -35,11 +35,16 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Bootstrap vcpkg (Unix)
+        env:
+          VCPKG_COMMIT: 07f4812200df3d3c931c0c8a6081d3b21fe2bf9f
         run: |
-          git clone https://github.com/microsoft/vcpkg "$HOME/vcpkg" --depth=1
+          git init "$HOME/vcpkg"
+          git -C "$HOME/vcpkg" remote add origin https://github.com/microsoft/vcpkg
+          git -C "$HOME/vcpkg" fetch --depth=1 origin "${VCPKG_COMMIT}"
+          git -C "$HOME/vcpkg" checkout --detach "${VCPKG_COMMIT}"
           "$HOME/vcpkg/bootstrap-vcpkg.sh" -disableMetrics
           echo "VCPKG_ROOT=$HOME/vcpkg" >> "$GITHUB_ENV"
 

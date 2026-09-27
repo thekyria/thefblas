@@ -94,6 +94,20 @@ template <typename Wide> constexpr Wide round_shift(Wide value, int shift) noexc
     return static_cast<Wide>(-static_cast<Wide>((-value + half) >> shift));
 }
 
+/// Scales by 2^shift without left-shifting a signed negative value.
+template <typename Wide> constexpr Wide scale_pow2(Wide value, int shift) noexcept {
+    static_assert(std::is_integral<Wide>::value && std::is_signed<Wide>::value,
+                  "scale_pow2 requires a signed integral type");
+    if (shift <= 0) {
+        return value;
+    }
+    using Unsigned = typename std::make_unsigned<Wide>::type;
+    const Unsigned bits = static_cast<Unsigned>(value);
+    const Unsigned magnitude = value < 0 ? static_cast<Unsigned>(Unsigned(0) - bits) : bits;
+    const Unsigned scaled = static_cast<Unsigned>(magnitude << shift);
+    return value < 0 ? static_cast<Wide>(Unsigned(0) - scaled) : static_cast<Wide>(scaled);
+}
+
 } // namespace detail
 
 template <typename IntType, int FracBits, typename Policy = checked> class fixed {
@@ -134,7 +148,9 @@ template <typename IntType, int FracBits, typename Policy = checked> class fixed
     constexpr IntType raw() const noexcept { return value_; }
 
     template <typename FloatType = double> constexpr FloatType to_float() const noexcept {
-        return static_cast<FloatType>(value_) / static_cast<FloatType>(IntType(1) << FracBits);
+        using unsigned_rep = typename std::make_unsigned<IntType>::type;
+        const auto scale = static_cast<unsigned_rep>(unsigned_rep(1) << FracBits);
+        return static_cast<FloatType>(value_) / static_cast<FloatType>(scale);
     }
 
     constexpr fixed operator-() const noexcept {
@@ -159,7 +175,10 @@ template <typename IntType, int FracBits, typename Policy = checked> class fixed
 
     friend constexpr fixed operator/(fixed a, fixed b) noexcept {
         assert(b.value_ != 0 && "thefblas::fixed<>: division by zero");
-        const wide numerator = static_cast<wide>(static_cast<wide>(a.value_) << FracBits);
+        if (b.value_ == 0) {
+            return from_raw(Policy::template from_out_of_range<IntType>(a.value_ >= 0));
+        }
+        const wide numerator = detail::scale_pow2(static_cast<wide>(a.value_), FracBits);
         const wide divisor = static_cast<wide>(b.value_);
         // Round to nearest, ties away from zero: bias the numerator by half the
         // divisor in the direction of the quotient's sign, then truncate.
@@ -187,7 +206,10 @@ template <typename IntType, int FracBits, typename Policy = checked> class fixed
     }
 
   private:
-    static constexpr double scale() noexcept { return static_cast<double>(IntType(1) << FracBits); }
+    static constexpr double scale() noexcept {
+        using unsigned_rep = typename std::make_unsigned<IntType>::type;
+        return static_cast<double>(static_cast<unsigned_rep>(unsigned_rep(1) << FracBits));
+    }
 
     // NaN (the only value not equal to itself) maps to zero. Comparing `v != v`
     // avoids <cmath>, whose classification helpers are not constexpr.
@@ -195,21 +217,22 @@ template <typename IntType, int FracBits, typename Policy = checked> class fixed
         return v != v ? IntType(0) : from_scaled(v * scale() + (v >= 0.0 ? 0.5 : -0.5));
     }
 
-    // `scaled` is already rounded; reject it when it is outside the range that
-    // can be converted back to IntType without undefined behaviour. The +/- 1.0
-    // slack keeps the comparison usable for every width, including 64-bit, where
-    // the exact limits are not representable as a double.
+    // `scaled` is already rounded; clamp before converting so no out-of-range
+    // floating-point-to-integer cast is attempted, including at 64-bit limits.
     static constexpr IntType from_scaled(double scaled) noexcept {
-        return scaled < static_cast<double>((std::numeric_limits<IntType>::min)()) - 1.0
+        using unsigned_rep = typename std::make_unsigned<IntType>::type;
+        const double abs_limit = static_cast<double>(
+            static_cast<unsigned_rep>(unsigned_rep(1) << std::numeric_limits<IntType>::digits));
+        return scaled < -abs_limit
                    ? Policy::template from_out_of_range<IntType>(false)
-                   : (scaled > static_cast<double>((std::numeric_limits<IntType>::max)()) + 1.0
+                   : (scaled >= abs_limit
                           ? Policy::template from_out_of_range<IntType>(true)
                           : static_cast<IntType>(scaled));
     }
 
     template <typename Number> static constexpr IntType from_integer(Number v) noexcept {
         return Policy::template narrow<IntType>(
-            static_cast<wide>(static_cast<wide>(v) << FracBits));
+            detail::scale_pow2(static_cast<wide>(v), FracBits));
     }
 
     IntType value_;
@@ -242,11 +265,11 @@ fixed<IntType, FracBits, Policy> sqrt(fixed<IntType, FracBits, Policy> f) {
     if (f <= F::from_raw(0)) {
         return F::from_raw(0);
     }
-    // Initial guess: the value itself (or 1 if it's tiny), refined via Newton
+    // Initial guess: the value itself (or one raw unit if it's tiny), refined via Newton
     // iterations x_{k+1} = (x_k + f / x_k) / 2.
-    F x = f > F(1) ? f : F(1);
+    F x = f > F::from_raw(1) ? f : F::from_raw(1);
     for (int i = 0; i < 32; ++i) {
-        const F next = (x + f / x) / F(2);
+        const F next = (x + f / x) * F(0.5);
         if (next == x) {
             break;
         }

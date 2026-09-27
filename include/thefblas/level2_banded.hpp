@@ -80,7 +80,7 @@ inline void gbmv_impl(char trans, int m, int n, int kl, int ku, T alpha, const T
                 temp += acc_mul(conjugate ? conj_value(value) : value, x[ix]);
                 ix += incx;
             }
-            y[jy] += alpha * from_accumulator<T>(temp);
+            y[jy] += acc_scale_and_narrow(alpha, temp);
             jy += incy;
             if (j >= ku) {
                 kx += incx;
@@ -120,7 +120,8 @@ inline void sbmv_impl(char uplo, int n, int k, T alpha, const T *a, int lda, con
                 ix += incx;
                 iy += incy;
             }
-            y[jy] += temp1 * a[k + j * lda] + alpha * from_accumulator<T>(temp2);
+            y[jy] += from_accumulator<T>(acc_mul(temp1, a[k + j * lda]) +
+                                         to_accumulator(alpha) * temp2);
             jx += incx;
             jy += incy;
             if (j >= k) {
@@ -145,7 +146,7 @@ inline void sbmv_impl(char uplo, int n, int k, T alpha, const T *a, int lda, con
                 y[iy] += temp1 * value;
                 temp2 += acc_mul(value, x[ix]);
             }
-            y[jy] += alpha * from_accumulator<T>(temp2);
+            y[jy] += acc_scale_and_narrow(alpha, temp2);
             jx += incx;
             jy += incy;
         }
@@ -185,7 +186,8 @@ inline void hbmv_impl(char uplo, int n, int k, std::complex<T> alpha, const std:
                 ix += incx;
                 iy += incy;
             }
-            y[jy] += temp1 * C(a[k + j * lda].real(), T{}) + alpha * from_accumulator<C>(temp2);
+            y[jy] += from_accumulator<C>(acc_mul(temp1, C(a[k + j * lda].real(), T{})) +
+                                         to_accumulator(alpha) * temp2);
             jx += incx;
             jy += incy;
             if (j >= k) {
@@ -210,7 +212,7 @@ inline void hbmv_impl(char uplo, int n, int k, std::complex<T> alpha, const std:
                 y[iy] += temp1 * value;
                 temp2 += acc_mul(conj_value(value), x[ix]);
             }
-            y[jy] += alpha * from_accumulator<C>(temp2);
+            y[jy] += acc_scale_and_narrow(alpha, temp2);
             jx += incx;
             jy += incy;
         }

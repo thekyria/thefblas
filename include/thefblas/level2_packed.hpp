@@ -72,7 +72,8 @@ inline void spmv_impl(char uplo, int n, T alpha, const T *ap, const T *x, int in
                 ix += incx;
                 iy += incy;
             }
-            y[jy] += temp1 * ap[packed_index_upper(j, j)] + alpha * from_accumulator<T>(temp2);
+            y[jy] += from_accumulator<T>(acc_mul(temp1, ap[packed_index_upper(j, j)]) +
+                                         to_accumulator(alpha) * temp2);
             jx += incx;
             jy += incy;
         }
@@ -90,7 +91,7 @@ inline void spmv_impl(char uplo, int n, T alpha, const T *ap, const T *x, int in
                 y[iy] += temp1 * value;
                 temp2 += acc_mul(value, x[ix]);
             }
-            y[jy] += alpha * from_accumulator<T>(temp2);
+            y[jy] += acc_scale_and_narrow(alpha, temp2);
             jx += incx;
             jy += incy;
         }
@@ -128,8 +129,8 @@ inline void hpmv_impl(char uplo, int n, std::complex<T> alpha, const std::comple
                 ix += incx;
                 iy += incy;
             }
-            y[jy] += temp1 * C(ap[packed_index_upper(j, j)].real(), T{}) +
-                     alpha * from_accumulator<C>(temp2);
+            y[jy] += from_accumulator<C>(acc_mul(temp1, C(ap[packed_index_upper(j, j)].real(), T{})) +
+                                         to_accumulator(alpha) * temp2);
             jx += incx;
             jy += incy;
         }
@@ -147,7 +148,7 @@ inline void hpmv_impl(char uplo, int n, std::complex<T> alpha, const std::comple
                 y[iy] += temp1 * value;
                 temp2 += acc_mul(conj_value(value), x[ix]);
             }
-            y[jy] += alpha * from_accumulator<C>(temp2);
+            y[jy] += acc_scale_and_narrow(alpha, temp2);
             jx += incx;
             jy += incy;
         }

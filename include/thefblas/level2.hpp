@@ -109,7 +109,7 @@ inline void gemv_impl(char trans, int m, int n, T alpha, const T *a, int lda, co
                 temp += acc_mul(a[i + j * lda], x[ix]);
                 ix += incx;
             }
-            y[jy] += alpha * from_accumulator<T>(temp);
+            y[jy] += acc_scale_and_narrow(alpha, temp);
             jy += incy;
         }
     } else {
@@ -121,7 +121,7 @@ inline void gemv_impl(char trans, int m, int n, T alpha, const T *a, int lda, co
                 temp += acc_mul(conj_value(a[i + j * lda]), x[ix]);
                 ix += incx;
             }
-            y[jy] += alpha * from_accumulator<T>(temp);
+            y[jy] += acc_scale_and_narrow(alpha, temp);
             jy += incy;
         }
     }
@@ -154,7 +154,8 @@ inline void symv_impl(char uplo, int n, T alpha, const T *a, int lda, const T *x
                 ix += incx;
                 iy += incy;
             }
-            y[jy] += temp1 * a[j + j * lda] + alpha * from_accumulator<T>(temp2);
+            y[jy] += from_accumulator<T>(acc_mul(temp1, a[j + j * lda]) +
+                                         to_accumulator(alpha) * temp2);
             jx += incx;
             jy += incy;
         }
@@ -173,7 +174,7 @@ inline void symv_impl(char uplo, int n, T alpha, const T *a, int lda, const T *x
                 y[iy] += temp1 * a[i + j * lda];
                 temp2 += acc_mul(a[i + j * lda], x[ix]);
             }
-            y[jy] += alpha * from_accumulator<T>(temp2);
+            y[jy] += acc_scale_and_narrow(alpha, temp2);
             jx += incx;
             jy += incy;
         }
@@ -209,7 +210,8 @@ inline void hemv_impl(char uplo, int n, std::complex<T> alpha, const std::comple
                 ix += incx;
                 iy += incy;
             }
-            y[jy] += temp1 * C(a[j + j * lda].real(), T{}) + alpha * from_accumulator<C>(temp2);
+            y[jy] += from_accumulator<C>(acc_mul(temp1, C(a[j + j * lda].real(), T{})) +
+                                         to_accumulator(alpha) * temp2);
             jx += incx;
             jy += incy;
         }
@@ -228,7 +230,7 @@ inline void hemv_impl(char uplo, int n, std::complex<T> alpha, const std::comple
                 y[iy] += temp1 * a[i + j * lda];
                 temp2 += acc_mul(conj_value(a[i + j * lda]), x[ix]);
             }
-            y[jy] += alpha * from_accumulator<C>(temp2);
+            y[jy] += acc_scale_and_narrow(alpha, temp2);
             jx += incx;
             jy += incy;
         }

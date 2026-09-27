@@ -53,6 +53,8 @@ The policy governs every narrowing operation: `+`, `-`, unary negation, `*`,
 `/`, the compound assignments, `abs`, and construction from a floating-point
 or integral value. Note that `-x` and `abs(x)` can overflow, because the most
 negative value of a two's-complement format has no positive counterpart.
+Division by zero is treated as out-of-range and maps to the signed limit chosen
+by the active policy (with a debug assertion under `checked`).
 
 Convenience aliases are provided for the common formats:
 `q7`, `q15`, `q31`, `q16_16` use the default `checked` policy, and
@@ -156,4 +158,3 @@ calls on a `fixed<std::int32_t, 20>` (Q11.20) element type:
 ```sh
 ./build/examples/thefblas_example_fixed_point_ops
 ```
-
