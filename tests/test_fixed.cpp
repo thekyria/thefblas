@@ -167,6 +167,13 @@ void test_policy_aliases() {
         "q15_sat");
 }
 
+void test_q31_conversion_and_sqrt() {
+    using F = thefblas::q31_sat;
+    const F quarter(0.25);
+    assert(std::fabs(quarter.to_float<double>() - 0.25) < 1e-9);
+    assert(std::fabs(thefblas::sqrt(quarter).to_float<double>() - 0.5) < 1e-4);
+}
+
 } // namespace
 
 int main() {
@@ -182,5 +189,6 @@ int main() {
     test_nan_construction();
     test_rounding();
     test_policy_aliases();
+    test_q31_conversion_and_sqrt();
     return 0;
 }

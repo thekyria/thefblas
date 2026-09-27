@@ -174,8 +174,8 @@ template <typename IntType, int FracBits, typename Policy = checked> class fixed
     }
 
     friend constexpr fixed operator/(fixed a, fixed b) noexcept {
-        assert(b.value_ != 0 && "thefblas::fixed<>: division by zero");
         if (b.value_ == 0) {
+            assert(false && "thefblas::fixed<>: division by zero");
             return from_raw(Policy::template from_out_of_range<IntType>(a.value_ >= 0));
         }
         const wide numerator = detail::scale_pow2(static_cast<wide>(a.value_), FracBits);
