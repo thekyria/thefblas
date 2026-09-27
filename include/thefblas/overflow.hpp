@@ -31,8 +31,8 @@ namespace thefblas {
  * a Q format with enough integer bits (and the wide accumulators that the BLAS
  * routines use internally) for that.
  *
- * Conversion from a floating-point value whose magnitude is outside the
- * representable range is a separate case: modular reduction of, say, an
+ * Conversion from a floating-point or integer value whose magnitude is outside
+ * the representable range is a separate case: modular reduction of, say, an
  * infinity is meaningless, so **all** policies clamp to the nearest limit there
  * and `checked` additionally asserts. NaN converts to zero under every policy.
  *

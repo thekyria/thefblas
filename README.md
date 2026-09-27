@@ -101,7 +101,12 @@ through the element type's overflow policy exactly once, at the end:
   squares routinely leaves the element range even when the norm does not.
 - The Level 2 routines (`symv`/`sbmv`/`spmv`, `hemv`/`hbmv`/`hpmv`, the
   transpose and conjugate-transpose paths of `gemv`/`gbmv`, and
-  `trmv`/`tbmv`/`tpmv`, `trsv`/`tbsv`/`tpsv`) use a widened `temp` accumulator.
+  `trmv`/`tbmv`/`tpmv`, `trsv`/`tbsv`/`tpsv`) form each output element as a
+  single widened multiply-accumulate over its whole row, again at
+  `2 * FracBits`, and narrow through the policy exactly once per element. The
+  symmetric/Hermitian routines gather the mirrored element from the stored
+  triangle instead of updating `y` term by term, so partial sums that leave
+  the element range cannot saturate or wrap before later terms cancel them.
 
 Two deliberate limitations:
 
@@ -110,8 +115,9 @@ Two deliberate limitations:
   buffer, which is unacceptable on the bare-metal targets this library is
   aimed at, so those paths are marginally less accurate than `'T'`/`'C'`.
 - When `IntType` is 64 bits and the compiler provides no `__int128`, there is
-  no wider type available and the accumulator silently falls back to the same
-  width, restoring the naive behaviour.
+  no wider type to evaluate the arithmetic in, so `fixed<std::int64_t, ...>`
+  is rejected at compile time rather than silently risking undefined signed
+  overflow.
 
 `float` and `double` accumulate in themselves, so floating-point results are
 bit-identical to the straightforward loops that Netlib BLAS specifies.

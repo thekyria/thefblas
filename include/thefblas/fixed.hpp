@@ -46,8 +46,10 @@ namespace detail {
 // narrowing back down to IntType. Falls back to a compiler __int128
 // extension (widely available on GCC/Clang, including bare-metal ARM
 // toolchains) when IntType is already 64-bit wide; if that extension is
-// unavailable, `widen<std::int64_t>` maps onto itself and the intermediates
-// are computed at the original width.
+// unavailable, `widen<std::int64_t>` maps onto itself and `fixed<std::int64_t,
+// ...>` is rejected at compile time (see the static_assert in `fixed`), because
+// evaluating its arithmetic at the original width would risk undefined signed
+// overflow before the policy could resolve it.
 template <typename IntType> struct widen;
 template <> struct widen<std::int8_t> {
     using type = std::int16_t;
@@ -76,6 +78,18 @@ template <> struct widen<std::int64_t> {
 #endif
 
 template <typename IntType> using widen_t = typename widen<IntType>::type;
+
+/// `widen_t<IntType>` when `widen` is specialised for `IntType`, otherwise
+/// `IntType` itself. Used to give reduction sums one more widening step than
+/// the products they accumulate.
+template <typename IntType, typename = void> struct widen_or_same {
+    using type = IntType;
+};
+template <typename IntType>
+struct widen_or_same<IntType, std::void_t<typename widen<IntType>::type>> {
+    using type = typename widen<IntType>::type;
+};
+template <typename IntType> using widen_or_same_t = typename widen_or_same<IntType>::type;
 
 /// True when `widen_t<IntType>` is genuinely wider than `IntType`.
 template <typename IntType>
@@ -115,6 +129,10 @@ template <typename IntType, int FracBits, typename Policy = checked> class fixed
                   "fixed<IntType, FracBits, Policy> requires a signed integral IntType");
     static_assert(FracBits >= 0 && FracBits <= std::numeric_limits<IntType>::digits,
                   "FracBits must not exceed the number of value bits of IntType");
+    static_assert(detail::has_wider_type_v<IntType>,
+                  "fixed<IntType, FracBits, Policy> requires an intermediate type wider than "
+                  "IntType; this compiler provides no 128-bit integer, so 64-bit IntType is "
+                  "not supported");
 
     using wide = detail::widen_t<IntType>;
 
@@ -225,14 +243,33 @@ template <typename IntType, int FracBits, typename Policy = checked> class fixed
             static_cast<unsigned_rep>(unsigned_rep(1) << std::numeric_limits<IntType>::digits));
         return scaled < -abs_limit
                    ? Policy::template from_out_of_range<IntType>(false)
-                   : (scaled >= abs_limit
-                          ? Policy::template from_out_of_range<IntType>(true)
-                          : static_cast<IntType>(scaled));
+                   : (scaled >= abs_limit ? Policy::template from_out_of_range<IntType>(true)
+                                          : static_cast<IntType>(scaled));
     }
 
+    // Scaling `v` by 2^FracBits could overflow `wide` before the policy sees
+    // it (e.g. `fixed<int8_t, 7>(1000)` would compute `1000 << 7` in int16), so
+    // out-of-range sources are resolved by the policy before any scaling.
     template <typename Number> static constexpr IntType from_integer(Number v) noexcept {
-        return Policy::template narrow<IntType>(
-            detail::scale_pow2(static_cast<wide>(v), FracBits));
+        // Largest whole number representable in this Q format; the smallest is
+        // `-(max_int + 1)`, since the raw range is asymmetric two's complement.
+        constexpr IntType max_int =
+            static_cast<IntType>(static_cast<typename std::make_unsigned<IntType>::type>(
+                                     (std::numeric_limits<IntType>::max)()) >>
+                                 FracBits);
+        if constexpr (std::is_signed<Number>::value) {
+            if (v < Number(0)) {
+                constexpr std::intmax_t min_int = -static_cast<std::intmax_t>(max_int) - 1;
+                return static_cast<std::intmax_t>(v) < min_int
+                           ? Policy::template from_out_of_range<IntType>(false)
+                           : Policy::template narrow<IntType>(
+                                 detail::scale_pow2(static_cast<wide>(v), FracBits));
+            }
+        }
+        return static_cast<std::uintmax_t>(v) > static_cast<std::uintmax_t>(max_int)
+                   ? Policy::template from_out_of_range<IntType>(true)
+                   : Policy::template narrow<IntType>(
+                         detail::scale_pow2(static_cast<wide>(v), FracBits));
     }
 
     IntType value_;

@@ -103,25 +103,25 @@ inline void gemv_impl(char trans, int m, int n, T alpha, const T *a, int lda, co
     } else if (tr == 'T') {
         int jy = start_index(leny, incy);
         for (int j = 0; j < n; ++j) {
-            accumulator_t<T> temp = value_constants<accumulator_t<T>>::zero();
+            mac_t<T> temp;
             int ix = start_index(lenx, incx);
             for (int i = 0; i < m; ++i) {
-                temp += acc_mul(a[i + j * lda], x[ix]);
+                temp.add_product(a[i + j * lda], x[ix]);
                 ix += incx;
             }
-            y[jy] += acc_scale_and_narrow(alpha, temp);
+            y[jy] += acc_scale_and_narrow(alpha, temp.wide_value());
             jy += incy;
         }
     } else {
         int jy = start_index(leny, incy);
         for (int j = 0; j < n; ++j) {
-            accumulator_t<T> temp = value_constants<accumulator_t<T>>::zero();
+            mac_t<T> temp;
             int ix = start_index(lenx, incx);
             for (int i = 0; i < m; ++i) {
-                temp += acc_mul(conj_value(a[i + j * lda]), x[ix]);
+                temp.add_conj_product(a[i + j * lda], x[ix]);
                 ix += incx;
             }
-            y[jy] += acc_scale_and_narrow(alpha, temp);
+            y[jy] += acc_scale_and_narrow(alpha, temp.wide_value());
             jy += incy;
         }
     }
@@ -139,45 +139,24 @@ inline void symv_impl(char uplo, int n, T alpha, const T *a, int lda, const T *x
     if (alpha == value_constants<T>::zero()) {
         return;
     }
+    const bool upper = (ul == 'U');
 
-    if (ul == 'U') {
-        int jx = start_index(n, incx);
-        int jy = start_index(n, incy);
-        for (int j = 0; j < n; ++j) {
-            const T temp1 = alpha * x[jx];
-            accumulator_t<T> temp2 = value_constants<accumulator_t<T>>::zero();
-            int ix = start_index(n, incx);
-            int iy = start_index(n, incy);
-            for (int i = 0; i < j; ++i) {
-                y[iy] += temp1 * a[i + j * lda];
-                temp2 += acc_mul(a[i + j * lda], x[ix]);
-                ix += incx;
-                iy += incy;
-            }
-            y[jy] += from_accumulator<T>(acc_mul(temp1, a[j + j * lda]) +
-                                         to_accumulator(alpha) * temp2);
-            jx += incx;
-            jy += incy;
+    // Each output element is a single widened reduction over its full matrix
+    // row (gathering the mirrored element from the stored triangle), scaled by
+    // alpha in the accumulator type and narrowed exactly once, so intermediate
+    // terms cannot saturate or wrap before later terms cancel them.
+    int jy = start_index(n, incy);
+    for (int j = 0; j < n; ++j) {
+        mac_t<T> temp;
+        int ix = start_index(n, incx);
+        for (int i = 0; i < n; ++i) {
+            const int row = upper ? (i < j ? i : j) : (i < j ? j : i);
+            const int col = upper ? (i < j ? j : i) : (i < j ? i : j);
+            temp.add_product(a[row + col * lda], x[ix]);
+            ix += incx;
         }
-    } else {
-        int jx = start_index(n, incx);
-        int jy = start_index(n, incy);
-        for (int j = 0; j < n; ++j) {
-            const T temp1 = alpha * x[jx];
-            accumulator_t<T> temp2 = value_constants<accumulator_t<T>>::zero();
-            y[jy] += temp1 * a[j + j * lda];
-            int ix = jx;
-            int iy = jy;
-            for (int i = j + 1; i < n; ++i) {
-                ix += incx;
-                iy += incy;
-                y[iy] += temp1 * a[i + j * lda];
-                temp2 += acc_mul(a[i + j * lda], x[ix]);
-            }
-            y[jy] += acc_scale_and_narrow(alpha, temp2);
-            jx += incx;
-            jy += incy;
-        }
+        y[jy] += acc_scale_and_narrow(alpha, temp.wide_value());
+        jy += incy;
     }
 }
 
@@ -195,45 +174,27 @@ inline void hemv_impl(char uplo, int n, std::complex<T> alpha, const std::comple
     if (alpha == value_constants<C>::zero()) {
         return;
     }
+    const bool upper = (ul == 'U');
 
-    if (ul == 'U') {
-        int jx = start_index(n, incx);
-        int jy = start_index(n, incy);
-        for (int j = 0; j < n; ++j) {
-            const C temp1 = alpha * x[jx];
-            accumulator_t<C> temp2 = value_constants<accumulator_t<C>>::zero();
-            int ix = start_index(n, incx);
-            int iy = start_index(n, incy);
-            for (int i = 0; i < j; ++i) {
-                y[iy] += temp1 * a[i + j * lda];
-                temp2 += acc_mul(conj_value(a[i + j * lda]), x[ix]);
-                ix += incx;
-                iy += incy;
+    // As in symv_impl, each output element is a single widened reduction over
+    // its full matrix row; elements from the opposite triangle are conjugated
+    // and the diagonal is taken as real, per the Hermitian storage convention.
+    int jy = start_index(n, incy);
+    for (int j = 0; j < n; ++j) {
+        mac_t<C> temp;
+        int ix = start_index(n, incx);
+        for (int i = 0; i < n; ++i) {
+            if (i == j) {
+                temp.add_product(C(a[j + j * lda].real(), T{}), x[ix]);
+            } else if (upper ? (j < i) : (j > i)) {
+                temp.add_product(a[j + i * lda], x[ix]);
+            } else {
+                temp.add_conj_product(a[i + j * lda], x[ix]);
             }
-            y[jy] += from_accumulator<C>(acc_mul(temp1, C(a[j + j * lda].real(), T{})) +
-                                         to_accumulator(alpha) * temp2);
-            jx += incx;
-            jy += incy;
+            ix += incx;
         }
-    } else {
-        int jx = start_index(n, incx);
-        int jy = start_index(n, incy);
-        for (int j = 0; j < n; ++j) {
-            const C temp1 = alpha * x[jx];
-            accumulator_t<C> temp2 = value_constants<accumulator_t<C>>::zero();
-            y[jy] += temp1 * C(a[j + j * lda].real(), T{});
-            int ix = jx;
-            int iy = jy;
-            for (int i = j + 1; i < n; ++i) {
-                ix += incx;
-                iy += incy;
-                y[iy] += temp1 * a[i + j * lda];
-                temp2 += acc_mul(conj_value(a[i + j * lda]), x[ix]);
-            }
-            y[jy] += acc_scale_and_narrow(alpha, temp2);
-            jx += incx;
-            jy += incy;
-        }
+        y[jy] += acc_scale_and_narrow(alpha, temp.wide_value());
+        jy += incy;
     }
 }
 
@@ -287,31 +248,47 @@ inline void trmv_impl(char uplo, char trans, char diag, int n, const T *a, int l
         if (ul == 'U') {
             int jx = start_index(n, incx) + (n - 1) * incx;
             for (int j = n - 1; j >= 0; --j) {
-                accumulator_t<T> temp = to_accumulator(x[jx]);
-                if (!unit) {
-                    temp *= to_accumulator(conjugate ? conj_value(a[j + j * lda]) : a[j + j * lda]);
+                mac_t<T> temp;
+                if (unit) {
+                    temp.add(x[jx]);
+                } else if (conjugate) {
+                    temp.add_conj_product(a[j + j * lda], x[jx]);
+                } else {
+                    temp.add_product(a[j + j * lda], x[jx]);
                 }
                 int ix = jx;
                 for (int i = j - 1; i >= 0; --i) {
                     ix -= incx;
-                    temp += acc_mul(conjugate ? conj_value(a[i + j * lda]) : a[i + j * lda], x[ix]);
+                    if (conjugate) {
+                        temp.add_conj_product(a[i + j * lda], x[ix]);
+                    } else {
+                        temp.add_product(a[i + j * lda], x[ix]);
+                    }
                 }
-                x[jx] = from_accumulator<T>(temp);
+                x[jx] = temp.value();
                 jx -= incx;
             }
         } else {
             int jx = start_index(n, incx);
             for (int j = 0; j < n; ++j) {
-                accumulator_t<T> temp = to_accumulator(x[jx]);
-                if (!unit) {
-                    temp *= to_accumulator(conjugate ? conj_value(a[j + j * lda]) : a[j + j * lda]);
+                mac_t<T> temp;
+                if (unit) {
+                    temp.add(x[jx]);
+                } else if (conjugate) {
+                    temp.add_conj_product(a[j + j * lda], x[jx]);
+                } else {
+                    temp.add_product(a[j + j * lda], x[jx]);
                 }
                 int ix = jx;
                 for (int i = j + 1; i < n; ++i) {
                     ix += incx;
-                    temp += acc_mul(conjugate ? conj_value(a[i + j * lda]) : a[i + j * lda], x[ix]);
+                    if (conjugate) {
+                        temp.add_conj_product(a[i + j * lda], x[ix]);
+                    } else {
+                        temp.add_product(a[i + j * lda], x[ix]);
+                    }
                 }
-                x[jx] = from_accumulator<T>(temp);
+                x[jx] = temp.value();
                 jx += incx;
             }
         }
@@ -364,12 +341,18 @@ inline void trsv_impl(char uplo, char trans, char diag, int n, const T *a, int l
         if (ul == 'U') {
             int jx = start_index(n, incx);
             for (int j = 0; j < n; ++j) {
-                accumulator_t<T> temp = to_accumulator(x[jx]);
+                mac_t<T> sum;
+                sum.add(x[jx]);
                 int ix = start_index(n, incx);
                 for (int i = 0; i < j; ++i) {
-                    temp -= acc_mul(conjugate ? conj_value(a[i + j * lda]) : a[i + j * lda], x[ix]);
+                    if (conjugate) {
+                        sum.subtract_conj_product(a[i + j * lda], x[ix]);
+                    } else {
+                        sum.subtract_product(a[i + j * lda], x[ix]);
+                    }
                     ix += incx;
                 }
+                accumulator_t<T> temp = sum.wide_value();
                 if (!unit) {
                     temp /= to_accumulator(conjugate ? conj_value(a[j + j * lda]) : a[j + j * lda]);
                 }
@@ -379,12 +362,18 @@ inline void trsv_impl(char uplo, char trans, char diag, int n, const T *a, int l
         } else {
             int jx = start_index(n, incx) + (n - 1) * incx;
             for (int j = n - 1; j >= 0; --j) {
-                accumulator_t<T> temp = to_accumulator(x[jx]);
+                mac_t<T> sum;
+                sum.add(x[jx]);
                 int ix = start_index(n, incx) + (n - 1) * incx;
                 for (int i = n - 1; i > j; --i) {
-                    temp -= acc_mul(conjugate ? conj_value(a[i + j * lda]) : a[i + j * lda], x[ix]);
+                    if (conjugate) {
+                        sum.subtract_conj_product(a[i + j * lda], x[ix]);
+                    } else {
+                        sum.subtract_product(a[i + j * lda], x[ix]);
+                    }
                     ix -= incx;
                 }
+                accumulator_t<T> temp = sum.wide_value();
                 if (!unit) {
                     temp /= to_accumulator(conjugate ? conj_value(a[j + j * lda]) : a[j + j * lda]);
                 }

@@ -71,16 +71,20 @@ inline void gbmv_impl(char trans, int m, int n, int kl, int ku, T alpha, const T
         int jy = start_index(leny, incy);
         int kx = start_index(lenx, incx);
         for (int j = 0; j < n; ++j) {
-            accumulator_t<T> temp = value_constants<accumulator_t<T>>::zero();
+            mac_t<T> temp;
             const int first = (j - ku > 0) ? (j - ku) : 0;
             const int last = (j + kl < m - 1) ? (j + kl) : (m - 1);
             int ix = kx;
             for (int i = first; i <= last; ++i) {
                 const T value = a[(ku + i - j) + j * lda];
-                temp += acc_mul(conjugate ? conj_value(value) : value, x[ix]);
+                if (conjugate) {
+                    temp.add_conj_product(value, x[ix]);
+                } else {
+                    temp.add_product(value, x[ix]);
+                }
                 ix += incx;
             }
-            y[jy] += acc_scale_and_narrow(alpha, temp);
+            y[jy] += acc_scale_and_narrow(alpha, temp.wide_value());
             jy += incy;
             if (j >= ku) {
                 kx += incx;
@@ -101,55 +105,26 @@ inline void sbmv_impl(char uplo, int n, int k, T alpha, const T *a, int lda, con
     if (alpha == value_constants<T>::zero()) {
         return;
     }
+    const bool upper = (ul == 'U');
 
-    if (ul == 'U') {
-        int jx = start_index(n, incx);
-        int jy = start_index(n, incy);
-        int kx = jx;
-        int ky = jy;
-        for (int j = 0; j < n; ++j) {
-            const T temp1 = alpha * x[jx];
-            accumulator_t<T> temp2 = value_constants<accumulator_t<T>>::zero();
-            const int first = (j - k > 0) ? (j - k) : 0;
-            int ix = kx;
-            int iy = ky;
-            for (int i = first; i < j; ++i) {
-                const T value = a[(k + i - j) + j * lda];
-                y[iy] += temp1 * value;
-                temp2 += acc_mul(value, x[ix]);
-                ix += incx;
-                iy += incy;
-            }
-            y[jy] += from_accumulator<T>(acc_mul(temp1, a[k + j * lda]) +
-                                         to_accumulator(alpha) * temp2);
-            jx += incx;
-            jy += incy;
-            if (j >= k) {
-                kx += incx;
-                ky += incy;
-            }
+    // Each output element is a single widened reduction over its band row
+    // (gathering the mirrored element from the stored triangle), scaled by
+    // alpha in the accumulator type and narrowed exactly once, so intermediate
+    // terms cannot saturate or wrap before later terms cancel them.
+    int jy = start_index(n, incy);
+    for (int j = 0; j < n; ++j) {
+        mac_t<T> temp;
+        const int first = (j - k > 0) ? (j - k) : 0;
+        const int last = (j + k < n - 1) ? (j + k) : (n - 1);
+        int ix = start_index(n, incx) + first * incx;
+        for (int i = first; i <= last; ++i) {
+            const T value = upper ? (j <= i ? a[(k + j - i) + i * lda] : a[(k + i - j) + j * lda])
+                                  : (j >= i ? a[(j - i) + i * lda] : a[(i - j) + j * lda]);
+            temp.add_product(value, x[ix]);
+            ix += incx;
         }
-    } else {
-        int jx = start_index(n, incx);
-        int jy = start_index(n, incy);
-        for (int j = 0; j < n; ++j) {
-            const T temp1 = alpha * x[jx];
-            accumulator_t<T> temp2 = value_constants<accumulator_t<T>>::zero();
-            y[jy] += temp1 * a[j * lda];
-            const int last = (j + k < n - 1) ? (j + k) : (n - 1);
-            int ix = jx;
-            int iy = jy;
-            for (int i = j + 1; i <= last; ++i) {
-                ix += incx;
-                iy += incy;
-                const T value = a[(i - j) + j * lda];
-                y[iy] += temp1 * value;
-                temp2 += acc_mul(value, x[ix]);
-            }
-            y[jy] += acc_scale_and_narrow(alpha, temp2);
-            jx += incx;
-            jy += incy;
-        }
+        y[jy] += acc_scale_and_narrow(alpha, temp.wide_value());
+        jy += incy;
     }
 }
 
@@ -167,55 +142,32 @@ inline void hbmv_impl(char uplo, int n, int k, std::complex<T> alpha, const std:
     if (alpha == value_constants<C>::zero()) {
         return;
     }
+    const bool upper = (ul == 'U');
 
-    if (ul == 'U') {
-        int jx = start_index(n, incx);
-        int jy = start_index(n, incy);
-        int kx = jx;
-        int ky = jy;
-        for (int j = 0; j < n; ++j) {
-            const C temp1 = alpha * x[jx];
-            accumulator_t<C> temp2 = value_constants<accumulator_t<C>>::zero();
-            const int first = (j - k > 0) ? (j - k) : 0;
-            int ix = kx;
-            int iy = ky;
-            for (int i = first; i < j; ++i) {
-                const C value = a[(k + i - j) + j * lda];
-                y[iy] += temp1 * value;
-                temp2 += acc_mul(conj_value(value), x[ix]);
-                ix += incx;
-                iy += incy;
+    // As in sbmv_impl, each output element is a single widened reduction over
+    // its band row; elements from the opposite triangle are conjugated and the
+    // diagonal is taken as real, per the Hermitian storage convention.
+    int jy = start_index(n, incy);
+    for (int j = 0; j < n; ++j) {
+        mac_t<C> temp;
+        const int first = (j - k > 0) ? (j - k) : 0;
+        const int last = (j + k < n - 1) ? (j + k) : (n - 1);
+        int ix = start_index(n, incx) + first * incx;
+        for (int i = first; i <= last; ++i) {
+            if (i == j) {
+                const C diag = upper ? a[k + j * lda] : a[j * lda];
+                temp.add_product(C(diag.real(), T{}), x[ix]);
+            } else if (upper ? (j < i) : (j > i)) {
+                const C value = upper ? a[(k + j - i) + i * lda] : a[(j - i) + i * lda];
+                temp.add_product(value, x[ix]);
+            } else {
+                const C value = upper ? a[(k + i - j) + j * lda] : a[(i - j) + j * lda];
+                temp.add_conj_product(value, x[ix]);
             }
-            y[jy] += from_accumulator<C>(acc_mul(temp1, C(a[k + j * lda].real(), T{})) +
-                                         to_accumulator(alpha) * temp2);
-            jx += incx;
-            jy += incy;
-            if (j >= k) {
-                kx += incx;
-                ky += incy;
-            }
+            ix += incx;
         }
-    } else {
-        int jx = start_index(n, incx);
-        int jy = start_index(n, incy);
-        for (int j = 0; j < n; ++j) {
-            const C temp1 = alpha * x[jx];
-            accumulator_t<C> temp2 = value_constants<accumulator_t<C>>::zero();
-            y[jy] += temp1 * C(a[j * lda].real(), T{});
-            const int last = (j + k < n - 1) ? (j + k) : (n - 1);
-            int ix = jx;
-            int iy = jy;
-            for (int i = j + 1; i <= last; ++i) {
-                ix += incx;
-                iy += incy;
-                const C value = a[(i - j) + j * lda];
-                y[iy] += temp1 * value;
-                temp2 += acc_mul(conj_value(value), x[ix]);
-            }
-            y[jy] += acc_scale_and_narrow(alpha, temp2);
-            jx += incx;
-            jy += incy;
-        }
+        y[jy] += acc_scale_and_narrow(alpha, temp.wide_value());
+        jy += incy;
     }
 }
 
@@ -277,37 +229,51 @@ inline void tbmv_impl(char uplo, char trans, char diag, int n, int k, const T *a
         if (upper) {
             int jx = start_index(n, incx) + (n - 1) * incx;
             for (int j = n - 1; j >= 0; --j) {
-                accumulator_t<T> temp = to_accumulator(x[jx]);
-                if (!unit) {
-                    const T d = a[diag_row + j * lda];
-                    temp *= to_accumulator(conjugate ? conj_value(d) : d);
+                mac_t<T> temp;
+                if (unit) {
+                    temp.add(x[jx]);
+                } else if (conjugate) {
+                    temp.add_conj_product(a[diag_row + j * lda], x[jx]);
+                } else {
+                    temp.add_product(a[diag_row + j * lda], x[jx]);
                 }
                 const int first = (j - k > 0) ? (j - k) : 0;
                 int ix = jx;
                 for (int i = j - 1; i >= first; --i) {
                     ix -= incx;
                     const T value = a[band(i, j) + j * lda];
-                    temp += acc_mul(conjugate ? conj_value(value) : value, x[ix]);
+                    if (conjugate) {
+                        temp.add_conj_product(value, x[ix]);
+                    } else {
+                        temp.add_product(value, x[ix]);
+                    }
                 }
-                x[jx] = from_accumulator<T>(temp);
+                x[jx] = temp.value();
                 jx -= incx;
             }
         } else {
             int jx = start_index(n, incx);
             for (int j = 0; j < n; ++j) {
-                accumulator_t<T> temp = to_accumulator(x[jx]);
-                if (!unit) {
-                    const T d = a[diag_row + j * lda];
-                    temp *= to_accumulator(conjugate ? conj_value(d) : d);
+                mac_t<T> temp;
+                if (unit) {
+                    temp.add(x[jx]);
+                } else if (conjugate) {
+                    temp.add_conj_product(a[diag_row + j * lda], x[jx]);
+                } else {
+                    temp.add_product(a[diag_row + j * lda], x[jx]);
                 }
                 const int last = (j + k < n - 1) ? (j + k) : (n - 1);
                 int ix = jx;
                 for (int i = j + 1; i <= last; ++i) {
                     ix += incx;
                     const T value = a[band(i, j) + j * lda];
-                    temp += acc_mul(conjugate ? conj_value(value) : value, x[ix]);
+                    if (conjugate) {
+                        temp.add_conj_product(value, x[ix]);
+                    } else {
+                        temp.add_product(value, x[ix]);
+                    }
                 }
-                x[jx] = from_accumulator<T>(temp);
+                x[jx] = temp.value();
                 jx += incx;
             }
         }
@@ -367,14 +333,20 @@ inline void tbsv_impl(char uplo, char trans, char diag, int n, int k, const T *a
         if (upper) {
             int jx = start_index(n, incx);
             for (int j = 0; j < n; ++j) {
-                accumulator_t<T> temp = to_accumulator(x[jx]);
+                mac_t<T> sum;
+                sum.add(x[jx]);
                 const int first = (j - k > 0) ? (j - k) : 0;
                 int ix = jx - (j - first) * incx;
                 for (int i = first; i < j; ++i) {
                     const T value = a[band(i, j) + j * lda];
-                    temp -= acc_mul(conjugate ? conj_value(value) : value, x[ix]);
+                    if (conjugate) {
+                        sum.subtract_conj_product(value, x[ix]);
+                    } else {
+                        sum.subtract_product(value, x[ix]);
+                    }
                     ix += incx;
                 }
+                accumulator_t<T> temp = sum.wide_value();
                 if (!unit) {
                     const T d = a[diag_row + j * lda];
                     temp /= to_accumulator(conjugate ? conj_value(d) : d);
@@ -385,14 +357,20 @@ inline void tbsv_impl(char uplo, char trans, char diag, int n, int k, const T *a
         } else {
             int jx = start_index(n, incx) + (n - 1) * incx;
             for (int j = n - 1; j >= 0; --j) {
-                accumulator_t<T> temp = to_accumulator(x[jx]);
+                mac_t<T> sum;
+                sum.add(x[jx]);
                 const int last = (j + k < n - 1) ? (j + k) : (n - 1);
                 int ix = jx + (last - j) * incx;
                 for (int i = last; i > j; --i) {
                     const T value = a[band(i, j) + j * lda];
-                    temp -= acc_mul(conjugate ? conj_value(value) : value, x[ix]);
+                    if (conjugate) {
+                        sum.subtract_conj_product(value, x[ix]);
+                    } else {
+                        sum.subtract_product(value, x[ix]);
+                    }
                     ix -= incx;
                 }
+                accumulator_t<T> temp = sum.wide_value();
                 if (!unit) {
                     const T d = a[diag_row + j * lda];
                     temp /= to_accumulator(conjugate ? conj_value(d) : d);

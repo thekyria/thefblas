@@ -74,8 +74,12 @@ void test_different_widths() {
     fixed<std::int8_t, 4> small(2.0);
     assert(almost_equal(small + small, fixed<std::int8_t, 4>(4.0)));
 
+#if defined(__SIZEOF_INT128__)
+    // fixed<int64_t> requires a 128-bit intermediate type; the configuration
+    // is rejected at compile time on platforms without one.
     fixed<std::int64_t, 32> big(123.456);
     assert(std::fabs(big.to_float<double>() - 123.456) < 1e-6);
+#endif
 }
 
 // ---------------------------------------------------------------------------

@@ -128,6 +128,41 @@ void test_complex_accumulator() {
     assert(close(d.imag().to_float<double>(), 0.0, 0.02));
 }
 
+// The absolute value of the most negative raw value is not representable in
+// the element type, so asum must widen before taking magnitudes.
+void test_asum_raw_min() {
+    using F = fixed<std::int16_t, 8, thefblas::saturate>;
+    const F x[2] = {F::from_raw(-32768), F::from_raw(-32768)};
+    // |min| + |min| = 256.0 exceeds the Q7.8 range and saturates only at the
+    // final narrowing rather than wrapping per element.
+    assert(thefblas::asum(2, x, 1).raw() == 32767);
+}
+
+// Constructing from an integer whose scaled value exceeds even the widened
+// intermediate range must resolve through the policy, not overflow.
+void test_from_integer_overflow() {
+    using S = fixed<std::int8_t, 4, thefblas::saturate>;
+    assert(S(1000).raw() == 127);
+    assert(S(-1000).raw() == -128);
+    using W = fixed<std::int8_t, 4, thefblas::wrap>;
+    assert(W(8).raw() == 127); // out-of-range sources clamp under every policy.
+}
+
+// symv sums whole output rows in the accumulator, so partial sums that leave
+// the element range must not saturate before later terms cancel them.
+void test_symv_cancellation() {
+    using F = fixed<std::int16_t, 15, thefblas::saturate>; // Q1.15
+    const int n = 3;
+    // Upper-triangle column-major storage of row 0 = [0.9, 0.9, -0.9].
+    F a[9] = {F(0.9), F(0.0), F(0.0), F(0.9), F(0.0), F(0.0), F(-0.9), F(0.0), F(0.0)};
+    const F x[3] = {F(0.9), F(0.9), F(0.9)};
+    F y[3] = {F(0.0), F(0.0), F(0.0)};
+    thefblas::symv('U', n, F(0.5), a, n, x, 1, F(0.0), y, 1);
+    // y[0] = 0.5 * (0.81 + 0.81 - 0.81) = 0.405; the intermediate 1.62 must
+    // not saturate the accumulation.
+    assert(close(y[0].to_float<double>(), 0.405, 0.01));
+}
+
 } // namespace
 
 int main() {
@@ -138,5 +173,8 @@ int main() {
     test_gemv_transpose_accumulator();
     test_float_bit_identical();
     test_complex_accumulator();
+    test_asum_raw_min();
+    test_from_integer_overflow();
+    test_symv_cancellation();
     return 0;
 }

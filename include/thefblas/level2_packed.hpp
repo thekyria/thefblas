@@ -57,44 +57,22 @@ inline void spmv_impl(char uplo, int n, T alpha, const T *ap, const T *x, int in
     }
     const bool upper = (ul == 'U');
 
-    int jx = start_index(n, incx);
+    // Each output element is a single widened reduction over its full matrix
+    // row (gathering the mirrored element from the stored triangle), scaled by
+    // alpha in the accumulator type and narrowed exactly once, so intermediate
+    // terms cannot saturate or wrap before later terms cancel them.
     int jy = start_index(n, incy);
-    if (upper) {
-        for (int j = 0; j < n; ++j) {
-            const T temp1 = alpha * x[jx];
-            accumulator_t<T> temp2 = value_constants<accumulator_t<T>>::zero();
-            int ix = start_index(n, incx);
-            int iy = start_index(n, incy);
-            for (int i = 0; i < j; ++i) {
-                const T value = ap[packed_index_upper(i, j)];
-                y[iy] += temp1 * value;
-                temp2 += acc_mul(value, x[ix]);
-                ix += incx;
-                iy += incy;
-            }
-            y[jy] += from_accumulator<T>(acc_mul(temp1, ap[packed_index_upper(j, j)]) +
-                                         to_accumulator(alpha) * temp2);
-            jx += incx;
-            jy += incy;
+    for (int j = 0; j < n; ++j) {
+        mac_t<T> temp;
+        int ix = start_index(n, incx);
+        for (int i = 0; i < n; ++i) {
+            const int lo = i < j ? i : j;
+            const int hi = i < j ? j : i;
+            temp.add_product(ap[packed_index(upper, upper ? lo : hi, upper ? hi : lo, n)], x[ix]);
+            ix += incx;
         }
-    } else {
-        for (int j = 0; j < n; ++j) {
-            const T temp1 = alpha * x[jx];
-            accumulator_t<T> temp2 = value_constants<accumulator_t<T>>::zero();
-            y[jy] += temp1 * ap[packed_index_lower(j, j, n)];
-            int ix = jx;
-            int iy = jy;
-            for (int i = j + 1; i < n; ++i) {
-                ix += incx;
-                iy += incy;
-                const T value = ap[packed_index_lower(i, j, n)];
-                y[iy] += temp1 * value;
-                temp2 += acc_mul(value, x[ix]);
-            }
-            y[jy] += acc_scale_and_narrow(alpha, temp2);
-            jx += incx;
-            jy += incy;
-        }
+        y[jy] += acc_scale_and_narrow(alpha, temp.wide_value());
+        jy += incy;
     }
 }
 
@@ -114,44 +92,25 @@ inline void hpmv_impl(char uplo, int n, std::complex<T> alpha, const std::comple
     }
     const bool upper = (ul == 'U');
 
-    int jx = start_index(n, incx);
+    // As in spmv_impl, each output element is a single widened reduction over
+    // its full matrix row; elements from the opposite triangle are conjugated
+    // and the diagonal is taken as real, per the Hermitian storage convention.
     int jy = start_index(n, incy);
-    if (upper) {
-        for (int j = 0; j < n; ++j) {
-            const C temp1 = alpha * x[jx];
-            accumulator_t<C> temp2 = value_constants<accumulator_t<C>>::zero();
-            int ix = start_index(n, incx);
-            int iy = start_index(n, incy);
-            for (int i = 0; i < j; ++i) {
-                const C value = ap[packed_index_upper(i, j)];
-                y[iy] += temp1 * value;
-                temp2 += acc_mul(conj_value(value), x[ix]);
-                ix += incx;
-                iy += incy;
+    for (int j = 0; j < n; ++j) {
+        mac_t<C> temp;
+        int ix = start_index(n, incx);
+        for (int i = 0; i < n; ++i) {
+            if (i == j) {
+                temp.add_product(C(ap[packed_index(upper, j, j, n)].real(), T{}), x[ix]);
+            } else if (upper ? (j < i) : (j > i)) {
+                temp.add_product(ap[packed_index(upper, j, i, n)], x[ix]);
+            } else {
+                temp.add_conj_product(ap[packed_index(upper, i, j, n)], x[ix]);
             }
-            y[jy] += from_accumulator<C>(acc_mul(temp1, C(ap[packed_index_upper(j, j)].real(), T{})) +
-                                         to_accumulator(alpha) * temp2);
-            jx += incx;
-            jy += incy;
+            ix += incx;
         }
-    } else {
-        for (int j = 0; j < n; ++j) {
-            const C temp1 = alpha * x[jx];
-            accumulator_t<C> temp2 = value_constants<accumulator_t<C>>::zero();
-            y[jy] += temp1 * C(ap[packed_index_lower(j, j, n)].real(), T{});
-            int ix = jx;
-            int iy = jy;
-            for (int i = j + 1; i < n; ++i) {
-                ix += incx;
-                iy += incy;
-                const C value = ap[packed_index_lower(i, j, n)];
-                y[iy] += temp1 * value;
-                temp2 += acc_mul(conj_value(value), x[ix]);
-            }
-            y[jy] += acc_scale_and_narrow(alpha, temp2);
-            jx += incx;
-            jy += incy;
-        }
+        y[jy] += acc_scale_and_narrow(alpha, temp.wide_value());
+        jy += incy;
     }
 }
 
@@ -205,35 +164,49 @@ inline void tpmv_impl(char uplo, char trans, char diag, int n, const T *ap, T *x
         if (upper) {
             int jx = start_index(n, incx) + (n - 1) * incx;
             for (int j = n - 1; j >= 0; --j) {
-                accumulator_t<T> temp = to_accumulator(x[jx]);
-                if (!unit) {
-                    const T d = ap[packed_index_upper(j, j)];
-                    temp *= to_accumulator(conjugate ? conj_value(d) : d);
+                mac_t<T> temp;
+                if (unit) {
+                    temp.add(x[jx]);
+                } else if (conjugate) {
+                    temp.add_conj_product(ap[packed_index_upper(j, j)], x[jx]);
+                } else {
+                    temp.add_product(ap[packed_index_upper(j, j)], x[jx]);
                 }
                 int ix = jx;
                 for (int i = j - 1; i >= 0; --i) {
                     ix -= incx;
                     const T value = ap[packed_index_upper(i, j)];
-                    temp += acc_mul(conjugate ? conj_value(value) : value, x[ix]);
+                    if (conjugate) {
+                        temp.add_conj_product(value, x[ix]);
+                    } else {
+                        temp.add_product(value, x[ix]);
+                    }
                 }
-                x[jx] = from_accumulator<T>(temp);
+                x[jx] = temp.value();
                 jx -= incx;
             }
         } else {
             int jx = start_index(n, incx);
             for (int j = 0; j < n; ++j) {
-                accumulator_t<T> temp = to_accumulator(x[jx]);
-                if (!unit) {
-                    const T d = ap[packed_index_lower(j, j, n)];
-                    temp *= to_accumulator(conjugate ? conj_value(d) : d);
+                mac_t<T> temp;
+                if (unit) {
+                    temp.add(x[jx]);
+                } else if (conjugate) {
+                    temp.add_conj_product(ap[packed_index_lower(j, j, n)], x[jx]);
+                } else {
+                    temp.add_product(ap[packed_index_lower(j, j, n)], x[jx]);
                 }
                 int ix = jx;
                 for (int i = j + 1; i < n; ++i) {
                     ix += incx;
                     const T value = ap[packed_index_lower(i, j, n)];
-                    temp += acc_mul(conjugate ? conj_value(value) : value, x[ix]);
+                    if (conjugate) {
+                        temp.add_conj_product(value, x[ix]);
+                    } else {
+                        temp.add_product(value, x[ix]);
+                    }
                 }
-                x[jx] = from_accumulator<T>(temp);
+                x[jx] = temp.value();
                 jx += incx;
             }
         }
@@ -286,13 +259,19 @@ inline void tpsv_impl(char uplo, char trans, char diag, int n, const T *ap, T *x
         if (upper) {
             int jx = start_index(n, incx);
             for (int j = 0; j < n; ++j) {
-                accumulator_t<T> temp = to_accumulator(x[jx]);
+                mac_t<T> sum;
+                sum.add(x[jx]);
                 int ix = start_index(n, incx);
                 for (int i = 0; i < j; ++i) {
                     const T value = ap[packed_index_upper(i, j)];
-                    temp -= acc_mul(conjugate ? conj_value(value) : value, x[ix]);
+                    if (conjugate) {
+                        sum.subtract_conj_product(value, x[ix]);
+                    } else {
+                        sum.subtract_product(value, x[ix]);
+                    }
                     ix += incx;
                 }
+                accumulator_t<T> temp = sum.wide_value();
                 if (!unit) {
                     const T d = ap[packed_index_upper(j, j)];
                     temp /= to_accumulator(conjugate ? conj_value(d) : d);
@@ -303,13 +282,19 @@ inline void tpsv_impl(char uplo, char trans, char diag, int n, const T *ap, T *x
         } else {
             int jx = start_index(n, incx) + (n - 1) * incx;
             for (int j = n - 1; j >= 0; --j) {
-                accumulator_t<T> temp = to_accumulator(x[jx]);
+                mac_t<T> sum;
+                sum.add(x[jx]);
                 int ix = start_index(n, incx) + (n - 1) * incx;
                 for (int i = n - 1; i > j; --i) {
                     const T value = ap[packed_index_lower(i, j, n)];
-                    temp -= acc_mul(conjugate ? conj_value(value) : value, x[ix]);
+                    if (conjugate) {
+                        sum.subtract_conj_product(value, x[ix]);
+                    } else {
+                        sum.subtract_product(value, x[ix]);
+                    }
                     ix -= incx;
                 }
+                accumulator_t<T> temp = sum.wide_value();
                 if (!unit) {
                     const T d = ap[packed_index_lower(j, j, n)];
                     temp /= to_accumulator(conjugate ? conj_value(d) : d);

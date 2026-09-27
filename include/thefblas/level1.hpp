@@ -326,7 +326,7 @@ template <typename T, detail::enable_if_real_t<T> = 0> inline T asum(int n, cons
     detail::real_mac<T> sum;
     int ix = detail::start_index(n, incx);
     for (int i = 0; i < n; ++i) {
-        sum.add(detail::abs_value(x[ix]));
+        sum.add_abs(x[ix]);
         ix += incx;
     }
     return sum.value();
@@ -347,8 +347,8 @@ template <typename T> inline T asum(int n, const std::complex<T> *x, int incx) {
     detail::real_mac<T> sum;
     int ix = detail::start_index(n, incx);
     for (int i = 0; i < n; ++i) {
-        sum.add(detail::abs_value(x[ix].real()));
-        sum.add(detail::abs_value(x[ix].imag()));
+        sum.add_abs(x[ix].real());
+        sum.add_abs(x[ix].imag());
         ix += incx;
     }
     return sum.value();
