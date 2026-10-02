@@ -1,0 +1,24 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "git remote": true,
+        "codespell": true,
+        "set": true,
+        "ctest": true,
+        "true": true,
+        "cppcheck": true,
+        "clang-tidy": true,
+        "gcovr": true,
+        "lcov": true,
+        "apt-cache": true,
+        "gcov": true,
+        "awk": true,
+        "uniq": true,
+        "git rev-parse": true,
+        "test": true,
+        "printf": true,
+        "git blame": true,
+        "genhtml": true,
+        "c++filt": true
+    },
+    "makefile.configureOnOpen": false
+}

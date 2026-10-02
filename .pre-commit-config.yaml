@@ -1,0 +1,96 @@
+# Pre-commit hooks configuration for thefblas
+# Install: pip install pre-commit
+# Setup: pre-commit install
+# Run manually: pre-commit run --all-files
+
+repos:
+  # General file checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+      - id: check-toml
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+      - id: check-merge-conflict
+      - id: debug-statements
+      - id: mixed-line-ending
+        args: ['--fix=lf']
+
+  # Spell checking
+  - repo: https://github.com/codespell-project/codespell
+    rev: v2.2.6
+    hooks:
+      - id: codespell
+        args: ['--config=.codespellrc']
+        exclude: '^((\./)?\.github/|(\./)?build/|(\./)?install/|(\./)?docs/doxygen/)'
+
+  # CMake linting
+  - repo: https://github.com/cheshirekow/cmake-format-precommit
+    rev: v0.6.13
+    hooks:
+      - id: cmake-format
+        additional_dependencies: ['pyyaml>=5.4.1']
+        args: ['--in-place']
+      - id: cmake-lint
+        additional_dependencies: ['pyyaml>=5.4.1']
+
+  # C++ formatting with clang-format
+  - repo: https://github.com/pre-commit/mirrors-clang-format
+    rev: v17.0.2
+    hooks:
+      - id: clang-format
+        args: ['-i']
+        types: [c++, c]
+
+  # C++ static analysis with clang-tidy
+  # Requires compile_commands.json in the build directory (cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON).
+  - repo: local
+    hooks:
+      - id: clang-tidy
+        name: clang-tidy
+        language: system
+        entry: clang-tidy
+        args: ['-p', 'build']
+        types: [c++]
+
+  # C++ static analysis (optional: requires cppcheck)
+  # Uncomment to enable; requires: apt-get install cppcheck
+  # - repo: https://github.com/pocc/pre-commit-hooks
+  #   rev: v1.3.5
+  #   hooks:
+  #     - id: cppcheck
+  #       args: ['--enable=all', '--suppress=missingIncludeSystem']
+
+  # Git hooks
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v2.3.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]
+
+  # Markdown linting and formatting
+  - repo: https://github.com/DavidAnson/markdownlint-cli2
+    rev: v0.14.0
+    hooks:
+      - id: markdownlint-cli2
+        args: ['--fix', '--config', '.markdownlint-cli2.yaml']
+        files: '^(README\.md|CODE_OF_CONDUCT\.md|CONTRIBUTING\.md|docs/.*\.md)$'
+
+  # License headers (optional: uncomment if you want to enforce license headers)
+  # - repo: https://github.com/Lucas-C/pre-commit-hooks
+  #   rev: v1.5.1
+  #   hooks:
+  #     - id: insert-hook
+  #       name: Insert license header in C++ files
+  #       entry: |
+  #         bash -c 'for file in "$@"; do
+  #           if [[ "$file" =~ \.(cpp|h|hpp)$ ]] && ! grep -q "Copyright\|License" "$file"; then
+  #             echo "// SPDX-License-Identifier: \$(grep SPDX LICENSE || echo 'TBD')" | cat - "$file" > "$file.tmp" && mv "$file.tmp" "$file"
+  #           fi
+  #         done'
+  #       files: \.(cpp|h|hpp)$
+  #       language: system
