@@ -55,3 +55,7 @@ coverage_html/*
 !coverage_html/.gitkeep
 
 .env
+
+# Python bytecode
+__pycache__/
+*.pyc

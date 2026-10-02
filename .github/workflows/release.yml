@@ -97,7 +97,9 @@ jobs:
           TAG="${{ steps.version.outputs.tag }}"
           TARBALL_URL="https://github.com/${{ github.repository }}/archive/refs/tags/${TAG}.tar.gz"
 
-          curl -sL "${TARBALL_URL}" -o /tmp/thefblas-${VERSION}.tar.gz
+          curl --fail --silent --show-error --location \
+            --retry 5 --retry-delay 5 --retry-all-errors \
+            "${TARBALL_URL}" -o "/tmp/thefblas-${VERSION}.tar.gz"
           SHA512=$(sha512sum /tmp/thefblas-${VERSION}.tar.gz | awk '{print $1}')
 
           # Update SHA512 in portfile.cmake

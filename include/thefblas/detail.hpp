@@ -114,25 +114,14 @@ inline T acc_scale_add_and_narrow(const T &y, const T &alpha, const accumulator_
 /// signed overflow. Overflow of the running sums below is resolved by the
 /// single policy narrowing in `wide_value()`, never by the addition itself.
 template <typename I> constexpr I wrap_add(I a, I b) noexcept {
-    if constexpr (std::is_integral<I>::value) {
-        using U = typename std::make_unsigned<I>::type;
-        return wrap_narrow<I>(static_cast<U>(static_cast<U>(a) + static_cast<U>(b)));
-    } else {
-        // `I` is a compiler-extension integer (e.g. __int128 in strict mode)
-        // without std::make_unsigned; its headroom over any product makes
-        // overflow unreachable for lengths an `int` can express.
-        return a + b;
-    }
+    using U = make_unsigned_integer_t<I>;
+    return wrap_narrow<I>(static_cast<U>(static_cast<U>(a) + static_cast<U>(b)));
 }
 
 /// Subtracts two integers with two's-complement wrapping; see `wrap_add`.
 template <typename I> constexpr I wrap_sub(I a, I b) noexcept {
-    if constexpr (std::is_integral<I>::value) {
-        using U = typename std::make_unsigned<I>::type;
-        return wrap_narrow<I>(static_cast<U>(static_cast<U>(a) - static_cast<U>(b)));
-    } else {
-        return a - b;
-    }
+    using U = make_unsigned_integer_t<I>;
+    return wrap_narrow<I>(static_cast<U>(static_cast<U>(a) - static_cast<U>(b)));
 }
 
 /// Running sum of products of real values.
@@ -160,16 +149,14 @@ template <typename T, typename Enable = void> class real_mac {
 template <typename T> class real_mac<T, typename std::enable_if<is_fixed_v<T>>::type> {
     using wide = widen_t<typename T::rep>;
     // Every product is exact in `wide`. The running sum takes one more
-    // widening step where the platform provides a standard-usable one (see
-    // can_widen_v for the __int128 strict-mode caveat), so that no sum over a
+    // widening step where the platform provides one, so that no sum over a
     // vector whose length an `int` can express overflows it. Where `wide` is
     // already the widest available integer (Q1.31 products in int64 without
     // __int128), additions past its range wrap modulo 2^bits — well defined,
     // never UB — and are then resolved by the policy narrowing in
     // `wide_value()`; sums are exact only while `|sum|` stays below
     // `2^(bits(acc) - 1 - 2 * FracBits)`.
-    using wider = widen_or_same_t<wide>;
-    using acc = typename std::conditional<std::is_integral<wider>::value, wider, wide>::type;
+    using acc = widen_or_same_t<wide>;
 
   public:
     void add_product(const T &a, const T &b) {

@@ -110,12 +110,11 @@ template <typename Wide> constexpr Wide round_shift(Wide value, int shift) noexc
 
 /// Scales by 2^shift without left-shifting a signed negative value.
 template <typename Wide> constexpr Wide scale_pow2(Wide value, int shift) noexcept {
-    static_assert(std::is_integral<Wide>::value && std::is_signed<Wide>::value,
-                  "scale_pow2 requires a signed integral type");
+    static_assert(is_signed_integer<Wide>::value, "scale_pow2 requires a signed integral type");
     if (shift <= 0) {
         return value;
     }
-    using Unsigned = typename std::make_unsigned<Wide>::type;
+    using Unsigned = make_unsigned_integer_t<Wide>;
     const Unsigned bits = static_cast<Unsigned>(value);
     const Unsigned magnitude = value < 0 ? static_cast<Unsigned>(Unsigned(0) - bits) : bits;
     const Unsigned scaled = static_cast<Unsigned>(magnitude << shift);
@@ -193,7 +192,9 @@ template <typename IntType, int FracBits, typename Policy = checked> class fixed
 
     friend constexpr fixed operator/(fixed a, fixed b) noexcept {
         if (b.value_ == 0) {
-            assert(false && "thefblas::fixed<>: division by zero");
+            if constexpr (std::is_same<Policy, checked>::value) {
+                assert(false && "thefblas::fixed<>: division by zero");
+            }
             return from_raw(Policy::template from_out_of_range<IntType>(a.value_ >= 0));
         }
         const wide numerator = detail::scale_pow2(static_cast<wide>(a.value_), FracBits);
@@ -329,17 +330,15 @@ struct is_fixed<fixed<IntType, FracBits, Policy>> : std::true_type {};
 template <typename T> constexpr bool is_fixed_v = is_fixed<T>::value;
 
 /// True when `widen_t<IntType>` is genuinely wider than `IntType` and is itself
-/// a valid storage type of a `fixed<>` (integral, with a further wider type for
-/// its own arithmetic). This excludes `__int128`, which has no wider type and
-/// only satisfies `std::is_integral` when compiler extensions are enabled, and
+/// a valid storage type of a `fixed<>` (with a further wider type for its own
+/// arithmetic). This excludes `__int128`, which has no wider type, and
 /// `std::int64_t` when the compiler provides no `__int128`. In those cases the
 /// accumulator falls back to the original width.
 template <typename IntType, bool = has_wider_type_v<IntType>> struct can_widen : std::false_type {};
 
 template <typename IntType>
-struct can_widen<IntType, true>
-    : std::integral_constant<bool, std::is_integral<widen_t<IntType>>::value &&
-                                       has_wider_type_v<widen_t<IntType>>> {};
+struct can_widen<IntType, true> : std::integral_constant<bool, has_wider_type_v<widen_t<IntType>>> {
+};
 
 template <typename IntType> constexpr bool can_widen_v = can_widen<IntType>::value;
 

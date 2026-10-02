@@ -20,6 +20,7 @@ int main() {
   std::array<q20, 3> yq = {q20(1.0), q20(1.0), q20(1.0)};
   thefblas::axpy(3, q20(2.0), xq.data(), 1, yq.data(), 1);
   const bool fixed_ok = std::fabs(yq[0].to_float<double>() - 3.0) < 1e-3 &&
+                        std::fabs(yq[1].to_float<double>() - 5.0) < 1e-3 &&
                         std::fabs(yq[2].to_float<double>() - 7.0) < 1e-3;
 
   std::printf("thefblas test_package: float_ok=%d fixed_ok=%d\n",

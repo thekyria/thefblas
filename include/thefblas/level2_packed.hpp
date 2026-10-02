@@ -127,37 +127,41 @@ inline void tpmv_impl(char uplo, char trans, char diag, int n, const T *ap, T *x
     const bool conjugate = (tr == 'C');
 
     if (tr == 'N') {
+        // Each x(i) is formed as one widened dot product of row i with x and
+        // overwritten in an order that leaves the x(j) it still needs intact.
         if (upper) {
-            int jx = start_index(n, incx);
-            for (int j = 0; j < n; ++j) {
-                if (x[jx] != value_constants<T>::zero()) {
-                    const T temp = x[jx];
-                    int ix = start_index(n, incx);
-                    for (int i = 0; i < j; ++i) {
-                        x[ix] += temp * ap[packed_index_upper(i, j)];
-                        ix += incx;
-                    }
-                    if (!unit) {
-                        x[jx] *= ap[packed_index_upper(j, j)];
-                    }
+            int ix = start_index(n, incx);
+            for (int i = 0; i < n; ++i) {
+                mac_t<T> temp;
+                if (unit) {
+                    temp.add(x[ix]);
+                } else {
+                    temp.add_product(ap[packed_index_upper(i, i)], x[ix]);
                 }
-                jx += incx;
+                int jx = ix;
+                for (int j = i + 1; j < n; ++j) {
+                    jx += incx;
+                    temp.add_product(ap[packed_index_upper(i, j)], x[jx]);
+                }
+                x[ix] = temp.value();
+                ix += incx;
             }
         } else {
-            int jx = start_index(n, incx) + (n - 1) * incx;
-            for (int j = n - 1; j >= 0; --j) {
-                if (x[jx] != value_constants<T>::zero()) {
-                    const T temp = x[jx];
-                    int ix = start_index(n, incx) + (n - 1) * incx;
-                    for (int i = n - 1; i > j; --i) {
-                        x[ix] += temp * ap[packed_index_lower(i, j, n)];
-                        ix -= incx;
-                    }
-                    if (!unit) {
-                        x[jx] *= ap[packed_index_lower(j, j, n)];
-                    }
+            int ix = start_index(n, incx) + (n - 1) * incx;
+            for (int i = n - 1; i >= 0; --i) {
+                mac_t<T> temp;
+                if (unit) {
+                    temp.add(x[ix]);
+                } else {
+                    temp.add_product(ap[packed_index_lower(i, i, n)], x[ix]);
                 }
-                jx -= incx;
+                int jx = ix;
+                for (int j = i - 1; j >= 0; --j) {
+                    jx -= incx;
+                    temp.add_product(ap[packed_index_lower(i, j, n)], x[jx]);
+                }
+                x[ix] = temp.value();
+                ix -= incx;
             }
         }
     } else {

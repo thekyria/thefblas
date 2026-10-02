@@ -113,6 +113,9 @@ void test_wrap_policy() {
     // Division overflow wraps: 65/128 divided by 1/128 is 65, whose scaled raw
     // value 8320 reduces to -128 in eight bits.
     assert((raw<F>(65) / raw<F>(1)).raw() == lo);
+    // Division by zero maps to the limit of the dividend's sign, without asserting.
+    assert((raw<F>(3) / raw<F>(0)).raw() == hi);
+    assert((raw<F>(-3) / raw<F>(0)).raw() == lo);
     // Out-of-range construction is clamped under every policy.
     assert(F(10.0).raw() == hi);
     assert(F(-10.0).raw() == lo);
@@ -130,6 +133,8 @@ void test_saturate_policy() {
     assert(thefblas::abs(raw<F>(lo)).raw() == hi);
     assert((raw<F>(64) / raw<F>(1)).raw() == hi);
     assert((raw<F>(-64) / raw<F>(1)).raw() == lo);
+    assert((raw<F>(3) / raw<F>(0)).raw() == hi);
+    assert((raw<F>(-3) / raw<F>(0)).raw() == lo);
     assert(F(10.0).raw() == hi);
     assert(F(-10.0).raw() == lo);
 

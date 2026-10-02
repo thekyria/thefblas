@@ -214,6 +214,56 @@ void test_output_cancellation() {
     assert(close(y[0].to_float<double>(), 0.72, 0.01));
 }
 
+// The no-transpose triangular multiplies reduce each output row in the
+// accumulator too, so the partial sum 1.62 of row [0.9, 0.9, -0.9] (upper) or
+// [-0.9, 0.9, 0.9] (lower) with x = 0.9 must not saturate before the last term
+// cancels it.
+void test_triangular_no_transpose_cancellation() {
+    using F = fixed<std::int16_t, 15, thefblas::saturate>; // Q1.15
+    const int n = 3;
+    const F z(0.0);
+    const F p(0.9);
+    const F m(-0.9);
+    const F h(0.5);
+    const double expected_upper[3] = {0.81, 0.45, 0.45};
+    const double expected_lower[3] = {0.45, 0.45, 0.81};
+    const auto check = [](const F *x, const double *expected) {
+        for (int i = 0; i < 3; ++i) {
+            assert(close(x[i].to_float<double>(), expected[i], 0.01));
+        }
+    };
+
+    const F a_upper[9] = {p, z, z, p, h, z, m, z, h};
+    F x[3] = {p, p, p};
+    thefblas::trmv('U', 'N', 'N', n, a_upper, n, x, 1);
+    check(x, expected_upper);
+
+    const F a_lower[9] = {h, z, m, z, h, p, z, z, p};
+    F x_lower[3] = {p, p, p};
+    thefblas::trmv('L', 'N', 'N', n, a_lower, n, x_lower, 1);
+    check(x_lower, expected_lower);
+
+    const F ab_upper[9] = {z, z, p, z, p, h, m, z, h};
+    F xb[3] = {p, p, p};
+    thefblas::tbmv('U', 'N', 'N', n, 2, ab_upper, 3, xb, 1);
+    check(xb, expected_upper);
+
+    const F ab_lower[9] = {h, z, m, h, p, z, p, z, z};
+    F xb_lower[3] = {p, p, p};
+    thefblas::tbmv('L', 'N', 'N', n, 2, ab_lower, 3, xb_lower, 1);
+    check(xb_lower, expected_lower);
+
+    const F ap_upper[6] = {p, p, h, m, z, h};
+    F xp[3] = {p, p, p};
+    thefblas::tpmv('U', 'N', 'N', n, ap_upper, xp, 1);
+    check(xp, expected_upper);
+
+    const F ap_lower[6] = {h, z, m, h, p, p};
+    F xp_lower[3] = {p, p, p};
+    thefblas::tpmv('L', 'N', 'N', n, ap_lower, xp_lower, 1);
+    check(xp_lower, expected_lower);
+}
+
 #if defined(__SIZEOF_INT128__)
 // 64-bit fixed-point reductions accumulate in the same-width Q format, since
 // `__int128` has no wider type of its own; the sums are still formed exactly
@@ -251,6 +301,7 @@ int main() {
     test_symv_cancellation();
     test_symmetric_variants_cancellation();
     test_output_cancellation();
+    test_triangular_no_transpose_cancellation();
 #if defined(__SIZEOF_INT128__)
     test_int64_reductions();
 #endif

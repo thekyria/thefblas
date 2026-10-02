@@ -190,39 +190,43 @@ inline void tbmv_impl(char uplo, char trans, char diag, int n, int k, const T *a
     const auto band = [upper, k](int i, int j) { return upper ? (k + i - j) : (i - j); };
 
     if (tr == 'N') {
+        // Each x(i) is formed as one widened dot product of row i with x and
+        // overwritten in an order that leaves the x(j) it still needs intact.
         if (upper) {
-            int jx = start_index(n, incx);
-            for (int j = 0; j < n; ++j) {
-                if (x[jx] != value_constants<T>::zero()) {
-                    const T temp = x[jx];
-                    const int first = (j - k > 0) ? (j - k) : 0;
-                    int ix = jx - (j - first) * incx;
-                    for (int i = first; i < j; ++i) {
-                        x[ix] += temp * a[band(i, j) + j * lda];
-                        ix += incx;
-                    }
-                    if (!unit) {
-                        x[jx] *= a[diag_row + j * lda];
-                    }
+            int ix = start_index(n, incx);
+            for (int i = 0; i < n; ++i) {
+                mac_t<T> temp;
+                if (unit) {
+                    temp.add(x[ix]);
+                } else {
+                    temp.add_product(a[diag_row + i * lda], x[ix]);
                 }
-                jx += incx;
+                const int last = (i + k < n - 1) ? (i + k) : (n - 1);
+                int jx = ix;
+                for (int j = i + 1; j <= last; ++j) {
+                    jx += incx;
+                    temp.add_product(a[band(i, j) + j * lda], x[jx]);
+                }
+                x[ix] = temp.value();
+                ix += incx;
             }
         } else {
-            int jx = start_index(n, incx) + (n - 1) * incx;
-            for (int j = n - 1; j >= 0; --j) {
-                if (x[jx] != value_constants<T>::zero()) {
-                    const T temp = x[jx];
-                    const int last = (j + k < n - 1) ? (j + k) : (n - 1);
-                    int ix = jx + (last - j) * incx;
-                    for (int i = last; i > j; --i) {
-                        x[ix] += temp * a[band(i, j) + j * lda];
-                        ix -= incx;
-                    }
-                    if (!unit) {
-                        x[jx] *= a[diag_row + j * lda];
-                    }
+            int ix = start_index(n, incx) + (n - 1) * incx;
+            for (int i = n - 1; i >= 0; --i) {
+                mac_t<T> temp;
+                if (unit) {
+                    temp.add(x[ix]);
+                } else {
+                    temp.add_product(a[diag_row + i * lda], x[ix]);
                 }
-                jx -= incx;
+                const int first = (i - k > 0) ? (i - k) : 0;
+                int jx = ix;
+                for (int j = i - 1; j >= first; --j) {
+                    jx -= incx;
+                    temp.add_product(a[band(i, j) + j * lda], x[jx]);
+                }
+                x[ix] = temp.value();
+                ix -= incx;
             }
         }
     } else {

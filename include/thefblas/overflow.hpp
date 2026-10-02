@@ -42,11 +42,38 @@ namespace thefblas {
 
 namespace detail {
 
+/// `std::is_integral && std::is_signed` and `std::make_unsigned`, extended to
+/// the compiler's `__int128`, which the standard traits only recognise when GNU
+/// language extensions are enabled (e.g. not under `-std=c++17`).
+template <typename T>
+struct is_signed_integer
+    : std::integral_constant<bool, std::is_integral<T>::value && std::is_signed<T>::value> {};
+
+template <typename T> struct make_unsigned_integer {
+    using type = typename std::make_unsigned<T>::type;
+};
+
+#if defined(__SIZEOF_INT128__)
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#endif
+template <> struct is_signed_integer<__int128> : std::true_type {};
+template <> struct make_unsigned_integer<__int128> {
+    using type = unsigned __int128;
+};
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
+#endif
+
+template <typename T> using make_unsigned_integer_t = typename make_unsigned_integer<T>::type;
+
 /// Reduces `value` modulo 2^bits(IntType) and reinterprets the result as a
 /// two's-complement signed value, without relying on implementation-defined
 /// signed conversion or on signed overflow.
 template <typename IntType, typename Wide> constexpr IntType wrap_narrow(Wide value) noexcept {
-    using Unsigned = typename std::make_unsigned<IntType>::type;
+    using Unsigned = make_unsigned_integer_t<IntType>;
     const Unsigned bits = static_cast<Unsigned>(value);
     if (bits <= static_cast<Unsigned>((std::numeric_limits<IntType>::max)())) {
         return static_cast<IntType>(bits);

@@ -36,3 +36,12 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/test_accumulators.cpp)
   target_link_libraries(thefblas_test_accumulators PRIVATE thefblas::thefblas)
   add_test(NAME thefblas_test_accumulators COMMAND thefblas_test_accumulators)
 endif()
+
+# The same checks with compiler extensions disabled (-std=c++17 rather than
+# -std=gnu++17), where the standard traits do not recognise __int128.
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/test_accumulators.cpp)
+  add_executable(thefblas_test_accumulators_strict test_accumulators.cpp)
+  target_link_libraries(thefblas_test_accumulators_strict PRIVATE thefblas::thefblas)
+  set_target_properties(thefblas_test_accumulators_strict PROPERTIES CXX_EXTENSIONS OFF)
+  add_test(NAME thefblas_test_accumulators_strict COMMAND thefblas_test_accumulators_strict)
+endif()
