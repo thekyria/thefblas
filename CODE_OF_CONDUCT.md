@@ -46,9 +46,12 @@ social media account, or acting as an appointed representative at an online or o
 
 ## Enforcement
 
-Instances of abusive, harassing, or otherwise unacceptable behavior may be reported via
-[GitHub Security Advisories](https://github.com/thekyria/thefblas/security/advisories/new).
-All complaints will be reviewed and
+Instances of abusive, harassing, or otherwise unacceptable behavior may be reported
+privately to the project maintainer, [@thekyria](https://github.com/thekyria), via the
+contact options on their GitHub profile. Do not use GitHub Security Advisories for
+conduct reports; that channel is reserved for security vulnerabilities. Reports can also
+be sent to GitHub through the [Report abuse](https://docs.github.com/en/communities/maintaining-your-safety-on-github/reporting-abuse-or-spam)
+feature. All complaints will be reviewed and
 investigated and will result in a response that is deemed necessary and appropriate to
 the circumstances. The project team is obligated to maintain confidentiality with
 respect to the reporter of an incident.

@@ -303,10 +303,14 @@ fixed<IntType, FracBits, Policy> sqrt(fixed<IntType, FracBits, Policy> f) {
         return F::from_raw(0);
     }
     // Initial guess: the value itself (or one raw unit if it's tiny), refined via Newton
-    // iterations x_{k+1} = (x_k + f / x_k) / 2.
+    // iterations x_{k+1} = (x_k + f / x_k) / 2. The halving is done on the (non-negative)
+    // raw values with round-half-up, so it neither depends on 0.5 being representable
+    // (FracBits == 0) nor overflows when x_k + f / x_k exceeds the representable range.
     F x = f > F::from_raw(1) ? f : F::from_raw(1);
     for (int i = 0; i < 32; ++i) {
-        const F next = (x + f / x) * F(0.5);
+        const IntType a = x.raw();
+        const IntType b = (f / x).raw();
+        const F next = F::from_raw(static_cast<IntType>(a / 2 + b / 2 + ((a % 2) + (b % 2) + 1) / 2));
         if (next == x) {
             break;
         }

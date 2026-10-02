@@ -51,7 +51,7 @@ jobs:
         if: steps.release_check.outputs.exists == 'false'
         run: python3 scripts/extract-changelog.py > /tmp/release-notes.md
 
-      - name: Update CHANGELOG.md and CMakeLists.txt
+      - name: Update CHANGELOG.md, CMakeLists.txt, and Doxyfile
         if: steps.release_check.outputs.exists == 'false'
         run: python3 scripts/prepare-release.py ${{ steps.version.outputs.version }}
 
@@ -119,6 +119,6 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add CHANGELOG.md ports/ versions/
+          git add CHANGELOG.md Doxyfile ports/ versions/
           git diff --cached --quiet || git commit -m "chore(release): update changelog and vcpkg port for ${{ steps.version.outputs.tag }} [skip ci]"
           git push

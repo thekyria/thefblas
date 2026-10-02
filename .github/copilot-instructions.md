@@ -8,13 +8,12 @@ Focus on correctness, portability, and maintainability while keeping changes sma
 ## Tech Stack
 
 - Language: C++17
-- Build system: CMake (minimum 3.15)
+- Build system: CMake (minimum 3.21)
 - Test framework: CTest with tests in the tests directory
 
 ## Repository Structure
 
-- include/thefblas/: public headers and exported API surface
-- src/: library implementation
+- include/thefblas/: public headers and exported API surface (header-only library; there is no src/ directory)
 - tests/: unit/integration tests used by CTest
 - build/: generated artifacts; do not edit generated files
 

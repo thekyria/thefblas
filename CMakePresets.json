@@ -20,6 +20,15 @@
       }
     },
     {
+      "name": "cross",
+      "hidden": true,
+      "inherits": "base",
+      "cacheVariables": {
+        "THEFBLAS_BUILD_TESTS": "OFF",
+        "THEFBLAS_BUILD_EXAMPLES": "OFF"
+      }
+    },
+    {
       "name": "gcc-debug",
       "inherits": "base",
       "cacheVariables": {
@@ -88,7 +97,7 @@
     },
     {
       "name": "arm-linux-debug",
-      "inherits": "base",
+      "inherits": "cross",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/cmake/toolchains/arm-linux-gnueabihf.cmake"
@@ -96,7 +105,7 @@
     },
     {
       "name": "arm-linux-release",
-      "inherits": "base",
+      "inherits": "cross",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/cmake/toolchains/arm-linux-gnueabihf.cmake"
@@ -104,7 +113,7 @@
     },
     {
       "name": "arm-none-eabi-debug",
-      "inherits": "base",
+      "inherits": "cross",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/cmake/toolchains/arm-none-eabi.cmake"
@@ -112,7 +121,7 @@
     },
     {
       "name": "arm-none-eabi-release",
-      "inherits": "base",
+      "inherits": "cross",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/cmake/toolchains/arm-none-eabi.cmake"
@@ -224,34 +233,6 @@
       "name": "msvc-release",
       "configurePreset": "msvc-release",
       "configuration": "Release",
-      "output": {
-        "outputOnFailure": true
-      }
-    },
-    {
-      "name": "arm-linux-debug",
-      "configurePreset": "arm-linux-debug",
-      "output": {
-        "outputOnFailure": true
-      }
-    },
-    {
-      "name": "arm-linux-release",
-      "configurePreset": "arm-linux-release",
-      "output": {
-        "outputOnFailure": true
-      }
-    },
-    {
-      "name": "arm-none-eabi-debug",
-      "configurePreset": "arm-none-eabi-debug",
-      "output": {
-        "outputOnFailure": true
-      }
-    },
-    {
-      "name": "arm-none-eabi-release",
-      "configurePreset": "arm-none-eabi-release",
       "output": {
         "outputOnFailure": true
       }

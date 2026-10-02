@@ -68,6 +68,12 @@ void test_sqrt() {
     assert(almost_equal(thefblas::sqrt(F(16.0)), F(4.0)));
     assert(almost_equal(thefblas::sqrt(F(2.0)), F(1.41421356), 1e-2));
     assert(thefblas::sqrt(F(0.0)) == F(0.0));
+
+    // No fractional bits: 0.5 is not representable, so halving must not rely on it.
+    using I = fixed<std::int32_t, 0>;
+    assert(thefblas::sqrt(I(16.0)) == I(4.0));
+    assert(thefblas::sqrt(I(1.0)) == I(1.0));
+    assert(thefblas::sqrt(I(10000.0)) == I(100.0));
 }
 
 void test_different_widths() {

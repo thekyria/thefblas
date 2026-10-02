@@ -41,7 +41,9 @@ docs:
 clean:
 	rm -rf $(BUILD_DIR)
 
-rebuild: clean build
+rebuild:
+	$(MAKE) clean
+	$(MAKE) build
 
 coverage:
 	cmake --preset gcc-debug-coverage
