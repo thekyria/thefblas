@@ -1,3 +1,7 @@
+# Tests check behavior with assert(); keep it active in every configuration,
+# including Release presets that define NDEBUG.
+add_compile_options($<IF:$<CXX_COMPILER_ID:MSVC>,/UNDEBUG,-UNDEBUG>)
+
 add_executable(thefblas_tests test_fixed.cpp)
 target_link_libraries(thefblas_tests PRIVATE thefblas::thefblas)
 
