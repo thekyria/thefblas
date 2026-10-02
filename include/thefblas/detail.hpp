@@ -98,10 +98,12 @@ template <typename T> inline T from_accumulator(const accumulator_t<T> &value) {
     }
 }
 
-/// Scales an accumulated sum by `alpha` in the accumulator type and narrows
-/// back to the element type, applying the overflow policy exactly once.
-template <typename T> inline T acc_scale_and_narrow(const T &alpha, const accumulator_t<T> &value) {
-    return from_accumulator<T>(to_accumulator(alpha) * value);
+/// Computes `y + alpha * value` with `y` (the already `beta`-scaled output
+/// element) and the scaled sum held together in the accumulator type, and
+/// narrows back to the element type, applying the overflow policy exactly once.
+template <typename T>
+inline T acc_scale_add_and_narrow(const T &y, const T &alpha, const accumulator_t<T> &value) {
+    return from_accumulator<T>(to_accumulator(y) + to_accumulator(alpha) * value);
 }
 
 // ---------------------------------------------------------------------------

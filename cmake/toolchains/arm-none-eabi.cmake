@@ -40,6 +40,17 @@ set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
 # Bare-metal: disable shared libraries and set executable suffix
 set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
 
+# The hosted test and example executables cannot be linked without a firmware
+# startup/runtime setup, so they default to OFF for this toolchain. Not FORCEd:
+# pass -DTHEFBLAS_BUILD_TESTS=ON / -DTHEFBLAS_BUILD_EXAMPLES=ON together with
+# your own linker setup to override.
+set(THEFBLAS_BUILD_TESTS
+    OFF
+    CACHE BOOL "Build thefblas unit tests")
+set(THEFBLAS_BUILD_EXAMPLES
+    OFF
+    CACHE BOOL "Build thefblas examples")
+
 # ARM Cortex-M base flags (adjust march, mthumb, mcpu for your target) Common
 # options: -mcpu=cortex-m0       for Cortex-M0 -mcpu=cortex-m3       for
 # Cortex-M3 -mcpu=cortex-m4       for Cortex-M4 -mcpu=cortex-m7       for

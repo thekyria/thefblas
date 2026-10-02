@@ -84,7 +84,7 @@ inline void gbmv_impl(char trans, int m, int n, int kl, int ku, T alpha, const T
                 }
                 ix += incx;
             }
-            y[jy] += acc_scale_and_narrow(alpha, temp.wide_value());
+            y[jy] = acc_scale_add_and_narrow(y[jy], alpha, temp.wide_value());
             jy += incy;
             if (j >= ku) {
                 kx += incx;
@@ -109,7 +109,7 @@ inline void sbmv_impl(char uplo, int n, int k, T alpha, const T *a, int lda, con
 
     // Each output element is a single widened reduction over its band row
     // (gathering the mirrored element from the stored triangle), scaled by
-    // alpha in the accumulator type and narrowed exactly once, so intermediate
+    // alpha and added to y in the accumulator type, and narrowed exactly once, so intermediate
     // terms cannot saturate or wrap before later terms cancel them.
     int jy = start_index(n, incy);
     for (int j = 0; j < n; ++j) {
@@ -123,7 +123,7 @@ inline void sbmv_impl(char uplo, int n, int k, T alpha, const T *a, int lda, con
             temp.add_product(value, x[ix]);
             ix += incx;
         }
-        y[jy] += acc_scale_and_narrow(alpha, temp.wide_value());
+        y[jy] = acc_scale_add_and_narrow(y[jy], alpha, temp.wide_value());
         jy += incy;
     }
 }
@@ -166,7 +166,7 @@ inline void hbmv_impl(char uplo, int n, int k, std::complex<T> alpha, const std:
             }
             ix += incx;
         }
-        y[jy] += acc_scale_and_narrow(alpha, temp.wide_value());
+        y[jy] = acc_scale_add_and_narrow(y[jy], alpha, temp.wide_value());
         jy += incy;
     }
 }

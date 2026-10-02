@@ -103,12 +103,15 @@ through the element type's overflow policy exactly once, at the end:
   transpose and conjugate-transpose paths of `gemv`/`gbmv`, and
   `trmv`/`tbmv`/`tpmv`, `trsv`/`tbsv`/`tpsv`) form each output element as a
   single widened multiply-accumulate over its whole row, again at
-  `2 * FracBits`, and narrow through the policy exactly once per element. The
+  `2 * FracBits`, and narrow through the policy exactly once per element.
+  Where the routine computes `alpha * op(A) * x + beta * y`, the `alpha`
+  scaling and the addition of the (`beta`-scaled) `y` element also happen in
+  the accumulator type, before that single narrowing. The
   symmetric/Hermitian routines gather the mirrored element from the stored
   triangle instead of updating `y` term by term, so partial sums that leave
   the element range cannot saturate or wrap before later terms cancel them.
 
-Two deliberate limitations:
+Three deliberate limitations:
 
 - The `'N'` (no-transpose) paths of `gemv` and `gbmv` accumulate directly into
   `y`, as Netlib BLAS does. Widening them would require an `O(m)` temporary
@@ -118,6 +121,11 @@ Two deliberate limitations:
   no wider type to evaluate the arithmetic in, so `fixed<std::int64_t, ...>`
   is rejected at compile time rather than silently risking undefined signed
   overflow.
+- The widest supported element type — `fixed<std::int64_t, ...>` with
+  `__int128`, or `fixed<std::int32_t, ...>` without it — has no wider `fixed`
+  storage, so its accumulator keeps the element width. The products are still
+  summed in the wider integer, but the final `alpha` scaling and `y` update are
+  narrowed through the policy in the element width.
 
 `float` and `double` accumulate in themselves, so floating-point results are
 bit-identical to the straightforward loops that Netlib BLAS specifies.

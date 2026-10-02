@@ -91,9 +91,9 @@ struct widen_or_same<IntType, std::void_t<typename widen<IntType>::type>> {
 };
 template <typename IntType> using widen_or_same_t = typename widen_or_same<IntType>::type;
 
-/// True when `widen_t<IntType>` is genuinely wider than `IntType`.
+/// True when `widen_t<IntType>` exists and is genuinely wider than `IntType`.
 template <typename IntType>
-constexpr bool has_wider_type_v = sizeof(widen_t<IntType>) > sizeof(IntType);
+constexpr bool has_wider_type_v = sizeof(widen_or_same_t<IntType>) > sizeof(IntType);
 
 /// Divides by 2^shift with round-to-nearest, ties away from zero, avoiding the
 /// implementation-defined behaviour of right-shifting a negative value.
@@ -328,27 +328,41 @@ struct is_fixed<fixed<IntType, FracBits, Policy>> : std::true_type {};
 
 template <typename T> constexpr bool is_fixed_v = is_fixed<T>::value;
 
-/// True when `widen_t<IntType>` is both genuinely wider and usable as the
-/// storage type of a `fixed<>`. The second condition matters for `__int128`,
-/// which only satisfies `std::is_integral` (and only has a
-/// `std::numeric_limits` specialisation) when compiler extensions are enabled;
-/// in strict mode the accumulator silently falls back to the original width.
+/// True when `widen_t<IntType>` is genuinely wider than `IntType` and is itself
+/// a valid storage type of a `fixed<>` (integral, with a further wider type for
+/// its own arithmetic). This excludes `__int128`, which has no wider type and
+/// only satisfies `std::is_integral` when compiler extensions are enabled, and
+/// `std::int64_t` when the compiler provides no `__int128`. In those cases the
+/// accumulator falls back to the original width.
+template <typename IntType, bool = has_wider_type_v<IntType>> struct can_widen : std::false_type {};
+
 template <typename IntType>
-constexpr bool can_widen_v = has_wider_type_v<IntType> && std::is_integral<widen_t<IntType>>::value;
+struct can_widen<IntType, true>
+    : std::integral_constant<bool, std::is_integral<widen_t<IntType>>::value &&
+                                       has_wider_type_v<widen_t<IntType>>> {};
+
+template <typename IntType> constexpr bool can_widen_v = can_widen<IntType>::value;
 
 /// The same Q format in a wider storage type, used for internal accumulators.
 /// `FracBits` is deliberately unchanged, so converting to it is a plain sign
-/// extension with no shift and no rounding.
+/// extension with no shift and no rounding. The widened type is only named in
+/// the selected specialisation, so an unsupported `fixed<>` is never formed.
+template <typename T, bool Widen> struct wider_fixed_select {
+    using type = T;
+};
+
+template <typename IntType, int FracBits, typename Policy>
+struct wider_fixed_select<fixed<IntType, FracBits, Policy>, true> {
+    using type = fixed<widen_t<IntType>, FracBits, Policy>;
+};
+
 template <typename T> struct wider_fixed {
     using type = T;
 };
 
 template <typename IntType, int FracBits, typename Policy>
-struct wider_fixed<fixed<IntType, FracBits, Policy>> {
-    using type =
-        typename std::conditional<can_widen_v<IntType>, fixed<widen_t<IntType>, FracBits, Policy>,
-                                  fixed<IntType, FracBits, Policy>>::type;
-};
+struct wider_fixed<fixed<IntType, FracBits, Policy>>
+    : wider_fixed_select<fixed<IntType, FracBits, Policy>, can_widen_v<IntType>> {};
 
 } // namespace detail
 

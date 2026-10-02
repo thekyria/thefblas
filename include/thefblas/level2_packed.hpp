@@ -59,7 +59,7 @@ inline void spmv_impl(char uplo, int n, T alpha, const T *ap, const T *x, int in
 
     // Each output element is a single widened reduction over its full matrix
     // row (gathering the mirrored element from the stored triangle), scaled by
-    // alpha in the accumulator type and narrowed exactly once, so intermediate
+    // alpha and added to y in the accumulator type, and narrowed exactly once, so intermediate
     // terms cannot saturate or wrap before later terms cancel them.
     int jy = start_index(n, incy);
     for (int j = 0; j < n; ++j) {
@@ -71,7 +71,7 @@ inline void spmv_impl(char uplo, int n, T alpha, const T *ap, const T *x, int in
             temp.add_product(ap[packed_index(upper, upper ? lo : hi, upper ? hi : lo, n)], x[ix]);
             ix += incx;
         }
-        y[jy] += acc_scale_and_narrow(alpha, temp.wide_value());
+        y[jy] = acc_scale_add_and_narrow(y[jy], alpha, temp.wide_value());
         jy += incy;
     }
 }
@@ -109,7 +109,7 @@ inline void hpmv_impl(char uplo, int n, std::complex<T> alpha, const std::comple
             }
             ix += incx;
         }
-        y[jy] += acc_scale_and_narrow(alpha, temp.wide_value());
+        y[jy] = acc_scale_add_and_narrow(y[jy], alpha, temp.wide_value());
         jy += incy;
     }
 }
