@@ -5,6 +5,7 @@
 #include <cmath>
 #include <complex>
 #include <cstdint>
+#include <limits>
 #include <type_traits>
 
 using thefblas::fixed;
@@ -264,6 +265,23 @@ void test_triangular_no_transpose_cancellation() {
     check(xp_lower, expected_lower);
 }
 
+// The final rounding of a wrapped running sum must be well defined even at the
+// signed limits of the accumulator, where negation or `value + half` would
+// overflow.
+void test_round_shift_limits() {
+    using thefblas::detail::round_shift;
+    constexpr std::int64_t lo = (std::numeric_limits<std::int64_t>::min)();
+    constexpr std::int64_t hi = (std::numeric_limits<std::int64_t>::max)();
+    static_assert(round_shift(lo, 1) == lo / 2, "min / 2 is exact");
+    static_assert(round_shift(hi, 1) == hi / 2 + 1, "max / 2 rounds away from zero");
+    static_assert(round_shift(lo, 31) == -(std::int64_t(1) << 32), "min / 2^31");
+    static_assert(round_shift(hi, 31) == (std::int64_t(1) << 32), "max / 2^31 rounds up");
+    static_assert(round_shift(std::int64_t(-3), 1) == -2, "ties away from zero");
+    static_assert(round_shift(std::int64_t(3), 1) == 2, "ties away from zero");
+    static_assert(round_shift(std::int64_t(-5), 2) == -1, "-1.25 rounds to -1");
+    static_assert(round_shift(std::int64_t(6), 2) == 2, "1.5 rounds to 2");
+}
+
 #if defined(__SIZEOF_INT128__)
 // 64-bit fixed-point reductions accumulate in the same-width Q format, since
 // `__int128` has no wider type of its own; the sums are still formed exactly
@@ -298,6 +316,7 @@ int main() {
     test_complex_accumulator();
     test_asum_raw_min();
     test_from_integer_overflow();
+    test_round_shift_limits();
     test_symv_cancellation();
     test_symmetric_variants_cancellation();
     test_output_cancellation();

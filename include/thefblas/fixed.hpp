@@ -96,16 +96,24 @@ template <typename IntType>
 constexpr bool has_wider_type_v = sizeof(widen_or_same_t<IntType>) > sizeof(IntType);
 
 /// Divides by 2^shift with round-to-nearest, ties away from zero, avoiding the
-/// implementation-defined behaviour of right-shifting a negative value.
+/// implementation-defined behaviour of right-shifting a negative value. The
+/// magnitude is formed in unsigned space, so the signed minimum (which a
+/// wrapping running sum can legitimately reach) is never negated.
 template <typename Wide> constexpr Wide round_shift(Wide value, int shift) noexcept {
+    static_assert(is_signed_integer<Wide>::value, "round_shift requires a signed integral type");
     if (shift <= 0) {
         return value;
     }
-    const Wide half = static_cast<Wide>(Wide(1) << (shift - 1));
-    if (value >= 0) {
-        return static_cast<Wide>((value + half) >> shift);
-    }
-    return static_cast<Wide>(-static_cast<Wide>((-value + half) >> shift));
+    using Unsigned = make_unsigned_integer_t<Wide>;
+    const Unsigned bits = static_cast<Unsigned>(value);
+    const Unsigned magnitude = value < 0 ? static_cast<Unsigned>(Unsigned(0) - bits) : bits;
+    // Round half away from zero without forming `magnitude + half`, which
+    // could exceed the signed range of `Wide` near its limits.
+    const Unsigned rounded = static_cast<Unsigned>((magnitude >> shift) +
+                                                   ((magnitude >> (shift - 1)) & Unsigned(1)));
+    // With shift >= 1, `rounded` is at most 2^(bits - 2) + 1 and fits in `Wide`.
+    return value < 0 ? static_cast<Wide>(-static_cast<Wide>(rounded))
+                     : static_cast<Wide>(rounded);
 }
 
 /// Scales by 2^shift without left-shifting a signed negative value.
