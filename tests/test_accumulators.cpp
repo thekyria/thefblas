@@ -163,6 +163,42 @@ void test_symv_cancellation() {
     assert(close(y[0].to_float<double>(), 0.405, 0.01));
 }
 
+// The Hermitian, banded and packed symmetric/Hermitian variants reduce whole
+// output rows in the accumulator as well.
+void test_symmetric_variants_cancellation() {
+    using F = fixed<std::int16_t, 15, thefblas::saturate>; // Q1.15
+    using C = std::complex<F>;
+    const int n = 3;
+    const F zero(0.0);
+    const F x[3] = {F(0.9), F(0.9), F(0.9)};
+
+    // Row 0 of the matrix is [0.9, 0.9, -0.9]; the partial sum 1.62 saturates
+    // unless the whole row is reduced before narrowing.
+    const F ap[6] = {F(0.9), F(0.9), zero, F(-0.9), zero, zero};
+    F y_packed[3] = {zero, zero, zero};
+    thefblas::spmv('U', n, F(0.5), ap, x, 1, zero, y_packed, 1);
+    assert(close(y_packed[0].to_float<double>(), 0.405, 0.01));
+
+    const F ab[9] = {zero, zero, F(0.9), zero, F(0.9), zero, F(-0.9), zero, zero};
+    F y_banded[3] = {zero, zero, zero};
+    thefblas::sbmv('U', n, 2, F(0.5), ab, 3, x, 1, zero, y_banded, 1);
+    assert(close(y_banded[0].to_float<double>(), 0.405, 0.01));
+
+    const C cx[3] = {C(F(0.9), zero), C(F(0.9), zero), C(F(0.9), zero)};
+    const C ca[9] = {C(F(0.9), zero), C(zero, zero), C(zero, zero),
+                     C(F(0.9), zero), C(zero, zero), C(zero, zero),
+                     C(F(-0.9), zero), C(zero, zero), C(zero, zero)};
+    C cy[3] = {C(zero, zero), C(zero, zero), C(zero, zero)};
+    thefblas::hemv('U', n, C(F(0.5), zero), ca, n, cx, 1, C(zero, zero), cy, 1);
+    assert(close(cy[0].real().to_float<double>(), 0.405, 0.01));
+
+    const C cap[6] = {C(F(0.9), zero), C(F(0.9), zero), C(zero, zero),
+                      C(F(-0.9), zero), C(zero, zero), C(zero, zero)};
+    C cy_packed[3] = {C(zero, zero), C(zero, zero), C(zero, zero)};
+    thefblas::hpmv('U', n, C(F(0.5), zero), cap, cx, 1, C(zero, zero), cy_packed, 1);
+    assert(close(cy_packed[0].real().to_float<double>(), 0.405, 0.01));
+}
+
 } // namespace
 
 int main() {
@@ -176,5 +212,6 @@ int main() {
     test_asum_raw_min();
     test_from_integer_overflow();
     test_symv_cancellation();
+    test_symmetric_variants_cancellation();
     return 0;
 }
