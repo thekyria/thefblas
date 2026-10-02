@@ -2,7 +2,7 @@ name: Release
 
 on:
   push:
-    branches: ["master"]
+    branches: ["main"]
     paths:
       - "CMakeLists.txt"
 
@@ -75,7 +75,7 @@ jobs:
         if: steps.release_check.outputs.exists == 'false'
         run: python3 scripts/extract-changelog.py > /tmp/release-notes.md
 
-      - name: Update CHANGELOG.md, CMakeLists.txt, and Doxyfile
+      - name: Update CHANGELOG.md, CMakeLists.txt, Doxyfile, and conanfile.py
         if: steps.release_check.outputs.exists == 'false'
         run: python3 scripts/prepare-release.py ${{ steps.version.outputs.version }}
 
@@ -88,7 +88,7 @@ jobs:
           gh release create "${{ steps.version.outputs.tag }}" \
             --title "thefblas ${{ steps.version.outputs.tag }}" \
             --notes-file /tmp/release-notes.md \
-            --target master
+            --target main
 
       - name: Update vcpkg port files
         if: steps.release_check.outputs.exists == 'false'
@@ -145,6 +145,6 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add CHANGELOG.md Doxyfile ports/ versions/
+          git add CHANGELOG.md Doxyfile conanfile.py ports/ versions/
           git diff --cached --quiet || git commit -m "chore(release): update changelog and vcpkg port for ${{ steps.version.outputs.tag }} [skip ci]"
           git push

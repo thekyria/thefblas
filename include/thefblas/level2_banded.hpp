@@ -44,12 +44,13 @@ inline void gbmv_impl(char trans, int m, int n, int kl, int ku, T alpha, const T
 
     const int leny = (tr == 'N') ? m : n;
     const int lenx = (tr == 'N') ? n : m;
-    scale_vector(leny, beta, y, incy);
     if (alpha == value_constants<T>::zero()) {
+        scale_vector(leny, beta, y, incy);
         return;
     }
 
     if (tr == 'N') {
+        scale_vector(leny, beta, y, incy);
         int jx = start_index(lenx, incx);
         int ky = start_index(leny, incy);
         for (int j = 0; j < n; ++j) {
@@ -84,7 +85,7 @@ inline void gbmv_impl(char trans, int m, int n, int kl, int ku, T alpha, const T
                 }
                 ix += incx;
             }
-            y[jy] = acc_scale_add_and_narrow(y[jy], alpha, temp.wide_value());
+            y[jy] = acc_scale_add_and_narrow(beta, y[jy], alpha, temp.wide_value());
             jy += incy;
             if (j >= ku) {
                 kx += incx;
@@ -101,30 +102,42 @@ inline void sbmv_impl(char uplo, int n, int k, T alpha, const T *a, int lda, con
         return;
     }
 
-    scale_vector(n, beta, y, incy);
     if (alpha == value_constants<T>::zero()) {
+        scale_vector(n, beta, y, incy);
         return;
     }
     const bool upper = (ul == 'U');
 
-    // Each output element is a single widened reduction over its band row
-    // (gathering the mirrored element from the stored triangle), scaled by
-    // alpha and added to y in the accumulator type, and narrowed exactly once, so intermediate
-    // terms cannot saturate or wrap before later terms cancel them.
-    int jy = start_index(n, incy);
-    for (int j = 0; j < n; ++j) {
-        mac_t<T> temp;
-        const int first = (j - k > 0) ? (j - k) : 0;
-        const int last = (j + k < n - 1) ? (j + k) : (n - 1);
-        int ix = start_index(n, incx) + first * incx;
-        for (int i = first; i <= last; ++i) {
-            const T value = upper ? (j <= i ? a[(k + j - i) + i * lda] : a[(k + i - j) + j * lda])
-                                  : (j >= i ? a[(j - i) + i * lda] : a[(i - j) + j * lda]);
-            temp.add_product(value, x[ix]);
-            ix += incx;
+    if constexpr (is_floating_v<T>) {
+        scale_vector(n, beta, y, incy);
+        symmetric_update_netlib<false>(
+            upper, n, k, alpha,
+            [a, lda, k, upper](int i, int j) {
+                return upper ? a[(k + i - j) + j * lda] : a[(i - j) + j * lda];
+            },
+            x, incx, y, incy);
+    } else {
+        // Each output element is a single widened reduction over its band row
+        // (gathering the mirrored element from the stored triangle), scaled by
+        // alpha and added to the beta-scaled y in the accumulator type, and narrowed
+        // exactly once, so intermediate terms cannot saturate or wrap before later
+        // terms cancel them.
+        int jy = start_index(n, incy);
+        for (int j = 0; j < n; ++j) {
+            mac_t<T> temp;
+            const int first = (j - k > 0) ? (j - k) : 0;
+            const int last = (j + k < n - 1) ? (j + k) : (n - 1);
+            int ix = start_index(n, incx) + first * incx;
+            for (int i = first; i <= last; ++i) {
+                const T value = upper
+                                    ? (j <= i ? a[(k + j - i) + i * lda] : a[(k + i - j) + j * lda])
+                                    : (j >= i ? a[(j - i) + i * lda] : a[(i - j) + j * lda]);
+                temp.add_product(value, x[ix]);
+                ix += incx;
+            }
+            y[jy] = acc_scale_add_and_narrow(beta, y[jy], alpha, temp.wide_value());
+            jy += incy;
         }
-        y[jy] = acc_scale_add_and_narrow(y[jy], alpha, temp.wide_value());
-        jy += incy;
     }
 }
 
@@ -138,36 +151,46 @@ inline void hbmv_impl(char uplo, int n, int k, std::complex<T> alpha, const std:
         return;
     }
 
-    scale_vector(n, beta, y, incy);
     if (alpha == value_constants<C>::zero()) {
+        scale_vector(n, beta, y, incy);
         return;
     }
     const bool upper = (ul == 'U');
 
-    // As in sbmv_impl, each output element is a single widened reduction over
-    // its band row; elements from the opposite triangle are conjugated and the
-    // diagonal is taken as real, per the Hermitian storage convention.
-    int jy = start_index(n, incy);
-    for (int j = 0; j < n; ++j) {
-        mac_t<C> temp;
-        const int first = (j - k > 0) ? (j - k) : 0;
-        const int last = (j + k < n - 1) ? (j + k) : (n - 1);
-        int ix = start_index(n, incx) + first * incx;
-        for (int i = first; i <= last; ++i) {
-            if (i == j) {
-                const C diag = upper ? a[k + j * lda] : a[j * lda];
-                temp.add_product(C(diag.real(), T{}), x[ix]);
-            } else if (upper ? (j < i) : (j > i)) {
-                const C value = upper ? a[(k + j - i) + i * lda] : a[(j - i) + i * lda];
-                temp.add_product(value, x[ix]);
-            } else {
-                const C value = upper ? a[(k + i - j) + j * lda] : a[(i - j) + j * lda];
-                temp.add_conj_product(value, x[ix]);
+    if constexpr (is_floating_v<C>) {
+        scale_vector(n, beta, y, incy);
+        symmetric_update_netlib<true>(
+            upper, n, k, alpha,
+            [a, lda, k, upper](int i, int j) {
+                return upper ? a[(k + i - j) + j * lda] : a[(i - j) + j * lda];
+            },
+            x, incx, y, incy);
+    } else {
+        // As in sbmv_impl, each output element is a single widened reduction over
+        // its band row; elements from the opposite triangle are conjugated and the
+        // diagonal is taken as real, per the Hermitian storage convention.
+        int jy = start_index(n, incy);
+        for (int j = 0; j < n; ++j) {
+            mac_t<C> temp;
+            const int first = (j - k > 0) ? (j - k) : 0;
+            const int last = (j + k < n - 1) ? (j + k) : (n - 1);
+            int ix = start_index(n, incx) + first * incx;
+            for (int i = first; i <= last; ++i) {
+                if (i == j) {
+                    const C diag = upper ? a[k + j * lda] : a[j * lda];
+                    temp.add_product(C(diag.real(), T{}), x[ix]);
+                } else if (upper ? (j < i) : (j > i)) {
+                    const C value = upper ? a[(k + j - i) + i * lda] : a[(j - i) + i * lda];
+                    temp.add_product(value, x[ix]);
+                } else {
+                    const C value = upper ? a[(k + i - j) + j * lda] : a[(i - j) + j * lda];
+                    temp.add_conj_product(value, x[ix]);
+                }
+                ix += incx;
             }
-            ix += incx;
+            y[jy] = acc_scale_add_and_narrow(beta, y[jy], alpha, temp.wide_value());
+            jy += incy;
         }
-        y[jy] = acc_scale_add_and_narrow(y[jy], alpha, temp.wide_value());
-        jy += incy;
     }
 }
 

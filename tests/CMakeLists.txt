@@ -1,6 +1,9 @@
 # Tests check behavior with assert(); keep it active in every configuration,
 # including Release presets that define NDEBUG.
 add_compile_options($<IF:$<CXX_COMPILER_ID:MSVC>,/UNDEBUG,-UNDEBUG>)
+# Bit-identity checks against reference Netlib-order loops need the compiler not
+# to fuse multiplies and adds differently in the two (GCC's GNU-mode default).
+add_compile_options($<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-ffp-contract=off>)
 
 add_executable(thefblas_tests test_fixed.cpp)
 target_link_libraries(thefblas_tests PRIVATE thefblas::thefblas)
@@ -44,4 +47,12 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/test_accumulators.cpp)
   target_link_libraries(thefblas_test_accumulators_strict PRIVATE thefblas::thefblas)
   set_target_properties(thefblas_test_accumulators_strict PROPERTIES CXX_EXTENSIONS OFF)
   add_test(NAME thefblas_test_accumulators_strict COMMAND thefblas_test_accumulators_strict)
+endif()
+
+# The release-build (NDEBUG) fallback of the checked policy; the source defines
+# NDEBUG itself, overriding the -UNDEBUG above for this target only.
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/test_checked_release.cpp)
+  add_executable(thefblas_test_checked_release test_checked_release.cpp)
+  target_link_libraries(thefblas_test_checked_release PRIVATE thefblas::thefblas)
+  add_test(NAME thefblas_test_checked_release COMMAND thefblas_test_checked_release)
 endif()

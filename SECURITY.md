@@ -6,7 +6,7 @@
 | ------- | --------- |
 | 0.1.x   | ✅        |
 
-Only the latest release on `master` receives security fixes.
+Only the latest release on `main` receives security fixes.
 
 ## Reporting a Vulnerability
 

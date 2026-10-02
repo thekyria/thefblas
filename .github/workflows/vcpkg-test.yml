@@ -2,14 +2,14 @@ name: vcpkg Integration Test
 
 on:
   push:
-    branches: ["master"]
+    branches: ["main"]
     paths:
       - "ports/**"
       - "versions/**"
       - "include/**"
       - "CMakeLists.txt"
   pull_request:
-    branches: ["master"]
+    branches: ["main"]
     paths:
       - "ports/**"
       - "versions/**"
@@ -105,7 +105,6 @@ jobs:
         run: |
           cmake -B /tmp/thefblas-consumer/build \
             -S /tmp/thefblas-consumer \
-            -DCMAKE_TOOLCHAIN_FILE="${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake" \
-            -DVCPKG_OVERLAY_PORTS="${GITHUB_WORKSPACE}/ports"
+            -DCMAKE_TOOLCHAIN_FILE="${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
           cmake --build /tmp/thefblas-consumer/build
           /tmp/thefblas-consumer/build/main

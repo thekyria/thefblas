@@ -105,7 +105,7 @@ through the element type's overflow policy exactly once, at the end:
   single widened multiply-accumulate over its whole row, again at
   `2 * FracBits`, and narrow through the policy exactly once per element.
   Where the routine computes `alpha * op(A) * x + beta * y`, the `alpha`
-  scaling and the addition of the (`beta`-scaled) `y` element also happen in
+  scaling, the `beta` scaling of the `y` element and their sum also happen in
   the accumulator type, before that single narrowing. The
   symmetric/Hermitian routines gather the mirrored element from the stored
   triangle instead of updating `y` term by term, so partial sums that leave
@@ -128,7 +128,10 @@ Three deliberate limitations:
   narrowed through the policy in the element width.
 
 `float` and `double` accumulate in themselves, so floating-point results are
-bit-identical to the straightforward loops that Netlib BLAS specifies.
+bit-identical to the straightforward loops that Netlib BLAS specifies. The
+row gathering above is used for fixed point only: for `float`, `double` and
+their complex counterparts, `symv`/`sbmv`/`spmv` and `hemv`/`hbmv`/`hpmv`
+keep the Netlib column-update order.
 
 ## Implemented routines
 

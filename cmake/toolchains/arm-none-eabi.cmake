@@ -59,7 +59,7 @@ set(THEFBLAS_BUILD_EXAMPLES
 
 set(THEFBLAS_ARM_MCU
     "cortex-m4"
-    CACHE STRING "ARM Cortex-M variant (e.g. cortex-m4, cortex-m7)" FORCE)
+    CACHE STRING "ARM Cortex-M variant (e.g. cortex-m4, cortex-m7)")
 
 set(CMAKE_C_FLAGS_INIT
     "-mcpu=${THEFBLAS_ARM_MCU} -mthumb -mfloat-abi=soft -Wall"

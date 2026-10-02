@@ -49,16 +49,6 @@ inline bool valid_diag(char value) {
     return upper == 'U' || upper == 'N';
 }
 
-template <typename T> struct value_constants {
-    static T zero() { return T{}; }
-    static T one() { return T{1}; }
-};
-
-template <typename T> struct value_constants<std::complex<T>> {
-    static std::complex<T> zero() { return std::complex<T>(T{}, T{}); }
-    static std::complex<T> one() { return std::complex<T>(T{1}, T{}); }
-};
-
 template <typename T> inline void scale_vector(int n, T beta, T *y, int incy) {
     int iy = start_index(n, incy);
     if (beta == value_constants<T>::zero()) {
@@ -74,6 +64,68 @@ template <typename T> inline void scale_vector(int n, T beta, T *y, int incy) {
     }
 }
 
+/// `y += alpha * A * x` for a symmetric (or, with `Hermitian`, Hermitian)
+/// matrix of half-bandwidth `k` (`n - 1` for a full matrix), in the Netlib
+/// BLAS column-update order, with `y` already `beta`-scaled. Used for the
+/// floating-point element types so that their results stay bit-identical to
+/// Netlib; `elem(i, j)` returns the stored element `a(i, j)` of the referenced
+/// triangle (`i <= j` for upper, `i >= j` for lower).
+template <bool Hermitian, typename T, typename Elem>
+inline void symmetric_update_netlib(bool upper, int n, int k, T alpha, Elem elem, const T *x,
+                                    int incx, T *y, int incy) {
+    const auto diag_product = [](const T &temp1, const T &ajj) -> T {
+        if constexpr (Hermitian) {
+            return temp1 * ajj.real();
+        } else {
+            return temp1 * ajj;
+        }
+    };
+    const auto off_product = [](const T &aij, const T &xi) -> T {
+        if constexpr (Hermitian) {
+            return conj_value(aij) * xi;
+        } else {
+            return aij * xi;
+        }
+    };
+
+    const int start_x = start_index(n, incx);
+    const int start_y = start_index(n, incy);
+    int jx = start_x;
+    int jy = start_y;
+    for (int j = 0; j < n; ++j) {
+        const T temp1 = alpha * x[jx];
+        T temp2 = value_constants<T>::zero();
+        if (upper) {
+            const int first = (j - k > 0) ? (j - k) : 0;
+            int ix = start_x + first * incx;
+            int iy = start_y + first * incy;
+            for (int i = first; i < j; ++i) {
+                const T value = elem(i, j);
+                y[iy] += temp1 * value;
+                temp2 += off_product(value, x[ix]);
+                ix += incx;
+                iy += incy;
+            }
+            y[jy] = y[jy] + diag_product(temp1, elem(j, j)) + alpha * temp2;
+        } else {
+            y[jy] += diag_product(temp1, elem(j, j));
+            const int last = (j + k < n - 1) ? (j + k) : (n - 1);
+            int ix = jx;
+            int iy = jy;
+            for (int i = j + 1; i <= last; ++i) {
+                ix += incx;
+                iy += incy;
+                const T value = elem(i, j);
+                y[iy] += temp1 * value;
+                temp2 += off_product(value, x[ix]);
+            }
+            y[jy] += alpha * temp2;
+        }
+        jx += incx;
+        jy += incy;
+    }
+}
+
 template <typename T>
 inline void gemv_impl(char trans, int m, int n, T alpha, const T *a, int lda, const T *x, int incx,
                       T beta, T *y, int incy) {
@@ -84,12 +136,13 @@ inline void gemv_impl(char trans, int m, int n, T alpha, const T *a, int lda, co
 
     const int leny = (tr == 'N') ? m : n;
     const int lenx = (tr == 'N') ? n : m;
-    scale_vector(leny, beta, y, incy);
     if (alpha == value_constants<T>::zero()) {
+        scale_vector(leny, beta, y, incy);
         return;
     }
 
     if (tr == 'N') {
+        scale_vector(leny, beta, y, incy);
         int jx = start_index(lenx, incx);
         for (int j = 0; j < n; ++j) {
             const T temp = alpha * x[jx];
@@ -109,7 +162,7 @@ inline void gemv_impl(char trans, int m, int n, T alpha, const T *a, int lda, co
                 temp.add_product(a[i + j * lda], x[ix]);
                 ix += incx;
             }
-            y[jy] = acc_scale_add_and_narrow(y[jy], alpha, temp.wide_value());
+            y[jy] = acc_scale_add_and_narrow(beta, y[jy], alpha, temp.wide_value());
             jy += incy;
         }
     } else {
@@ -121,7 +174,7 @@ inline void gemv_impl(char trans, int m, int n, T alpha, const T *a, int lda, co
                 temp.add_conj_product(a[i + j * lda], x[ix]);
                 ix += incx;
             }
-            y[jy] = acc_scale_add_and_narrow(y[jy], alpha, temp.wide_value());
+            y[jy] = acc_scale_add_and_narrow(beta, y[jy], alpha, temp.wide_value());
             jy += incy;
         }
     }
@@ -135,28 +188,36 @@ inline void symv_impl(char uplo, int n, T alpha, const T *a, int lda, const T *x
         return;
     }
 
-    scale_vector(n, beta, y, incy);
     if (alpha == value_constants<T>::zero()) {
+        scale_vector(n, beta, y, incy);
         return;
     }
     const bool upper = (ul == 'U');
 
-    // Each output element is a single widened reduction over its full matrix
-    // row (gathering the mirrored element from the stored triangle), scaled by
-    // alpha and added to y in the accumulator type, and narrowed exactly once, so intermediate
-    // terms cannot saturate or wrap before later terms cancel them.
-    int jy = start_index(n, incy);
-    for (int j = 0; j < n; ++j) {
-        mac_t<T> temp;
-        int ix = start_index(n, incx);
-        for (int i = 0; i < n; ++i) {
-            const int row = upper ? (i < j ? i : j) : (i < j ? j : i);
-            const int col = upper ? (i < j ? j : i) : (i < j ? i : j);
-            temp.add_product(a[row + col * lda], x[ix]);
-            ix += incx;
+    if constexpr (is_floating_v<T>) {
+        scale_vector(n, beta, y, incy);
+        symmetric_update_netlib<false>(
+            upper, n, n - 1, alpha, [a, lda](int i, int j) { return a[i + j * lda]; }, x, incx, y,
+            incy);
+    } else {
+        // Each output element is a single widened reduction over its full matrix
+        // row (gathering the mirrored element from the stored triangle), scaled by
+        // alpha and added to the beta-scaled y in the accumulator type, and narrowed
+        // exactly once, so intermediate terms cannot saturate or wrap before later
+        // terms cancel them.
+        int jy = start_index(n, incy);
+        for (int j = 0; j < n; ++j) {
+            mac_t<T> temp;
+            int ix = start_index(n, incx);
+            for (int i = 0; i < n; ++i) {
+                const int row = upper ? (i < j ? i : j) : (i < j ? j : i);
+                const int col = upper ? (i < j ? j : i) : (i < j ? i : j);
+                temp.add_product(a[row + col * lda], x[ix]);
+                ix += incx;
+            }
+            y[jy] = acc_scale_add_and_narrow(beta, y[jy], alpha, temp.wide_value());
+            jy += incy;
         }
-        y[jy] = acc_scale_add_and_narrow(y[jy], alpha, temp.wide_value());
-        jy += incy;
     }
 }
 
@@ -170,31 +231,38 @@ inline void hemv_impl(char uplo, int n, std::complex<T> alpha, const std::comple
         return;
     }
 
-    scale_vector(n, beta, y, incy);
     if (alpha == value_constants<C>::zero()) {
+        scale_vector(n, beta, y, incy);
         return;
     }
     const bool upper = (ul == 'U');
 
-    // As in symv_impl, each output element is a single widened reduction over
-    // its full matrix row; elements from the opposite triangle are conjugated
-    // and the diagonal is taken as real, per the Hermitian storage convention.
-    int jy = start_index(n, incy);
-    for (int j = 0; j < n; ++j) {
-        mac_t<C> temp;
-        int ix = start_index(n, incx);
-        for (int i = 0; i < n; ++i) {
-            if (i == j) {
-                temp.add_product(C(a[j + j * lda].real(), T{}), x[ix]);
-            } else if (upper ? (j < i) : (j > i)) {
-                temp.add_product(a[j + i * lda], x[ix]);
-            } else {
-                temp.add_conj_product(a[i + j * lda], x[ix]);
+    if constexpr (is_floating_v<C>) {
+        scale_vector(n, beta, y, incy);
+        symmetric_update_netlib<true>(
+            upper, n, n - 1, alpha, [a, lda](int i, int j) { return a[i + j * lda]; }, x, incx, y,
+            incy);
+    } else {
+        // As in symv_impl, each output element is a single widened reduction over
+        // its full matrix row; elements from the opposite triangle are conjugated
+        // and the diagonal is taken as real, per the Hermitian storage convention.
+        int jy = start_index(n, incy);
+        for (int j = 0; j < n; ++j) {
+            mac_t<C> temp;
+            int ix = start_index(n, incx);
+            for (int i = 0; i < n; ++i) {
+                if (i == j) {
+                    temp.add_product(C(a[j + j * lda].real(), T{}), x[ix]);
+                } else if (upper ? (j < i) : (j > i)) {
+                    temp.add_product(a[j + i * lda], x[ix]);
+                } else {
+                    temp.add_conj_product(a[i + j * lda], x[ix]);
+                }
+                ix += incx;
             }
-            ix += incx;
+            y[jy] = acc_scale_add_and_narrow(beta, y[jy], alpha, temp.wide_value());
+            jy += incy;
         }
-        y[jy] = acc_scale_add_and_narrow(y[jy], alpha, temp.wide_value());
-        jy += incy;
     }
 }
 

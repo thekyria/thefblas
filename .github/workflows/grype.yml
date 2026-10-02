@@ -2,9 +2,9 @@ name: Grype Vulnerability Scan
 
 on:
   push:
-    branches: ["master"]
+    branches: ["main"]
   pull_request:
-    branches: ["master"]
+    branches: ["main"]
   schedule:
     # Run weekly on Monday at 09:00 UTC to catch newly disclosed vulnerabilities.
     - cron: "0 9 * * 1"

@@ -186,15 +186,15 @@ void test_symmetric_variants_cancellation() {
     assert(close(y_banded[0].to_float<double>(), 0.405, 0.01));
 
     const C cx[3] = {C(F(0.9), zero), C(F(0.9), zero), C(F(0.9), zero)};
-    const C ca[9] = {C(F(0.9), zero), C(zero, zero), C(zero, zero),
-                     C(F(0.9), zero), C(zero, zero), C(zero, zero),
+    const C ca[9] = {C(F(0.9), zero),  C(zero, zero), C(zero, zero),
+                     C(F(0.9), zero),  C(zero, zero), C(zero, zero),
                      C(F(-0.9), zero), C(zero, zero), C(zero, zero)};
     C cy[3] = {C(zero, zero), C(zero, zero), C(zero, zero)};
     thefblas::hemv('U', n, C(F(0.5), zero), ca, n, cx, 1, C(zero, zero), cy, 1);
     assert(close(cy[0].real().to_float<double>(), 0.405, 0.01));
 
-    const C cap[6] = {C(F(0.9), zero), C(F(0.9), zero), C(zero, zero),
-                      C(F(-0.9), zero), C(zero, zero), C(zero, zero)};
+    const C cap[6] = {C(F(0.9), zero),  C(F(0.9), zero), C(zero, zero),
+                      C(F(-0.9), zero), C(zero, zero),   C(zero, zero)};
     C cy_packed[3] = {C(zero, zero), C(zero, zero), C(zero, zero)};
     thefblas::hpmv('U', n, C(F(0.5), zero), cap, cx, 1, C(zero, zero), cy_packed, 1);
     assert(close(cy_packed[0].real().to_float<double>(), 0.405, 0.01));
@@ -213,6 +213,179 @@ void test_output_cancellation() {
     // saturate it to ~1.0 and give ~0.1 instead.
     thefblas::gemv('T', 2, 1, almost_one, a, 2, x, 1, almost_one, y, 1);
     assert(close(y[0].to_float<double>(), 0.72, 0.01));
+}
+
+// beta * y is formed in the accumulator together with alpha * (row sum), not
+// narrowed on its own first: in Q7.8 (range [-128, 128)) beta * y = 160 must
+// not saturate before alpha * sum = -100 brings the result back to 60.
+void test_beta_scaling_in_accumulator() {
+    using F = fixed<std::int16_t, 8, thefblas::saturate>; // Q7.8
+    using C = std::complex<F>;
+    const F one(1.0);
+    const F beta(16.0);
+    const F a[1] = {one};
+    const F x[1] = {F(-100.0)};
+    const auto check = [](F value) { assert(close(value.to_float<double>(), 60.0, 0.01)); };
+
+    F y[1] = {F(10.0)};
+    thefblas::gemv('T', 1, 1, one, a, 1, x, 1, beta, y, 1);
+    check(y[0]);
+    y[0] = F(10.0);
+    thefblas::gbmv('T', 1, 1, 0, 0, one, a, 1, x, 1, beta, y, 1);
+    check(y[0]);
+    y[0] = F(10.0);
+    thefblas::symv('U', 1, one, a, 1, x, 1, beta, y, 1);
+    check(y[0]);
+    y[0] = F(10.0);
+    thefblas::sbmv('L', 1, 0, one, a, 1, x, 1, beta, y, 1);
+    check(y[0]);
+    y[0] = F(10.0);
+    thefblas::spmv('U', 1, one, a, x, 1, beta, y, 1);
+    check(y[0]);
+
+    const F zero(0.0);
+    const C cone(one, zero);
+    const C cbeta(beta, zero);
+    const C ca[1] = {cone};
+    const C cx[1] = {C(F(-100.0), zero)};
+    C cy[1] = {C(F(10.0), zero)};
+    thefblas::hemv('U', 1, cone, ca, 1, cx, 1, cbeta, cy, 1);
+    check(cy[0].real());
+    cy[0] = C(F(10.0), zero);
+    thefblas::hbmv('L', 1, 0, cone, ca, 1, cx, 1, cbeta, cy, 1);
+    check(cy[0].real());
+    cy[0] = C(F(10.0), zero);
+    thefblas::hpmv('U', 1, cone, ca, cx, 1, cbeta, cy, 1);
+    check(cy[0].real());
+}
+
+// Reference y := alpha * A * x + beta * y for a dense symmetric (or Hermitian)
+// matrix, written in the Netlib BLAS column-update order of SSYMV/CHEMV.
+template <bool Hermitian, typename T>
+void netlib_symmetric_reference(bool upper, int n, T alpha, const T *a, const T *x, T beta, T *y) {
+    const auto diag_product = [](const T &temp1, const T &ajj) -> T {
+        if constexpr (Hermitian) {
+            return temp1 * ajj.real();
+        } else {
+            return temp1 * ajj;
+        }
+    };
+    const auto off_product = [](const T &aij, const T &xi) -> T {
+        if constexpr (Hermitian) {
+            return std::conj(aij) * xi;
+        } else {
+            return aij * xi;
+        }
+    };
+    for (int i = 0; i < n; ++i) {
+        y[i] *= beta;
+    }
+    for (int j = 0; j < n; ++j) {
+        const T temp1 = alpha * x[j];
+        T temp2 = T{};
+        if (upper) {
+            for (int i = 0; i < j; ++i) {
+                y[i] += temp1 * a[i + j * n];
+                temp2 += off_product(a[i + j * n], x[i]);
+            }
+            y[j] = y[j] + diag_product(temp1, a[j + j * n]) + alpha * temp2;
+        } else {
+            y[j] += diag_product(temp1, a[j + j * n]);
+            for (int i = j + 1; i < n; ++i) {
+                y[i] += temp1 * a[i + j * n];
+                temp2 += off_product(a[i + j * n], x[i]);
+            }
+            y[j] += alpha * temp2;
+        }
+    }
+}
+
+// Floating-point symmetric/Hermitian products, in dense, banded (full
+// bandwidth) and packed storage, must reproduce the Netlib update order bit for
+// bit rather than the row-gathering order used for fixed point.
+template <bool Hermitian, typename T> void check_symmetric_netlib_order(T alpha, T beta) {
+    constexpr int n = 5;
+    T a[n * n];
+    T x[n];
+    T y0[n];
+    for (int j = 0; j < n; ++j) {
+        x[j] = T(0.1F + 0.37F * static_cast<float>(j));
+        y0[j] = T(1.0F / static_cast<float>(j + 3));
+        for (int i = 0; i < n; ++i) {
+            a[i + j * n] =
+                T(0.3F / static_cast<float>(i + 2 * j + 1) - 0.07F * static_cast<float>(i));
+        }
+    }
+    if constexpr (Hermitian) {
+        for (int j = 0; j < n; ++j) {
+            for (int i = 0; i < n; ++i) {
+                a[i + j * n] += T(0.0F, 0.11F * static_cast<float>(i - j) + 0.03F);
+            }
+        }
+    }
+
+    for (const char uplo : {'U', 'L'}) {
+        const bool upper = (uplo == 'U');
+        T expected[n];
+        T y[n];
+        for (int i = 0; i < n; ++i) {
+            expected[i] = y0[i];
+        }
+        netlib_symmetric_reference<Hermitian>(upper, n, alpha, a, x, beta, expected);
+        const auto check = [&expected](const T *result) {
+            for (int i = 0; i < n; ++i) {
+                assert(result[i] == expected[i]);
+            }
+        };
+
+        T ab[n * n];
+        T ap[n * (n + 1) / 2];
+        int p = 0;
+        for (int j = 0; j < n; ++j) {
+            for (int i = 0; i < n; ++i) {
+                if (upper ? i <= j : i >= j) {
+                    ab[(upper ? (n - 1 + i - j) : (i - j)) + j * n] = a[i + j * n];
+                    ap[p++] = a[i + j * n];
+                }
+            }
+        }
+
+        for (int i = 0; i < n; ++i) {
+            y[i] = y0[i];
+        }
+        if constexpr (Hermitian) {
+            thefblas::hemv(uplo, n, alpha, a, n, x, 1, beta, y, 1);
+        } else {
+            thefblas::symv(uplo, n, alpha, a, n, x, 1, beta, y, 1);
+        }
+        check(y);
+
+        for (int i = 0; i < n; ++i) {
+            y[i] = y0[i];
+        }
+        if constexpr (Hermitian) {
+            thefblas::hbmv(uplo, n, n - 1, alpha, ab, n, x, 1, beta, y, 1);
+        } else {
+            thefblas::sbmv(uplo, n, n - 1, alpha, ab, n, x, 1, beta, y, 1);
+        }
+        check(y);
+
+        for (int i = 0; i < n; ++i) {
+            y[i] = y0[i];
+        }
+        if constexpr (Hermitian) {
+            thefblas::hpmv(uplo, n, alpha, ap, x, 1, beta, y, 1);
+        } else {
+            thefblas::spmv(uplo, n, alpha, ap, x, 1, beta, y, 1);
+        }
+        check(y);
+    }
+}
+
+void test_float_symmetric_netlib_order() {
+    check_symmetric_netlib_order<false>(0.7F, 0.3F);
+    check_symmetric_netlib_order<true>(std::complex<float>(0.7F, -0.2F),
+                                       std::complex<float>(0.3F, 0.1F));
 }
 
 // The no-transpose triangular multiplies reduce each output row in the
@@ -320,6 +493,8 @@ int main() {
     test_symv_cancellation();
     test_symmetric_variants_cancellation();
     test_output_cancellation();
+    test_beta_scaling_in_accumulator();
+    test_float_symmetric_netlib_order();
     test_triangular_no_transpose_cancellation();
 #if defined(__SIZEOF_INT128__)
     test_int64_reductions();

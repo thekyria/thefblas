@@ -51,28 +51,38 @@ inline void spmv_impl(char uplo, int n, T alpha, const T *ap, const T *x, int in
         return;
     }
 
-    scale_vector(n, beta, y, incy);
     if (alpha == value_constants<T>::zero()) {
+        scale_vector(n, beta, y, incy);
         return;
     }
     const bool upper = (ul == 'U');
 
-    // Each output element is a single widened reduction over its full matrix
-    // row (gathering the mirrored element from the stored triangle), scaled by
-    // alpha and added to y in the accumulator type, and narrowed exactly once, so intermediate
-    // terms cannot saturate or wrap before later terms cancel them.
-    int jy = start_index(n, incy);
-    for (int j = 0; j < n; ++j) {
-        mac_t<T> temp;
-        int ix = start_index(n, incx);
-        for (int i = 0; i < n; ++i) {
-            const int lo = i < j ? i : j;
-            const int hi = i < j ? j : i;
-            temp.add_product(ap[packed_index(upper, upper ? lo : hi, upper ? hi : lo, n)], x[ix]);
-            ix += incx;
+    if constexpr (is_floating_v<T>) {
+        scale_vector(n, beta, y, incy);
+        symmetric_update_netlib<false>(
+            upper, n, n - 1, alpha,
+            [ap, upper, n](int i, int j) { return ap[packed_index(upper, i, j, n)]; }, x, incx, y,
+            incy);
+    } else {
+        // Each output element is a single widened reduction over its full matrix
+        // row (gathering the mirrored element from the stored triangle), scaled by
+        // alpha and added to the beta-scaled y in the accumulator type, and narrowed
+        // exactly once, so intermediate terms cannot saturate or wrap before later
+        // terms cancel them.
+        int jy = start_index(n, incy);
+        for (int j = 0; j < n; ++j) {
+            mac_t<T> temp;
+            int ix = start_index(n, incx);
+            for (int i = 0; i < n; ++i) {
+                const int lo = i < j ? i : j;
+                const int hi = i < j ? j : i;
+                temp.add_product(ap[packed_index(upper, upper ? lo : hi, upper ? hi : lo, n)],
+                                 x[ix]);
+                ix += incx;
+            }
+            y[jy] = acc_scale_add_and_narrow(beta, y[jy], alpha, temp.wide_value());
+            jy += incy;
         }
-        y[jy] = acc_scale_add_and_narrow(y[jy], alpha, temp.wide_value());
-        jy += incy;
     }
 }
 
@@ -86,31 +96,39 @@ inline void hpmv_impl(char uplo, int n, std::complex<T> alpha, const std::comple
         return;
     }
 
-    scale_vector(n, beta, y, incy);
     if (alpha == value_constants<C>::zero()) {
+        scale_vector(n, beta, y, incy);
         return;
     }
     const bool upper = (ul == 'U');
 
-    // As in spmv_impl, each output element is a single widened reduction over
-    // its full matrix row; elements from the opposite triangle are conjugated
-    // and the diagonal is taken as real, per the Hermitian storage convention.
-    int jy = start_index(n, incy);
-    for (int j = 0; j < n; ++j) {
-        mac_t<C> temp;
-        int ix = start_index(n, incx);
-        for (int i = 0; i < n; ++i) {
-            if (i == j) {
-                temp.add_product(C(ap[packed_index(upper, j, j, n)].real(), T{}), x[ix]);
-            } else if (upper ? (j < i) : (j > i)) {
-                temp.add_product(ap[packed_index(upper, j, i, n)], x[ix]);
-            } else {
-                temp.add_conj_product(ap[packed_index(upper, i, j, n)], x[ix]);
+    if constexpr (is_floating_v<C>) {
+        scale_vector(n, beta, y, incy);
+        symmetric_update_netlib<true>(
+            upper, n, n - 1, alpha,
+            [ap, upper, n](int i, int j) { return ap[packed_index(upper, i, j, n)]; }, x, incx, y,
+            incy);
+    } else {
+        // As in spmv_impl, each output element is a single widened reduction over
+        // its full matrix row; elements from the opposite triangle are conjugated
+        // and the diagonal is taken as real, per the Hermitian storage convention.
+        int jy = start_index(n, incy);
+        for (int j = 0; j < n; ++j) {
+            mac_t<C> temp;
+            int ix = start_index(n, incx);
+            for (int i = 0; i < n; ++i) {
+                if (i == j) {
+                    temp.add_product(C(ap[packed_index(upper, j, j, n)].real(), T{}), x[ix]);
+                } else if (upper ? (j < i) : (j > i)) {
+                    temp.add_product(ap[packed_index(upper, j, i, n)], x[ix]);
+                } else {
+                    temp.add_conj_product(ap[packed_index(upper, i, j, n)], x[ix]);
+                }
+                ix += incx;
             }
-            ix += incx;
+            y[jy] = acc_scale_add_and_narrow(beta, y[jy], alpha, temp.wide_value());
+            jy += incy;
         }
-        y[jy] = acc_scale_add_and_narrow(y[jy], alpha, temp.wide_value());
-        jy += incy;
     }
 }
 

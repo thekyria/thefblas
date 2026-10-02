@@ -51,6 +51,24 @@ template <typename T> constexpr bool is_complex_v = is_complex<T>::value;
 
 template <typename T> using enable_if_real_t = typename std::enable_if<!is_complex_v<T>, int>::type;
 
+/// True for `float`/`double` and for `std::complex` of them: the element types
+/// whose results must stay bit-identical to Netlib BLAS.
+template <typename T> struct is_floating : std::is_floating_point<T> {};
+
+template <typename T> struct is_floating<std::complex<T>> : std::is_floating_point<T> {};
+
+template <typename T> constexpr bool is_floating_v = is_floating<T>::value;
+
+template <typename T> struct value_constants {
+    static T zero() { return T{}; }
+    static T one() { return T{1}; }
+};
+
+template <typename T> struct value_constants<std::complex<T>> {
+    static std::complex<T> zero() { return std::complex<T>(T{}, T{}); }
+    static std::complex<T> one() { return std::complex<T>(T{1}, T{}); }
+};
+
 // ---------------------------------------------------------------------------
 // Widened accumulators
 // ---------------------------------------------------------------------------
@@ -98,12 +116,22 @@ template <typename T> inline T from_accumulator(const accumulator_t<T> &value) {
     }
 }
 
-/// Computes `y + alpha * value` with `y` (the already `beta`-scaled output
-/// element) and the scaled sum held together in the accumulator type, and
-/// narrows back to the element type, applying the overflow policy exactly once.
+/// Computes `beta * y + alpha * value` with the `beta`-scaled output element
+/// and the scaled sum held together in the accumulator type, and narrows back
+/// to the element type, applying the overflow policy exactly once. `y` must be
+/// the original (not yet `beta`-scaled) output element; as in Netlib BLAS it is
+/// not read when `beta` is zero.
 template <typename T>
-inline T acc_scale_add_and_narrow(const T &y, const T &alpha, const accumulator_t<T> &value) {
-    return from_accumulator<T>(to_accumulator(y) + to_accumulator(alpha) * value);
+inline T acc_scale_add_and_narrow(const T &beta, const T &y, const T &alpha,
+                                  const accumulator_t<T> &value) {
+    using Acc = accumulator_t<T>;
+    Acc scaled_y = value_constants<Acc>::zero();
+    if (beta == value_constants<T>::one()) {
+        scaled_y = to_accumulator(y);
+    } else if (beta != value_constants<T>::zero()) {
+        scaled_y = to_accumulator(y) * to_accumulator(beta);
+    }
+    return from_accumulator<T>(scaled_y + to_accumulator(alpha) * value);
 }
 
 // ---------------------------------------------------------------------------
