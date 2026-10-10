@@ -111,6 +111,7 @@ void test_fixed_arithmetic_paths() {
     mutable64 *= fixed32(1);
     mutable64 /= fixed32(1);
     assert(mutable64 != fixed32(0));
+#if defined(__SIZEOF_INT128__)
     using fixed64 = thefblas::fixed<std::int64_t, 32>;
     fixed64 accum64(3);
     accum64 += fixed64(1);
@@ -118,6 +119,7 @@ void test_fixed_arithmetic_paths() {
     accum64 *= fixed64(1);
     accum64 /= fixed64(1);
     assert(accum64 != fixed64(0));
+#endif
 
     using saturating32 = thefblas::fixed<std::int32_t, 20, thefblas::saturate>;
     assert(saturating32(10000).raw() == (std::numeric_limits<std::int32_t>::max)());
@@ -141,15 +143,15 @@ void test_level2_zero_scalars() {
     thefblas::sbmv('U', 2, 1, zero, matrix, 2, vector, 1, one, output, 1);
     thefblas::spmv('U', 2, zero, matrix, vector, 1, one, output, 1);
 
-    double symmetric[4] = {1.0, 2.0, 2.0, 4.0};
+    const double symmetric[4] = {1.0, 2.0, 2.0, 4.0};
     thefblas::symv('U', 2, one, symmetric, 2, vector, 1, zero, output, 1);
-    double band[4] = {0.0, 1.0, 2.0, 0.0};
+    const double band[4] = {0.0, 1.0, 2.0, 0.0};
     thefblas::sbmv('U', 2, 1, one, band, 2, vector, 1, zero, output, 1);
     thefblas::sbmv('U', 2, 1, one, band, 1, vector, 1, zero, output, 1);
     const double packed[3] = {1.0, 2.0, 4.0};
     thefblas::spmv('L', 2, one, packed, vector, 1, zero, output, 1);
 
-    fixed32 fx[2] = {fixed32(1), fixed32(2)};
+    const fixed32 fx[2] = {fixed32(1), fixed32(2)};
     fixed32 fy[2] = {fixed32(3), fixed32(4)};
     const fixed32 fmatrix[4] = {fixed32(1), fixed32(0), fixed32(0), fixed32(1)};
     thefblas::gemv('N', 2, 2, fixed32(0), fmatrix, 2, fx, 1, fixed32(2), fy, 1);
@@ -327,11 +329,13 @@ void test_remaining_fixed_types_and_zero_alpha() {
     thefblas::her('L', 2, 0.0, x, 1, cmat, 2);
     thefblas::her2('U', 2, std::complex<double>{}, x, 1, y, 1, cmat, 2);
 
+#if defined(__SIZEOF_INT128__)
     using fixed64 = thefblas::fixed<std::int64_t, 32>;
     const fixed64 one64(1);
     fixed64 output64[1] = {one64};
     thefblas::gemv('C', 1, 1, one64, &one64, 1, &one64, 1, fixed64(0), output64, 1);
     thefblas::gemv('N', 1, 1, fixed64(0), &one64, 1, &one64, 1, one64, output64, 1);
+#endif
 
     const complex32 c32one(fixed32(1), fixed32(0));
     const complex32 c32matrix[4] = {

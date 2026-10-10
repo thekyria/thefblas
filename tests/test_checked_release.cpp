@@ -50,12 +50,15 @@ int main() {
 
     using F8 = thefblas::fixed<std::int8_t, 4, thefblas::checked>;
     using F32 = thefblas::fixed<std::int32_t, 20, thefblas::checked>;
-    using F64 = thefblas::fixed<std::int64_t, 32, thefblas::checked>;
     check(F8(100).raw() == 127, "int8 conversion clamps to max");
     check(F32(10000).raw() == (std::numeric_limits<std::int32_t>::max)(),
           "int32 conversion clamps to max");
+#if defined(__SIZEOF_INT128__)
+    // 64-bit fixed-point needs a 128-bit intermediate type (not available on MSVC).
+    using F64 = thefblas::fixed<std::int64_t, 32, thefblas::checked>;
     check(F64(std::int64_t(1) << 40).raw() == (std::numeric_limits<std::int64_t>::max)(),
           "int64 conversion clamps to max");
+#endif
 
     // A BLAS reduction whose result leaves the format wraps once, at the final
     // narrowing: 0.9 * 0.9 + 0.9 * 0.9 = 1.62 -> raw 53083 -> 53083 - 65536.
