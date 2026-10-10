@@ -15,8 +15,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  COVERAGE_MIN_LINES: 95
-  COVERAGE_MIN_FUNCTIONS: 94
+  COVERAGE_MIN_LINES: 100
+  COVERAGE_MIN_FUNCTIONS: 100
   # ID of the GitHub Gist used for the dynamic coverage badge.
   # Create a secret gist at https://gist.github.com, then paste its ID here.
   # Also add a GitHub PAT with the 'gist' scope as repo secret GIST_TOKEN.
