@@ -201,7 +201,7 @@ template <typename IntType, int FracBits, typename Policy = checked> class fixed
     friend constexpr fixed operator/(fixed a, fixed b) noexcept {
         if (b.value_ == 0) {
             if constexpr (std::is_same<Policy, checked>::value) {
-                assert(false && "thefblas::fixed<>: division by zero");
+                assert(false && "thefblas::fixed<>: division by zero"); // LCOV_EXCL_LINE
             }
             return from_raw(Policy::template from_out_of_range<IntType>(a.value_ >= 0));
         }
