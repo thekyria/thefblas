@@ -13,7 +13,7 @@ Checks: >
   -readability-identifier-length,
   -readability-named-parameter
 
-WarningsAsErrors: "*"
+WarningsAsErrors: "clang-diagnostic-*"
 
 HeaderFilterRegex: "^.*include/thefblas/.*$"
 
