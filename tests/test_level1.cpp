@@ -411,11 +411,21 @@ void test_nrm2_scaling() {
         assert(rel_close(thefblas::nrm2(1, y.data(), 1), 5e-200, 1e-12));
     }
     {
-        const float inf = std::numeric_limits<float>::infinity();
+        constexpr float inf = std::numeric_limits<float>::infinity();
         const std::array<float, 3> x = {1.0F, inf, -inf};
         assert(std::isinf(thefblas::nrm2(3, x.data(), 1)));
         const std::array<float, 2> y = {1.0F, std::numeric_limits<float>::quiet_NaN()};
         assert(std::isnan(thefblas::nrm2(2, y.data(), 1)));
+    }
+    {
+        // 2^24 float elements of 2^52: the true norm 2^64 is representable,
+        // so the medium bin must not overflow for long vectors.
+        thefblas::detail::blue_nrm2<float> norm;
+        const float big = std::ldexp(1.0F, 52);
+        for (int i = 0; i < (1 << 24); ++i) {
+            norm.add(big);
+        }
+        assert(norm.value() == std::ldexp(1.0F, 64));
     }
 }
 

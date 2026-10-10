@@ -141,8 +141,16 @@ template <typename T> class blue_nrm2 {
 
   private:
     // Blue's thresholds and scaling factors, all exact powers of two.
+    // The medium/big cutoff leaves headroom for up to 2 * INT_MAX squares
+    // (complex vectors of maximal int length), which is stricter than Netlib's
+    // 2^(digits - 1) for types with fewer than 33 significand bits (float).
+    static constexpr int headroom_bits() {
+        return (limits::digits - 1 > std::numeric_limits<int>::digits + 2)
+                   ? limits::digits - 1
+                   : std::numeric_limits<int>::digits + 2;
+    }
     static T tsml() { return pow2(ceil_half(limits::min_exponent - 1)); }
-    static T tbig() { return pow2(floor_half(limits::max_exponent - limits::digits + 1)); }
+    static T tbig() { return pow2(floor_half(limits::max_exponent - headroom_bits())); }
     static T ssml() { return pow2(-floor_half(limits::min_exponent - limits::digits)); }
     static T sbig() { return pow2(-ceil_half(limits::max_exponent + limits::digits - 1)); }
 
