@@ -362,6 +362,7 @@ inline void tbsv_impl(char uplo, char trans, char diag, int n, int k, const T *a
             for (int j = 0; j < n; ++j) {
                 mac_t<T> sum;
                 sum.add(x[jx]);
+                // cppcheck-suppress knownConditionTrueFalse
                 const int first = (j - k > 0) ? (j - k) : 0;
                 int ix = jx - (j - first) * incx;
                 for (int i = first; i < j; ++i) {

@@ -174,8 +174,8 @@ template <typename IntType, int FracBits, typename Policy = checked> class fixed
 
     template <typename FloatType = double> constexpr FloatType to_float() const noexcept {
         using unsigned_rep = typename std::make_unsigned<IntType>::type;
-        const auto scale = static_cast<unsigned_rep>(unsigned_rep(1) << FracBits);
-        return static_cast<FloatType>(value_) / static_cast<FloatType>(scale);
+        const auto scale_factor = static_cast<unsigned_rep>(unsigned_rep(1) << FracBits);
+        return static_cast<FloatType>(value_) / static_cast<FloatType>(scale_factor);
     }
 
     constexpr fixed operator-() const noexcept {

@@ -117,6 +117,7 @@ void test_gbmv_rectangular_negative_stride() {
     const int ldab = kl + ku + 1;
     std::vector<float> ab(static_cast<std::size_t>(ldab) * uz(n), 0.0F);
     for (int j = 0; j < n; ++j) {
+        // cppcheck-suppress knownConditionTrueFalse
         const int last = (j + kl < m - 1) ? (j + kl) : (m - 1);
         for (int i = j; i <= last; ++i) {
             ab[static_cast<std::size_t>(ku + i - j) + static_cast<std::size_t>(j) * uz(ldab)] =
