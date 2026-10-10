@@ -47,6 +47,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   bias. Rounding is now symmetric about zero.
 - `FracBits` equal to the number of value bits of `IntType` (the canonical
   Q1.15 / Q1.31 formats) is now accepted.
+- `nrm2` for `float`/`double` and their complex forms no longer overflows or
+  underflows when the norm itself is representable (e.g. `[3e20F, 4e20F]`
+  returned `inf`). It now uses Blue's scaled algorithm, as Netlib reference
+  BLAS 3.10+ does; results for mid-range inputs are unchanged.
+- Dense Level 2 routines (`gemv`, `ger`, `geru`, `gerc`, `symv`, `hemv`, `syr`,
+  `her`, `syr2`, `her2`, `trmv`, `trsv`) now return early when `lda` is smaller
+  than the number of rows, instead of accessing the matrix out of bounds.
 
 ## [0.1.0] - 2026-09-25
 

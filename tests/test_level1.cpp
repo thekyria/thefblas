@@ -3,8 +3,10 @@
 
 #include <array>
 #include <cassert>
+#include <cmath>
 #include <complex>
 #include <cstdint>
+#include <limits>
 #include <type_traits>
 
 namespace {
@@ -370,6 +372,53 @@ void test_complex_fixed() {
     }
 }
 
+// nrm2 must not overflow or underflow when the norm itself is representable,
+// even though the plain sum of squares would (Blue's algorithm).
+template <typename T> bool rel_close(T actual, T expected, T rel) {
+    return std::fabs(actual - expected) <= rel * std::fabs(expected);
+}
+
+void test_nrm2_scaling() {
+    {
+        // 3e20^2 overflows float; the norm 5e20 does not.
+        const std::array<float, 2> x = {3e20F, -4e20F};
+        assert(rel_close(thefblas::nrm2(2, x.data(), 1), 5e20F, 1e-6F));
+        assert(rel_close(thefblas::nrm2(2, x.data(), -1), 5e20F, 1e-6F));
+    }
+    {
+        // 3e-30^2 underflows float to zero.
+        const std::array<float, 2> x = {3e-30F, 4e-30F};
+        assert(rel_close(thefblas::nrm2(2, x.data(), 1), 5e-30F, 1e-6F));
+    }
+    {
+        const std::array<double, 2> x = {3e200, 4e200};
+        assert(rel_close(thefblas::nrm2(2, x.data(), 1), 5e200, 1e-12));
+        const std::array<double, 2> y = {3e-200, 4e-200};
+        assert(rel_close(thefblas::nrm2(2, y.data(), 1), 5e-200, 1e-12));
+    }
+    {
+        // Mixed big, medium and small magnitudes.
+        const std::array<double, 3> x = {3e200, 1.0, 4e200};
+        assert(rel_close(thefblas::nrm2(3, x.data(), 1), 5e200, 1e-12));
+        const std::array<float, 2> y = {1e-25F, 1.0F};
+        assert(thefblas::nrm2(2, y.data(), 1) == 1.0F);
+    }
+    {
+        const std::array<std::complex<float>, 2> x = {std::complex<float>(3e20F, 0.0F),
+                                                      std::complex<float>(0.0F, -4e20F)};
+        assert(rel_close(thefblas::nrm2(2, x.data(), 1), 5e20F, 1e-6F));
+        const std::array<std::complex<double>, 1> y = {std::complex<double>(3e-200, 4e-200)};
+        assert(rel_close(thefblas::nrm2(1, y.data(), 1), 5e-200, 1e-12));
+    }
+    {
+        const float inf = std::numeric_limits<float>::infinity();
+        const std::array<float, 3> x = {1.0F, inf, -inf};
+        assert(std::isinf(thefblas::nrm2(3, x.data(), 1)));
+        const std::array<float, 2> y = {1.0F, std::numeric_limits<float>::quiet_NaN()};
+        assert(std::isnan(thefblas::nrm2(2, y.data(), 1)));
+    }
+}
+
 } // namespace
 
 int main() {
@@ -379,5 +428,6 @@ int main() {
     test_complex_float();
     test_complex_double();
     test_complex_fixed();
+    test_nrm2_scaling();
     return 0;
 }

@@ -270,6 +270,74 @@ void test_trsv_complex_conjugate_transpose() {
     assert(almost_equal_scalar(x[1], cfloat(1.0F, 0.0F)));
 }
 
+// A leading dimension smaller than the number of rows is invalid: every dense
+// routine must return early and leave all of its outputs untouched.
+void test_invalid_lda_is_noop() {
+    const std::array<float, 4> a = {1.0F, 2.0F, 3.0F, 4.0F};
+    const std::array<float, 2> x = {1.0F, 1.0F};
+    const std::array<float, 2> y0 = {7.0F, 8.0F};
+
+    auto y = y0;
+    thefblas::gemv('N', 2, 2, 1.0F, a.data(), 1, x.data(), 1, 0.0F, y.data(), 1);
+    assert(y == y0);
+    thefblas::gemv('T', 2, 2, 1.0F, a.data(), 1, x.data(), 1, 0.0F, y.data(), 1);
+    assert(y == y0);
+    thefblas::symv('U', 2, 1.0F, a.data(), 1, x.data(), 1, 0.0F, y.data(), 1);
+    assert(y == y0);
+
+    auto v = y0;
+    thefblas::trmv('U', 'N', 'N', 2, a.data(), 1, v.data(), 1);
+    assert(v == y0);
+    thefblas::trsv('L', 'T', 'N', 2, a.data(), 1, v.data(), 1);
+    assert(v == y0);
+
+    auto m = a;
+    thefblas::ger(2, 2, 1.0F, x.data(), 1, x.data(), 1, m.data(), 1);
+    assert(m == a);
+    thefblas::syr('U', 2, 1.0F, x.data(), 1, m.data(), 1);
+    assert(m == a);
+    thefblas::syr2('L', 2, 1.0F, x.data(), 1, x.data(), 1, m.data(), 0);
+    assert(m == a);
+
+    const std::array<cfloat, 4> ca = {cfloat(1.0F, 0.0F), cfloat(2.0F, 1.0F), cfloat(2.0F, -1.0F),
+                                      cfloat(4.0F, 0.0F)};
+    const std::array<cfloat, 2> cx = {cfloat(1.0F, 1.0F), cfloat(1.0F, -1.0F)};
+    const std::array<cfloat, 2> cy0 = {cfloat(5.0F, 6.0F), cfloat(7.0F, 8.0F)};
+    const cfloat one(1.0F, 0.0F);
+    const cfloat zero(0.0F, 0.0F);
+
+    auto cy = cy0;
+    thefblas::gemv('C', 2, 2, one, ca.data(), 1, cx.data(), 1, zero, cy.data(), 1);
+    assert(cy == cy0);
+    thefblas::hemv('L', 2, one, ca.data(), 1, cx.data(), 1, zero, cy.data(), 1);
+    assert(cy == cy0);
+
+    auto cm = ca;
+    thefblas::geru(2, 2, one, cx.data(), 1, cx.data(), 1, cm.data(), 1);
+    assert(cm == ca);
+    thefblas::gerc(2, 2, one, cx.data(), 1, cx.data(), 1, cm.data(), -2);
+    assert(cm == ca);
+    thefblas::her('U', 2, 1.0F, cx.data(), 1, cm.data(), 1);
+    assert(cm == ca);
+    thefblas::her2('U', 2, one, cx.data(), 1, cx.data(), 1, cm.data(), 1);
+    assert(cm == ca);
+
+    using fixed_array = std::array<fixed32, 2>;
+    const fixed_array fy0 = {fixed32(1.5), fixed32(-2.5)};
+    const std::array<fixed32, 4> fa = {fixed32(1.0), fixed32(0.0), fixed32(0.0), fixed32(1.0)};
+    auto fy = fy0;
+    thefblas::gemv('N', 2, 2, fixed32(1.0), fa.data(), 1, fy0.data(), 1, fixed32(0.0), fy.data(),
+                   1);
+    assert(fy == fy0);
+
+    // A valid leading dimension larger than the row count is still accepted.
+    const std::array<float, 6> padded = {1.0F, 3.0F, -99.0F, 2.0F, 4.0F, -99.0F};
+    y = y0;
+    thefblas::gemv('N', 2, 2, 1.0F, padded.data(), 3, x.data(), 1, 0.0F, y.data(), 1);
+    assert(almost_equal_scalar(y[0], 3.0F));
+    assert(almost_equal_scalar(y[1], 7.0F));
+}
+
 } // namespace
 
 int main() {
@@ -293,4 +361,5 @@ int main() {
     test_trsv_float();
     test_trsv_fixed();
     test_trsv_complex_conjugate_transpose();
+    test_invalid_lda_is_noop();
 }

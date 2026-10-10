@@ -128,7 +128,13 @@ Three deliberate limitations:
   narrowed through the policy in the element width.
 
 `float` and `double` accumulate in themselves, so floating-point results are
-bit-identical to the straightforward loops that Netlib BLAS specifies. The
+bit-identical to the straightforward loops that Netlib BLAS specifies. The one
+exception is `nrm2`, which for `float`/`double` (and their complex forms) uses
+Blue's scaled algorithm, as Netlib reference BLAS 3.10+ does: elements in the
+mid range are summed unscaled (so the result is bit-identical to
+`sqrt(sum of squares)` there), while very large or very small elements are
+scaled by exact powers of two so that the norm neither overflows nor
+underflows whenever it is itself representable. The
 row gathering above is used for fixed point only: for `float`, `double` and
 their complex counterparts, `symv`/`sbmv`/`spmv` and `hemv`/`hbmv`/`hpmv`
 keep the Netlib column-update order.
@@ -145,7 +151,10 @@ keep the Netlib column-update order.
 - **Level 2, packed** (`include/thefblas/level2_packed.hpp`): `spmv`, `hpmv`,
   `tpmv`, `tpsv`, `spr`, `hpr`, `spr2`, `hpr2`.
 
-Matrices are column-major. Banded matrices use the classic BLAS band storage
+Matrices are column-major. As in Netlib BLAS, a dense routine whose leading
+dimension is smaller than the number of rows (`lda < m` for `gemv`/`ger`/`geru`/`gerc`,
+`lda < n` for the square routines) is rejected as invalid and returns without
+touching any operand, like the existing banded `lda` checks. Banded matrices use the classic BLAS band storage
 (`ab[(ku + i - j) + j * ldab]` for general bands, `ab[(k + i - j) + j * ldab]`
 / `ab[(i - j) + j * ldab]` for upper/lower symmetric, Hermitian and triangular
 bands), and packed matrices store the referenced triangle column by column

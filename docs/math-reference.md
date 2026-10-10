@@ -148,6 +148,13 @@ For complex vectors, $\lvert x_i \rvert^2 = \operatorname{Re}(x_i)^2 + \operator
 The result is always a non-negative real number, regardless of the input type
 (hence the return type of `scnrm2` is `float` and `dznrm2` is `double`).
 
+For `float`/`double` element types thefblas evaluates this with Blue's
+algorithm (as Netlib reference BLAS 3.10+ does): mid-range $\lvert x_i \rvert$
+are squared and summed directly, while very large and very small values are
+first scaled by exact powers of two, so the computation neither overflows nor
+underflows when $\|x\|_2$ is representable. Fixed-point types instead
+accumulate the exact squares in a wide integer accumulator.
+
 ---
 
 ## asum — Sum of Absolute Values
