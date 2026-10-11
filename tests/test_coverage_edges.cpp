@@ -231,6 +231,16 @@ void test_fixed_triangular_transposes() {
     cx[1] = complex32(fixed32(2), zero);
     thefblas::trsv('L', 'C', 'N', 2, cdense, 2, cx, 1);
 
+    // Complex fixed division: (3 + i) / (1 + i) = 2 - i and 5 / (1 + 2i) = 1 - 2i
+    // exercise both branches of the scaled division.
+    const complex32 cdiag[2] = {complex32(one, one), complex32(one, fixed32(2))};
+    complex32 cq[1] = {complex32(fixed32(3), one)};
+    thefblas::trsv('U', 'N', 'N', 1, &cdiag[0], 1, cq, 1);
+    assert(cq[0] == complex32(fixed32(2), fixed32(-1)));
+    cq[0] = complex32(fixed32(5), zero);
+    thefblas::trsv('U', 'N', 'N', 1, &cdiag[1], 1, cq, 1);
+    assert(cq[0] == complex32(one, fixed32(-2)));
+
     const double real_dense[4] = {2.0, 0.0, 1.0, 3.0};
     double real_x[2] = {5.0, 6.0};
     thefblas::trsv('U', 'T', 'N', 2, real_dense, 2, real_x, 1);

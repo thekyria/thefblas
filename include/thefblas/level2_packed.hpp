@@ -252,7 +252,7 @@ inline void tpsv_impl(char uplo, char trans, char diag, int n, const T *ap, T *x
             int jx = start_index(n, incx) + (n - 1) * incx;
             for (int j = n - 1; j >= 0; --j) {
                 if (!unit) {
-                    x[jx] /= ap[packed_index_upper(j, j)];
+                    x[jx] = divide_value(x[jx], ap[packed_index_upper(j, j)]);
                 }
                 const T temp = x[jx];
                 int ix = jx;
@@ -266,7 +266,7 @@ inline void tpsv_impl(char uplo, char trans, char diag, int n, const T *ap, T *x
             int jx = start_index(n, incx);
             for (int j = 0; j < n; ++j) {
                 if (!unit) {
-                    x[jx] /= ap[packed_index_lower(j, j, n)];
+                    x[jx] = divide_value(x[jx], ap[packed_index_lower(j, j, n)]);
                 }
                 const T temp = x[jx];
                 int ix = jx;
@@ -296,7 +296,7 @@ inline void tpsv_impl(char uplo, char trans, char diag, int n, const T *ap, T *x
                 accumulator_t<T> temp = sum.wide_value();
                 if (!unit) {
                     const T d = ap[packed_index_upper(j, j)];
-                    temp /= to_accumulator(conjugate ? conj_value(d) : d);
+                    temp = divide_value(temp, to_accumulator(conjugate ? conj_value(d) : d));
                 }
                 x[jx] = from_accumulator<T>(temp);
                 jx += incx;
@@ -319,7 +319,7 @@ inline void tpsv_impl(char uplo, char trans, char diag, int n, const T *ap, T *x
                 accumulator_t<T> temp = sum.wide_value();
                 if (!unit) {
                     const T d = ap[packed_index_lower(j, j, n)];
-                    temp /= to_accumulator(conjugate ? conj_value(d) : d);
+                    temp = divide_value(temp, to_accumulator(conjugate ? conj_value(d) : d));
                 }
                 x[jx] = from_accumulator<T>(temp);
                 jx -= incx;

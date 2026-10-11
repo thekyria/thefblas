@@ -387,7 +387,7 @@ inline void trsv_impl(char uplo, char trans, char diag, int n, const T *a, int l
             int jx = start_index(n, incx) + (n - 1) * incx;
             for (int j = n - 1; j >= 0; --j) {
                 if (!unit) {
-                    x[jx] /= a[j + j * lda];
+                    x[jx] = divide_value(x[jx], a[j + j * lda]);
                 }
                 const T temp = x[jx];
                 int ix = jx;
@@ -401,7 +401,7 @@ inline void trsv_impl(char uplo, char trans, char diag, int n, const T *a, int l
             int jx = start_index(n, incx);
             for (int j = 0; j < n; ++j) {
                 if (!unit) {
-                    x[jx] /= a[j + j * lda];
+                    x[jx] = divide_value(x[jx], a[j + j * lda]);
                 }
                 const T temp = x[jx];
                 int ix = jx;
@@ -430,7 +430,8 @@ inline void trsv_impl(char uplo, char trans, char diag, int n, const T *a, int l
                 }
                 accumulator_t<T> temp = sum.wide_value();
                 if (!unit) {
-                    temp /= to_accumulator(conjugate ? conj_value(a[j + j * lda]) : a[j + j * lda]);
+                    temp = divide_value(temp, to_accumulator(conjugate ? conj_value(a[j + j * lda])
+                                                                       : a[j + j * lda]));
                 }
                 x[jx] = from_accumulator<T>(temp);
                 jx += incx;
@@ -451,7 +452,8 @@ inline void trsv_impl(char uplo, char trans, char diag, int n, const T *a, int l
                 }
                 accumulator_t<T> temp = sum.wide_value();
                 if (!unit) {
-                    temp /= to_accumulator(conjugate ? conj_value(a[j + j * lda]) : a[j + j * lda]);
+                    temp = divide_value(temp, to_accumulator(conjugate ? conj_value(a[j + j * lda])
+                                                                       : a[j + j * lda]));
                 }
                 x[jx] = from_accumulator<T>(temp);
                 jx -= incx;
