@@ -32,6 +32,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Repository infrastructure ported from theblas: CMake presets and toolchain
   files, quality options, linter/formatter configuration, CI workflows, Conan
   and vcpkg packaging, and the community/documentation files.
+- CI (`build.yml`): a GCC/Clang/AppleClang x Debug/Release test matrix built
+  with warnings as errors, and an ASan/UBSan job (GCC and Clang) using
+  `THEFBLAS_ENABLE_SANITIZERS`. Static analysis moved to its own `analysis` job.
 
 ### Changed
 
