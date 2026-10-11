@@ -72,8 +72,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   than the number of rows, instead of accessing the matrix out of bounds.
 - `rotmg` returned a matrix `H` that did not eliminate `b2` unless `d1 == d2`,
   and rejected any non-positive `d2`. It is now a port of Netlib's algorithm
-  (flags -1/0/1/-2, Netlib's handling of negative `d1`/`d2`, and rescaling of
-  `d1`/`d2` into [2^-24, 2^24] for `float`/`double`). This also removes the
+  (flags -1/0/1/-2, Netlib's handling of negative `d1`/`d2`, and, for
+  `float`/`double`, rescaling of the magnitudes of nonzero `d1`/`d2` into
+  [2^-24, 2^24]; a valid negative `d2` keeps its sign). This also removes the
   hard-coded `1e-30` floor it used.
 
 ## [0.1.0] - 2026-09-25

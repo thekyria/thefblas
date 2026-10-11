@@ -297,8 +297,9 @@ The algorithm is Netlib's: flag $0$ when $\lvert d_1 b_1^2 \rvert >
 \lvert d_2 b_2^2 \rvert$, flag $1$ otherwise, flag $-2$ when $d_2 b_2 = 0$, and
 flag $-1$ with $H$, $d_1$, $d_2$, $b_1$ all zero for invalid input ($d_1 < 0$,
 or a negative $d_2$ that makes $d_2 b_2^2$ dominate). For `float` and `double`,
-$d_1$ and $d_2$ are then rescaled by powers of $4096$ into
-$[2^{-24}, 2^{24}]$, switching $H$ to its full form (flag $-1$); fixed-point
+the magnitudes of nonzero $d_1$ and $d_2$ are then rescaled by powers of $4096$
+into $[2^{-24}, 2^{24}]$ (a valid negative $d_2$ keeps its sign), switching $H$
+to its full form (flag $-1$); fixed-point
 types skip this step, since their range is bounded and the constants are not
 representable in most Q formats.
 

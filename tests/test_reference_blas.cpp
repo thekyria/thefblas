@@ -134,6 +134,9 @@ template <typename T> std::string label(const char *routine, const std::string &
 /// agree to a few ulps; the bound leaves room for a reference built with FMA
 /// or a different summation order (OpenBLAS kernels).
 template <typename T> bool near(T got, T ref) {
+    if (got == ref) {
+        return true; // also covers equal infinities, whose difference is NaN
+    }
     using R = real_t<T>;
     const double tol = 256.0 * static_cast<double>(std::numeric_limits<R>::epsilon());
     const auto diff = static_cast<double>(std::abs(got - ref));
@@ -711,9 +714,21 @@ template <typename T> void test_level1() {
 
 template <typename T> void test_rotg() {
     for (int trial = 0; trial < trials_per_routine; ++trial) {
-        // Include zeros: they select the special branches of rotg.
-        const T a0 = uniform_int(0, 5) == 0 ? T(0) : random_value<T>();
-        const T b0 = uniform_int(0, 5) == 0 ? T(0) : random_value<T>();
+        // Include zeros (they select the special branches of rotg) and, half of
+        // the time, magnitudes far from 1 that would underflow or overflow if
+        // squared naively.
+        using R = real_t<T>;
+        // 30 for float, 300 for double: well inside the finite range.
+        const auto max_exponent = static_cast<R>(std::numeric_limits<R>::max_exponent10 - 8);
+        const auto magnitude = [&]() {
+            if (uniform_int(0, 1) == 0) {
+                return R(1);
+            }
+            return std::pow(R(10),
+                            std::uniform_real_distribution<R>(-max_exponent, max_exponent)(rng));
+        };
+        const T a0 = uniform_int(0, 5) == 0 ? T(0) : random_value<T>() * magnitude();
+        const T b0 = uniform_int(0, 5) == 0 ? T(0) : random_value<T>() * magnitude();
         const std::string p = params("a=", a0, " b=", b0);
         real_t<T> c1{};
         real_t<T> c2{};

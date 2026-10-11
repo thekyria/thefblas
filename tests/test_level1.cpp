@@ -496,6 +496,26 @@ void test_netlib_conventions() {
     assert(fp_small[0] == -1.0F);
     assert(fd1_small > 5.9e-8F && fd2_small > 5.9e-8F);
 
+    // Complex rotg must not underflow or overflow |a| and |b| for finite extremes.
+    {
+        std::complex<float> a = {0.0F, 0.0F};
+        float c = 1.0F;
+        std::complex<float> s = {};
+        thefblas::rotg(&a, {1e-30F, 0.0F}, &c, &s);
+        assert(c == 0.0F && s == std::complex<float>(1.0F, 0.0F));
+        assert(std::fabs(a.real() - 1e-30F) <= 1e-36F && a.imag() == 0.0F);
+
+        a = {0.0F, 0.0F};
+        thefblas::rotg(&a, {3e30F, 4e30F}, &c, &s);
+        assert(c == 0.0F && almost_equal(s, {0.6F, -0.8F}));
+        assert(std::fabs(a.real() - 5e30F) <= 1e25F);
+
+        a = {1e-30F, 0.0F};
+        thefblas::rotg(&a, {1.0F, 0.0F}, &c, &s);
+        assert(c > 0.0F && c < 2e-30F);
+        assert(almost_equal(s, {1.0F, 0.0F}) && almost_equal(a, {1.0F, 0.0F}));
+    }
+
     // Real rotg with |a| > |b|: z = s (with |a| <= |b|, z = 1/c is covered above).
     double ra = 4.0;
     double rb = 3.0;

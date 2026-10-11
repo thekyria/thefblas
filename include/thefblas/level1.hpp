@@ -61,8 +61,15 @@ template <typename T> inline T norm_square(const std::complex<T> &value) {
     return (value.real() * value.real()) + (value.imag() * value.imag());
 }
 
+/// |z|. For floating-point parts this uses std::hypot, so tiny or huge finite
+/// parts neither underflow to 0 nor overflow to infinity; fixed point squares
+/// in T, whose range is bounded.
 template <typename T> inline T complex_abs(const std::complex<T> &value) {
-    return sqrt_value(norm_square(value));
+    if constexpr (std::is_floating_point_v<T>) {
+        return std::hypot(value.real(), value.imag());
+    } else {
+        return sqrt_value(norm_square(value));
+    }
 }
 
 template <typename T> inline T signed_magnitude(T magnitude, const T &sign_source) {
@@ -634,10 +641,10 @@ inline void rotm(int n, T *x, int incx, T *y, int incy, const T *param) {
  * negative `d2` that makes the problem ill-posed, gives flag -1 with H, d1, d2
  * and b1 all zero.
  *
- * For floating-point types the scale factors are kept in
- * [2^-24, 2^24] by exact rescaling, as in Netlib. Fixed-point types skip that
- * step: their range is already bounded and the rescaling constants would not be
- * representable in most Q formats.
+ * For floating-point types the magnitudes of nonzero `d1` and `d2` are kept in
+ * [2^-24, 2^24] by exact rescaling, as in Netlib (a valid negative `d2` keeps
+ * its sign). Fixed-point types skip that step: their range is already bounded
+ * and the rescaling constants would not be representable in most Q formats.
  *
  * @param d1 Scale factor component, updated in place.
  * @param d2 Scale factor component, updated in place.
