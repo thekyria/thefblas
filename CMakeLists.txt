@@ -23,6 +23,8 @@ option(THEFBLAS_ENABLE_COVERAGE
        OFF)
 option(THEFBLAS_ENABLE_IPO "Enable IPO/LTO for release builds when supported"
        ON)
+option(THEFBLAS_ENABLE_REFERENCE_TESTS
+       "Build randomised tests that compare against a system CBLAS" OFF)
 option(THEFBLAS_ENABLE_RELEASE_HARDENING
        "Enable additional hardening for release configurations on Clang/GCC" ON)
 

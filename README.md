@@ -178,6 +178,14 @@ ctest --test-dir build --output-on-failure
 The library itself is header-only (`INTERFACE` CMake target); the build only
 compiles the test suite and the examples.
 
+With `-DTHEFBLAS_ENABLE_REFERENCE_TESTS=ON`, the build also compiles
+`tests/test_reference_blas.cpp`, which needs a system BLAS with the CBLAS
+interface (for example `libblas-dev` or `libopenblas-dev` on Debian/Ubuntu). It
+runs every `float`, `double` and complex routine on random sizes, strides
+(including negative ones), leading dimensions and `uplo`/`trans`/`diag`
+combinations, and compares the whole output buffers with the reference. The
+seed is fixed for reproducibility; set `THEFBLAS_TEST_SEED` to try others.
+
 `examples/fixed_point_ops.cpp` shows Level 1, dense, banded and packed Level 2
 calls on a `fixed<std::int32_t, 20>` (Q11.20) element type:
 
