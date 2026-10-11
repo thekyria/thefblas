@@ -5,6 +5,7 @@
 #include "thefblas/fixed.hpp"
 
 #include <cassert>
+#include <cmath>
 #include <complex>
 #include <cstddef>
 #include <limits>
@@ -75,6 +76,89 @@ template <typename T> inline T tiny_value() {
         return T(1e-30);
     }
 }
+
+/// Overflow- and underflow-safe Euclidean norm accumulator for floating-point
+/// types, using Blue's algorithm as in Netlib reference BLAS 3.10+
+/// (Anderson, "Algorithm 978: Safe Scaling in the Level 1 BLAS", 2017).
+///
+/// Values are split into three bins by magnitude. Mid-range values are summed
+/// unscaled, so for vectors whose elements are all in the mid range (the
+/// common case) the result is bit-identical to `sqrt(sum of x_i * x_i)`.
+/// Very large and very small values are scaled by powers of two (exact) into
+/// the safe range before squaring, so the result is finite and accurate
+/// whenever the norm itself is representable.
+template <typename T> class blue_nrm2 {
+    static_assert(std::numeric_limits<T>::radix == 2, "blue_nrm2 requires a binary type");
+
+    static int floor_half(int v) { return (v >= 0) ? v / 2 : -((-v + 1) / 2); }
+    static int ceil_half(int v) { return -floor_half(-v); }
+
+    using limits = std::numeric_limits<T>;
+    static T pow2(int e) { return std::ldexp(T(1), e); }
+
+  public:
+    void add(const T &value) {
+        const T ax = std::fabs(value);
+        if (ax > tbig()) {
+            const T scaled = ax * sbig();
+            abig_ += scaled * scaled;
+            notbig_ = false;
+        } else if (ax < tsml()) {
+            if (notbig_) {
+                const T scaled = ax * ssml();
+                asml_ += scaled * scaled;
+            }
+        } else {
+            // Also reached by NaN, which then propagates through amed_.
+            amed_ += ax * ax;
+        }
+    }
+
+    [[nodiscard]] T value() const {
+        const T one(1);
+        T amed = amed_;
+        const bool amed_used = amed > T(0) || amed > (limits::max)() || amed != amed;
+        if (abig_ > T(0)) {
+            T abig = abig_;
+            if (amed_used) {
+                abig += (amed * sbig()) * sbig();
+            }
+            return (one / sbig()) * std::sqrt(abig);
+        }
+        if (asml_ > T(0)) {
+            if (amed_used) {
+                amed = std::sqrt(amed);
+                const T asml = std::sqrt(asml_) / ssml();
+                const T ymin = (asml > amed) ? amed : asml;
+                const T ymax = (asml > amed) ? asml : amed;
+                const T ratio = ymin / ymax;
+                return std::sqrt(ymax * ymax * (one + ratio * ratio));
+            }
+            return (one / ssml()) * std::sqrt(asml_);
+        }
+        return std::sqrt(amed);
+    }
+
+  private:
+    // Blue's thresholds and scaling factors, all exact powers of two.
+    // The medium/big cutoff leaves headroom for up to 2 * INT_MAX squares
+    // (complex vectors of maximal int length), which is stricter than Netlib's
+    // 2^(digits - 1) for types with fewer than 33 significand bits (float).
+    static constexpr int headroom_bits() {
+        return (limits::digits - 1 > std::numeric_limits<int>::digits + 2)
+                   ? limits::digits - 1
+                   : std::numeric_limits<int>::digits + 2;
+    }
+    static T tsml() { return pow2(ceil_half(limits::min_exponent - 1)); }
+    static T tbig() { return pow2(floor_half(limits::max_exponent - headroom_bits())); }
+    static T ssml() { return pow2(-floor_half(limits::min_exponent - limits::digits)); }
+    static T sbig() { return pow2(-ceil_half(limits::max_exponent + limits::digits - 1)); }
+
+    T asml_{};
+    T amed_{};
+    T abig_{};
+    bool notbig_ = true;
+};
 
 } // namespace detail
 
@@ -277,16 +361,25 @@ template <typename T, detail::enable_if_real_t<T> = 0> inline T nrm2(int n, cons
         return T(0);
     }
 
-    detail::real_mac<T> sum;
     int ix = detail::start_index(n, incx);
-    for (int i = 0; i < n; ++i) {
-        sum.add_product(x[ix], x[ix]);
-        ix += incx;
+    if constexpr (std::is_floating_point_v<T>) {
+        detail::blue_nrm2<T> norm;
+        for (int i = 0; i < n; ++i) {
+            norm.add(x[ix]);
+            ix += incx;
+        }
+        return norm.value();
+    } else {
+        detail::real_mac<T> sum;
+        for (int i = 0; i < n; ++i) {
+            sum.add_product(x[ix], x[ix]);
+            ix += incx;
+        }
+        // The sum of squares can legitimately exceed the range of T even when the
+        // norm itself does not, so the square root is taken in the wide accumulator
+        // type and only its result is narrowed back to T.
+        return detail::from_accumulator<T>(detail::sqrt_value(sum.wide_value()));
     }
-    // The sum of squares can legitimately exceed the range of T even when the
-    // norm itself does not, so the square root is taken in the wide accumulator
-    // type and only its result is narrowed back to T.
-    return detail::from_accumulator<T>(detail::sqrt_value(sum.wide_value()));
 }
 
 /**
@@ -301,14 +394,24 @@ template <typename T> inline T nrm2(int n, const std::complex<T> *x, int incx) {
         return T(0);
     }
 
-    detail::real_mac<T> sum;
     int ix = detail::start_index(n, incx);
-    for (int i = 0; i < n; ++i) {
-        sum.add_product(x[ix].real(), x[ix].real());
-        sum.add_product(x[ix].imag(), x[ix].imag());
-        ix += incx;
+    if constexpr (std::is_floating_point_v<T>) {
+        detail::blue_nrm2<T> norm;
+        for (int i = 0; i < n; ++i) {
+            norm.add(x[ix].real());
+            norm.add(x[ix].imag());
+            ix += incx;
+        }
+        return norm.value();
+    } else {
+        detail::real_mac<T> sum;
+        for (int i = 0; i < n; ++i) {
+            sum.add_product(x[ix].real(), x[ix].real());
+            sum.add_product(x[ix].imag(), x[ix].imag());
+            ix += incx;
+        }
+        return detail::from_accumulator<T>(detail::sqrt_value(sum.wide_value()));
     }
-    return detail::from_accumulator<T>(detail::sqrt_value(sum.wide_value()));
 }
 
 /**

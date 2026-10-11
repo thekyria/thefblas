@@ -329,7 +329,7 @@ inline void tbsv_impl(char uplo, char trans, char diag, int n, int k, const T *a
             int jx = start_index(n, incx) + (n - 1) * incx;
             for (int j = n - 1; j >= 0; --j) {
                 if (!unit) {
-                    x[jx] /= a[diag_row + j * lda];
+                    x[jx] = divide_value(x[jx], a[diag_row + j * lda]);
                 }
                 const T temp = x[jx];
                 const int first = (j - k > 0) ? (j - k) : 0;
@@ -344,7 +344,7 @@ inline void tbsv_impl(char uplo, char trans, char diag, int n, int k, const T *a
             int jx = start_index(n, incx);
             for (int j = 0; j < n; ++j) {
                 if (!unit) {
-                    x[jx] /= a[diag_row + j * lda];
+                    x[jx] = divide_value(x[jx], a[diag_row + j * lda]);
                 }
                 const T temp = x[jx];
                 const int last = (j + k < n - 1) ? (j + k) : (n - 1);
@@ -362,6 +362,7 @@ inline void tbsv_impl(char uplo, char trans, char diag, int n, int k, const T *a
             for (int j = 0; j < n; ++j) {
                 mac_t<T> sum;
                 sum.add(x[jx]);
+                // cppcheck-suppress knownConditionTrueFalse
                 const int first = (j - k > 0) ? (j - k) : 0;
                 int ix = jx - (j - first) * incx;
                 for (int i = first; i < j; ++i) {
@@ -376,7 +377,7 @@ inline void tbsv_impl(char uplo, char trans, char diag, int n, int k, const T *a
                 accumulator_t<T> temp = sum.wide_value();
                 if (!unit) {
                     const T d = a[diag_row + j * lda];
-                    temp /= to_accumulator(conjugate ? conj_value(d) : d);
+                    temp = divide_value(temp, to_accumulator(conjugate ? conj_value(d) : d));
                 }
                 x[jx] = from_accumulator<T>(temp);
                 jx += incx;
@@ -400,7 +401,7 @@ inline void tbsv_impl(char uplo, char trans, char diag, int n, int k, const T *a
                 accumulator_t<T> temp = sum.wide_value();
                 if (!unit) {
                     const T d = a[diag_row + j * lda];
-                    temp /= to_accumulator(conjugate ? conj_value(d) : d);
+                    temp = divide_value(temp, to_accumulator(conjugate ? conj_value(d) : d));
                 }
                 x[jx] = from_accumulator<T>(temp);
                 jx -= incx;

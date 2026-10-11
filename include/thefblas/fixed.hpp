@@ -174,8 +174,8 @@ template <typename IntType, int FracBits, typename Policy = checked> class fixed
 
     template <typename FloatType = double> constexpr FloatType to_float() const noexcept {
         using unsigned_rep = typename std::make_unsigned<IntType>::type;
-        const auto scale = static_cast<unsigned_rep>(unsigned_rep(1) << FracBits);
-        return static_cast<FloatType>(value_) / static_cast<FloatType>(scale);
+        const auto scale_factor = static_cast<unsigned_rep>(unsigned_rep(1) << FracBits);
+        return static_cast<FloatType>(value_) / static_cast<FloatType>(scale_factor);
     }
 
     constexpr fixed operator-() const noexcept {
@@ -201,7 +201,7 @@ template <typename IntType, int FracBits, typename Policy = checked> class fixed
     friend constexpr fixed operator/(fixed a, fixed b) noexcept {
         if (b.value_ == 0) {
             if constexpr (std::is_same<Policy, checked>::value) {
-                assert(false && "thefblas::fixed<>: division by zero");
+                assert(false && "thefblas::fixed<>: division by zero"); // LCOV_EXCL_LINE
             }
             return from_raw(Policy::template from_out_of_range<IntType>(a.value_ >= 0));
         }

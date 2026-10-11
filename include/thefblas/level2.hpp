@@ -25,7 +25,9 @@ namespace thefblas {
  * - `incx`, `incy`: vector strides; zero stride causes a no-op.
  *
  * Behavior follows theblas/Netlib BLAS dense Level-2 semantics:
- * invalid character parameters or non-positive problem sizes return early.
+ * invalid character parameters, non-positive problem sizes, or a leading
+ * dimension smaller than the number of rows (`lda < m` for `gemv`/`ger*`,
+ * `lda < n` otherwise) return early without touching any operand.
  */
 
 namespace detail {
@@ -130,7 +132,7 @@ template <typename T>
 inline void gemv_impl(char trans, int m, int n, T alpha, const T *a, int lda, const T *x, int incx,
                       T beta, T *y, int incy) {
     const char tr = to_upper(trans);
-    if (!valid_trans(trans) || m <= 0 || n <= 0 || incx == 0 || incy == 0) {
+    if (!valid_trans(trans) || m <= 0 || n <= 0 || lda < m || incx == 0 || incy == 0) {
         return;
     }
 
@@ -184,7 +186,7 @@ template <typename T>
 inline void symv_impl(char uplo, int n, T alpha, const T *a, int lda, const T *x, int incx, T beta,
                       T *y, int incy) {
     const char ul = to_upper(uplo);
-    if (!valid_uplo(uplo) || n <= 0 || incx == 0 || incy == 0) {
+    if (!valid_uplo(uplo) || n <= 0 || lda < n || incx == 0 || incy == 0) {
         return;
     }
 
@@ -227,7 +229,7 @@ inline void hemv_impl(char uplo, int n, std::complex<T> alpha, const std::comple
                       int incy) {
     using C = std::complex<T>;
     const char ul = to_upper(uplo);
-    if (!valid_uplo(uplo) || n <= 0 || incx == 0 || incy == 0) {
+    if (!valid_uplo(uplo) || n <= 0 || lda < n || incx == 0 || incy == 0) {
         return;
     }
 
@@ -272,7 +274,8 @@ inline void trmv_impl(char uplo, char trans, char diag, int n, const T *a, int l
     const char ul = to_upper(uplo);
     const char tr = to_upper(trans);
     const char dg = to_upper(diag);
-    if (!valid_uplo(uplo) || !valid_trans(trans) || !valid_diag(diag) || n <= 0 || incx == 0) {
+    if (!valid_uplo(uplo) || !valid_trans(trans) || !valid_diag(diag) || n <= 0 || lda < n ||
+        incx == 0) {
         return;
     }
     const bool unit = (dg == 'U');
@@ -373,7 +376,8 @@ inline void trsv_impl(char uplo, char trans, char diag, int n, const T *a, int l
     const char ul = to_upper(uplo);
     const char tr = to_upper(trans);
     const char dg = to_upper(diag);
-    if (!valid_uplo(uplo) || !valid_trans(trans) || !valid_diag(diag) || n <= 0 || incx == 0) {
+    if (!valid_uplo(uplo) || !valid_trans(trans) || !valid_diag(diag) || n <= 0 || lda < n ||
+        incx == 0) {
         return;
     }
     const bool unit = (dg == 'U');
@@ -383,7 +387,7 @@ inline void trsv_impl(char uplo, char trans, char diag, int n, const T *a, int l
             int jx = start_index(n, incx) + (n - 1) * incx;
             for (int j = n - 1; j >= 0; --j) {
                 if (!unit) {
-                    x[jx] /= a[j + j * lda];
+                    x[jx] = divide_value(x[jx], a[j + j * lda]);
                 }
                 const T temp = x[jx];
                 int ix = jx;
@@ -397,7 +401,7 @@ inline void trsv_impl(char uplo, char trans, char diag, int n, const T *a, int l
             int jx = start_index(n, incx);
             for (int j = 0; j < n; ++j) {
                 if (!unit) {
-                    x[jx] /= a[j + j * lda];
+                    x[jx] = divide_value(x[jx], a[j + j * lda]);
                 }
                 const T temp = x[jx];
                 int ix = jx;
@@ -426,7 +430,8 @@ inline void trsv_impl(char uplo, char trans, char diag, int n, const T *a, int l
                 }
                 accumulator_t<T> temp = sum.wide_value();
                 if (!unit) {
-                    temp /= to_accumulator(conjugate ? conj_value(a[j + j * lda]) : a[j + j * lda]);
+                    temp = divide_value(temp, to_accumulator(conjugate ? conj_value(a[j + j * lda])
+                                                                       : a[j + j * lda]));
                 }
                 x[jx] = from_accumulator<T>(temp);
                 jx += incx;
@@ -447,7 +452,8 @@ inline void trsv_impl(char uplo, char trans, char diag, int n, const T *a, int l
                 }
                 accumulator_t<T> temp = sum.wide_value();
                 if (!unit) {
-                    temp /= to_accumulator(conjugate ? conj_value(a[j + j * lda]) : a[j + j * lda]);
+                    temp = divide_value(temp, to_accumulator(conjugate ? conj_value(a[j + j * lda])
+                                                                       : a[j + j * lda]));
                 }
                 x[jx] = from_accumulator<T>(temp);
                 jx -= incx;
@@ -459,7 +465,7 @@ inline void trsv_impl(char uplo, char trans, char diag, int n, const T *a, int l
 template <typename T>
 inline void ger_impl(int m, int n, T alpha, const T *x, int incx, const T *y, int incy, T *a,
                      int lda) {
-    if (m <= 0 || n <= 0 || incx == 0 || incy == 0) {
+    if (m <= 0 || n <= 0 || lda < m || incx == 0 || incy == 0) {
         return;
     }
     if (alpha == value_constants<T>::zero()) {
@@ -482,7 +488,7 @@ template <typename T>
 inline void geru_impl(int m, int n, std::complex<T> alpha, const std::complex<T> *x, int incx,
                       const std::complex<T> *y, int incy, std::complex<T> *a, int lda) {
     using C = std::complex<T>;
-    if (m <= 0 || n <= 0 || incx == 0 || incy == 0) {
+    if (m <= 0 || n <= 0 || lda < m || incx == 0 || incy == 0) {
         return;
     }
     if (alpha == value_constants<C>::zero()) {
@@ -505,7 +511,7 @@ template <typename T>
 inline void gerc_impl(int m, int n, std::complex<T> alpha, const std::complex<T> *x, int incx,
                       const std::complex<T> *y, int incy, std::complex<T> *a, int lda) {
     using C = std::complex<T>;
-    if (m <= 0 || n <= 0 || incx == 0 || incy == 0) {
+    if (m <= 0 || n <= 0 || lda < m || incx == 0 || incy == 0) {
         return;
     }
     if (alpha == value_constants<C>::zero()) {
@@ -527,7 +533,7 @@ inline void gerc_impl(int m, int n, std::complex<T> alpha, const std::complex<T>
 template <typename T>
 inline void syr_impl(char uplo, int n, T alpha, const T *x, int incx, T *a, int lda) {
     const char ul = to_upper(uplo);
-    if (!valid_uplo(uplo) || n <= 0 || incx == 0) {
+    if (!valid_uplo(uplo) || n <= 0 || lda < n || incx == 0) {
         return;
     }
     if (alpha == value_constants<T>::zero()) {
@@ -563,7 +569,7 @@ inline void her_impl(char uplo, int n, T alpha, const std::complex<T> *x, int in
                      std::complex<T> *a, int lda) {
     using C = std::complex<T>;
     const char ul = to_upper(uplo);
-    if (!valid_uplo(uplo) || n <= 0 || incx == 0) {
+    if (!valid_uplo(uplo) || n <= 0 || lda < n || incx == 0) {
         return;
     }
     if (alpha == value_constants<T>::zero()) {
@@ -600,7 +606,7 @@ template <typename T>
 inline void syr2_impl(char uplo, int n, T alpha, const T *x, int incx, const T *y, int incy, T *a,
                       int lda) {
     const char ul = to_upper(uplo);
-    if (!valid_uplo(uplo) || n <= 0 || incx == 0 || incy == 0) {
+    if (!valid_uplo(uplo) || n <= 0 || lda < n || incx == 0 || incy == 0) {
         return;
     }
     if (alpha == value_constants<T>::zero()) {
@@ -645,7 +651,7 @@ inline void her2_impl(char uplo, int n, std::complex<T> alpha, const std::comple
                       const std::complex<T> *y, int incy, std::complex<T> *a, int lda) {
     using C = std::complex<T>;
     const char ul = to_upper(uplo);
-    if (!valid_uplo(uplo) || n <= 0 || incx == 0 || incy == 0) {
+    if (!valid_uplo(uplo) || n <= 0 || lda < n || incx == 0 || incy == 0) {
         return;
     }
     if (alpha == value_constants<C>::zero()) {

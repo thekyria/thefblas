@@ -132,7 +132,7 @@ struct checked {
     }
 
     template <typename IntType> static constexpr IntType from_out_of_range(bool positive) noexcept {
-        return (assert(false && "thefblas::fixed<>: value out of range for this Q format"),
+        return (assert(false && "thefblas::fixed<>: value out of range for this Q format"), // LCOV_EXCL_LINE
                 detail::clamp_limit<IntType>(positive));
     }
 };

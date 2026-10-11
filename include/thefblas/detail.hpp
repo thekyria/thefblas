@@ -69,6 +69,35 @@ template <typename T> struct value_constants<std::complex<T>> {
     static std::complex<T> one() { return std::complex<T>(T{1}, T{}); }
 };
 
+/// `numerator / denominator`, also for `std::complex` of fixed-point types.
+///
+/// The standard only specifies `std::complex<T>` for floating-point `T`, and
+/// MSVC's generic complex division does not compile for `fixed` (it compares
+/// the parts against `int` literals). For complex non-floating types this uses
+/// Smith's algorithm, which scales by the larger part of the denominator so
+/// intermediate values stay small, a property fixed-point needs as well.
+template <typename T> inline T divide_value(const T &numerator, const T &denominator) {
+    if constexpr (is_complex_v<T> && !is_floating_v<T>) {
+        using R = typename T::value_type;
+        const R ar = numerator.real();
+        const R ai = numerator.imag();
+        const R br = denominator.real();
+        const R bi = denominator.imag();
+        const R abs_br = (br < R{}) ? -br : br;
+        const R abs_bi = (bi < R{}) ? -bi : bi;
+        if (abs_br >= abs_bi) {
+            const R ratio = bi / br;
+            const R scale = br + bi * ratio;
+            return T((ar + ai * ratio) / scale, (ai - ar * ratio) / scale);
+        }
+        const R ratio = br / bi;
+        const R scale = bi + br * ratio;
+        return T((ar * ratio + ai) / scale, (ai * ratio - ar) / scale);
+    } else {
+        return numerator / denominator;
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Widened accumulators
 // ---------------------------------------------------------------------------

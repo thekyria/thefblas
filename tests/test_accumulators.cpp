@@ -155,7 +155,7 @@ void test_symv_cancellation() {
     using F = fixed<std::int16_t, 15, thefblas::saturate>; // Q1.15
     const int n = 3;
     // Upper-triangle column-major storage of row 0 = [0.9, 0.9, -0.9].
-    F a[9] = {F(0.9), F(0.0), F(0.0), F(0.9), F(0.0), F(0.0), F(-0.9), F(0.0), F(0.0)};
+    const F a[9] = {F(0.9), F(0.0), F(0.0), F(0.9), F(0.0), F(0.0), F(-0.9), F(0.0), F(0.0)};
     const F x[3] = {F(0.9), F(0.9), F(0.9)};
     F y[3] = {F(0.0), F(0.0), F(0.0)};
     thefblas::symv('U', n, F(0.5), a, n, x, 1, F(0.0), y, 1);
