@@ -69,14 +69,6 @@ template <typename T> inline T signed_magnitude(T magnitude, const T &sign_sourc
     return sign_source < T(0) ? -magnitude : magnitude;
 }
 
-template <typename T> inline T tiny_value() {
-    if constexpr (is_fixed_v<T>) {
-        return T::from_raw(1);
-    } else {
-        return T(1e-30);
-    }
-}
-
 /// Overflow- and underflow-safe Euclidean norm accumulator for floating-point
 /// types, using Blue's algorithm as in Netlib reference BLAS 3.10+
 /// (Anderson, "Algorithm 978: Safe Scaling in the Level 1 BLAS", 2017).
@@ -236,14 +228,15 @@ template <typename T> inline void axpy(int n, T alpha, const T *x, int incx, T *
  * @param n Number of elements to process.
  * @param alpha Scale factor.
  * @param x Vector to scale in place.
- * @param incx Stride between elements of x.
+ * @param incx Stride between elements of x; must be positive (otherwise, as in
+ *        Netlib BLAS, the call is a no-op).
  */
 template <typename T> inline void scal(int n, T alpha, T *x, int incx) {
-    if (n <= 0 || incx == 0) {
+    if (n <= 0 || incx <= 0) {
         return;
     }
 
-    int ix = detail::start_index(n, incx);
+    int ix = 0;
     for (int i = 0; i < n; ++i) {
         x[ix] *= alpha;
         ix += incx;
@@ -255,10 +248,11 @@ template <typename T> inline void scal(int n, T alpha, T *x, int incx) {
  * @param n Number of elements to process.
  * @param alpha Real scale factor.
  * @param x Complex vector to scale in place.
- * @param incx Stride between elements of x.
+ * @param incx Stride between elements of x; must be positive (otherwise, as in
+ *        Netlib BLAS, the call is a no-op).
  */
 template <typename T> inline void scal(int n, T alpha, std::complex<T> *x, int incx) {
-    if (n <= 0 || incx == 0) {
+    if (n <= 0 || incx <= 0) {
         return;
     }
 
@@ -418,16 +412,17 @@ template <typename T> inline T nrm2(int n, const std::complex<T> *x, int incx) {
  * @brief Sum of absolute values of a real vector.
  * @param n Number of elements to process.
  * @param x Input vector.
- * @param incx Stride between elements of x.
- * @return Sum of absolute values.
+ * @param incx Stride between elements of x; must be positive.
+ * @return Sum of absolute values, or 0 when `n <= 0` or `incx <= 0` (as in
+ *         Netlib BLAS).
  */
 template <typename T, detail::enable_if_real_t<T> = 0> inline T asum(int n, const T *x, int incx) {
-    if (n <= 0 || incx == 0) {
+    if (n <= 0 || incx <= 0) {
         return T(0);
     }
 
     detail::real_mac<T> sum;
-    int ix = detail::start_index(n, incx);
+    int ix = 0;
     for (int i = 0; i < n; ++i) {
         sum.add_abs(x[ix]);
         ix += incx;
@@ -439,16 +434,17 @@ template <typename T, detail::enable_if_real_t<T> = 0> inline T asum(int n, cons
  * @brief Sum of `|Re(x_i)| + |Im(x_i)|` for a complex vector.
  * @param n Number of elements to process.
  * @param x Input vector.
- * @param incx Stride between elements of x.
- * @return Sum of absolute component values.
+ * @param incx Stride between elements of x; must be positive.
+ * @return Sum of absolute component values, or 0 when `n <= 0` or `incx <= 0`
+ *         (as in Netlib BLAS).
  */
 template <typename T> inline T asum(int n, const std::complex<T> *x, int incx) {
-    if (n <= 0 || incx == 0) {
+    if (n <= 0 || incx <= 0) {
         return T(0);
     }
 
     detail::real_mac<T> sum;
-    int ix = detail::start_index(n, incx);
+    int ix = 0;
     for (int i = 0; i < n; ++i) {
         sum.add_abs(x[ix].real());
         sum.add_abs(x[ix].imag());
@@ -557,14 +553,21 @@ template <typename T, detail::enable_if_real_t<T> = 0> inline void rotg(T *a, T 
 template <typename T>
 inline void rotg(std::complex<T> *a, std::complex<T> b, T *c, std::complex<T> *s) {
     const T abs_a = detail::complex_abs(*a);
+    const T abs_b = detail::complex_abs(b);
     if (abs_a == T(0)) {
+        // As in Netlib reference BLAS 3.10+: r = |b| is real and s = conj(b)/|b|,
+        // and the rotation is the identity when b is zero too.
+        if (abs_b == T(0)) {
+            *c = T(1);
+            *s = std::complex<T>(T(0), T(0));
+            return;
+        }
         *c = T(0);
-        *s = std::complex<T>(T(1), T(0));
-        *a = b;
+        *s = detail::conj_value(b) / abs_b;
+        *a = std::complex<T>(abs_b, T(0));
         return;
     }
 
-    const T abs_b = detail::complex_abs(b);
     const T scale = abs_a + abs_b;
     const T norm = scale * detail::sqrt_value(detail::norm_square(*a / scale) +
                                               detail::norm_square(b / scale));
@@ -621,6 +624,21 @@ inline void rotm(int n, T *x, int incx, T *y, int incy, const T *param) {
 
 /**
  * @brief Construct modified Givens parameters for real values.
+ *
+ * Follows Netlib reference BLAS `srotmg`/`drotmg`: on return, the matrix `H`
+ * encoded in `param` (see rotm) satisfies `H * (b1, b2)^T = (b1', 0)^T`, and
+ * `d1`, `d2`, `b1` hold the updated scale factors and first component.
+ * `param[0]` is the flag: -2 (H is the identity, nothing else is written),
+ * -1 (full H), 0 (unit diagonal: only `param[2]` and `param[3]` are written)
+ * or 1 (only `param[1]` and `param[4]` are written). A negative `d1`, or a
+ * negative `d2` that makes the problem ill-posed, gives flag -1 with H, d1, d2
+ * and b1 all zero.
+ *
+ * For floating-point types the scale factors are kept in
+ * [2^-24, 2^24] by exact rescaling, as in Netlib. Fixed-point types skip that
+ * step: their range is already bounded and the rescaling constants would not be
+ * representable in most Q formats.
+ *
  * @param d1 Scale factor component, updated in place.
  * @param d2 Scale factor component, updated in place.
  * @param b1 Input/output vector component.
@@ -629,35 +647,120 @@ inline void rotm(int n, T *x, int incx, T *y, int incy, const T *param) {
  */
 template <typename T, detail::enable_if_real_t<T> = 0>
 inline void rotmg(T *d1, T *d2, T *b1, T b2, T *param) {
-    if (*d1 <= T(0) || *d2 <= T(0)) {
-        param[0] = T(-2);
-        param[1] = T(0);
-        param[2] = T(0);
-        param[3] = T(0);
-        param[4] = T(0);
-        return;
+    const T zero(0);
+    const T one(1);
+    T flag = -one;
+    T h11 = zero;
+    T h21 = zero;
+    T h12 = zero;
+    T h22 = zero;
+
+    bool reject = *d1 < zero;
+    if (!reject) {
+        const T p2 = *d2 * b2;
+        if (p2 == zero) {
+            param[0] = T(-2);
+            return;
+        }
+        const T p1 = *d1 * (*b1);
+        const T q2 = p2 * b2;
+        const T q1 = p1 * (*b1);
+        if (detail::abs_value(q1) > detail::abs_value(q2)) {
+            h21 = -b2 / *b1;
+            h12 = p2 / p1;
+            const T u = one - (h12 * h21);
+            // Netlib: u <= 0 can only come from rounding.
+            reject = !(u > zero);
+            if (!reject) {
+                flag = zero;
+                *d1 /= u;
+                *d2 /= u;
+                *b1 *= u;
+            }
+        } else {
+            reject = q2 < zero;
+            if (!reject) {
+                flag = one;
+                h11 = p1 / p2;
+                h22 = *b1 / b2;
+                const T u = one + (h11 * h22);
+                const T temp = *d2 / u;
+                *d2 = *d1 / u;
+                *d1 = temp;
+                *b1 = b2 * u;
+            }
+        }
     }
 
-    T a = detail::sqrt_value(*d1) * (*b1);
-    T b = detail::sqrt_value(*d2) * b2;
-    T c = T(0);
-    T s = T(0);
-    rotg(&a, &b, &c, &s);
+    if (reject) {
+        flag = -one;
+        h11 = zero;
+        h21 = zero;
+        h12 = zero;
+        h22 = zero;
+        *d1 = zero;
+        *d2 = zero;
+        *b1 = zero;
+    } else if constexpr (std::is_floating_point_v<T>) {
+        const T gam(4096);
+        const T gamsq(16777216);
+        const T rgamsq = static_cast<T>(5.9604645e-8); // Netlib RGAMSQ, about 2^-24
+        // Switch to the full form of H before rescaling its entries.
+        const auto make_full = [&]() {
+            if (flag == zero) {
+                h11 = one;
+                h22 = one;
+            } else if (flag > zero) {
+                h21 = -one;
+                h12 = one;
+            }
+            flag = -one;
+        };
+        if (*d1 != zero) {
+            while (*d1 <= rgamsq || *d1 >= gamsq) {
+                make_full();
+                if (*d1 <= rgamsq) {
+                    *d1 *= gam * gam;
+                    *b1 /= gam;
+                    h11 /= gam;
+                    h12 /= gam;
+                } else {
+                    *d1 /= gam * gam;
+                    *b1 *= gam;
+                    h11 *= gam;
+                    h12 *= gam;
+                }
+            }
+        }
+        if (*d2 != zero) {
+            while (detail::abs_value(*d2) <= rgamsq || detail::abs_value(*d2) >= gamsq) {
+                make_full();
+                if (detail::abs_value(*d2) <= rgamsq) {
+                    *d2 *= gam * gam;
+                    h21 /= gam;
+                    h22 /= gam;
+                } else {
+                    *d2 /= gam * gam;
+                    h21 *= gam;
+                    h22 *= gam;
+                }
+            }
+        }
+    }
 
-    param[0] = T(-1);
-    param[1] = c;
-    param[2] = -s;
-    param[3] = s;
-    param[4] = c;
-
-    const T c2 = c * c;
-    const T s2 = s * s;
-    const T d1_old = *d1;
-    const T d2_old = *d2;
-    *d1 = (d1_old * c2) + (d2_old * s2);
-    *d2 = (d1_old * s2) + (d2_old * c2);
-    const T floor = *d1 > detail::tiny_value<T>() ? *d1 : detail::tiny_value<T>();
-    *b1 = a / detail::sqrt_value(floor);
+    if (flag < zero) {
+        param[1] = h11;
+        param[2] = h21;
+        param[3] = h12;
+        param[4] = h22;
+    } else if (flag == zero) {
+        param[2] = h21;
+        param[3] = h12;
+    } else {
+        param[1] = h11;
+        param[4] = h22;
+    }
+    param[0] = flag;
 }
 
 /**

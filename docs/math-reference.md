@@ -109,6 +109,9 @@ This is distinct from `cscal`/`zscal`, where $\alpha \in \mathbb{C}$:
 $$x_i \leftarrow (\alpha_r + i\,\alpha_i)(x_{i,r} + i\,x_{i,i})
 = (\alpha_r x_{i,r} - \alpha_i x_{i,i}) + i\,(\alpha_r x_{i,i} + \alpha_i x_{i,r})$$
 
+As in Netlib BLAS, a non-positive stride ($\text{incx} \le 0$) makes the call a
+no-op.
+
 ---
 
 ## dot — Dot Product
@@ -172,6 +175,8 @@ $$\text{asum}(x) = \sum_{i=1}^{n} \lvert x_i \rvert_1
 
 Note: the complex variant uses the **Manhattan modulus** $\lvert \cdot \rvert_1$,
 not the Euclidean modulus. This matches the Netlib BLAS specification.
+
+As in Netlib BLAS, the result is $0$ when $\text{incx} \le 0$.
 
 ---
 
@@ -246,8 +251,10 @@ $$\begin{pmatrix} c & s \\ -\bar{s} & c \end{pmatrix}
 =
 \begin{pmatrix} r \\ 0 \end{pmatrix}$$
 
-where $r = \lvert a \rvert / a \cdot \sqrt{\lvert a \rvert^2 + \lvert b \rvert^2}$
-when $a \neq 0$, and $r = b$ when $a = 0$. The rotation matrix satisfies
+where $r = a / \lvert a \rvert \cdot \sqrt{\lvert a \rvert^2 + \lvert b \rvert^2}$
+when $a \neq 0$. When $a = 0$, as in Netlib reference BLAS 3.10+, $c = 0$,
+$s = \bar{b} / \lvert b \rvert$ and $r = \lvert b \rvert$ (real), or $c = 1$,
+$s = 0$, $r = 0$ if $b = 0$ as well. The rotation matrix satisfies
 $c^2 + \lvert s \rvert^2 = 1$.
 
 ---
@@ -279,19 +286,26 @@ $$\begin{pmatrix} x_i \\ y_i \end{pmatrix}
 **Routines:** `srotmg`, `drotmg`
 
 Given diagonal scaling factors $d_1, d_2$ and vector components $b_1, b_2$,
-constructs a modified Givens parameter array `param` such that applying the
-encoded $H$ to the scaled pair eliminates the second component:
+constructs a modified Givens parameter array `param` such that the encoded
+$H$ eliminates the second component, and updates $d_1$, $d_2$, $b_1$:
 
-$$H \begin{pmatrix} \sqrt{d_1}\, b_1 \\ \sqrt{d_2}\, b_2 \end{pmatrix}
-= \begin{pmatrix} r \\ 0 \end{pmatrix}$$
+$$H \begin{pmatrix} b_1 \\ b_2 \end{pmatrix}
+= \begin{pmatrix} b_1' \\ 0 \end{pmatrix}, \qquad
+d_1' b_1'^2 = d_1 b_1^2 + d_2 b_2^2$$
 
-The scaling factors $d_1$ and $d_2$ are updated on output to absorb the
-transformation, keeping elements of $H$ near unity for numerical stability.
+The algorithm is Netlib's: flag $0$ when $\lvert d_1 b_1^2 \rvert >
+\lvert d_2 b_2^2 \rvert$, flag $1$ otherwise, flag $-2$ when $d_2 b_2 = 0$, and
+flag $-1$ with $H$, $d_1$, $d_2$, $b_1$ all zero for invalid input ($d_1 < 0$,
+or a negative $d_2$ that makes $d_2 b_2^2$ dominate). For `float` and `double`,
+$d_1$ and $d_2$ are then rescaled by powers of $4096$ into
+$[2^{-24}, 2^{24}]$, switching $H$ to its full form (flag $-1$); fixed-point
+types skip this step, since their range is bounded and the constants are not
+representable in most Q formats.
 
-> **Note.** The implementations of `srotmg` and `drotmg` in thefblas are
-> intentionally simple reference implementations suitable for learning and
-> testing. They do not include the rescaling guard present in production BLAS
-> libraries.
+> **Note.** When that rescaling runs, Netlib reference BLAS 3.12 resets
+> $h_{21}$ and $h_{12}$ on every pass of its loop and can return an $H$ that no
+> longer satisfies the equation above. thefblas switches to the full form only
+> once, so its $H$ does; flag, $d_1$, $d_2$ and $b_1$ agree with Netlib.
 
 ---
 
