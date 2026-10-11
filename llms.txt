@@ -73,7 +73,7 @@ The library honours BLAS-style stride parameters (`incx`, `incy`), negative stri
 
 ## CI/CD Workflows
 
-- [.github/workflows/build.yml](.github/workflows/build.yml): Main CI pipeline — cppcheck, clang-tidy, CMake build, CTest, artifact upload, Doxygen
+- [.github/workflows/build.yml](.github/workflows/build.yml): Main CI pipeline — static analysis (cppcheck, clang-tidy, scan-build), GCC/Clang/AppleClang × Debug/Release test matrix, ASan/UBSan job, Doxygen
 - [.github/workflows/msvc.yml](.github/workflows/msvc.yml): Windows/MSVC build and test pipeline
 - [.github/workflows/coverage.yml](.github/workflows/coverage.yml): Code coverage report generation and upload
 - [.github/workflows/release.yml](.github/workflows/release.yml): Automated GitHub Release on version bump — reads version from CMakeLists.txt, runs prepare-release.py, creates git tag, publishes release notes from changelog, and updates vcpkg port SHA512 and version database

@@ -1,6 +1,4 @@
-# This starter workflow is for a CMake project running on a single platform. There is a different starter workflow if you need cross-platform coverage.
-# See: https://github.com/actions/starter-workflows/blob/main/ci/cmake-multi-platform.yml
-name: CMake on a single platform
+name: CI
 
 on:
   push:
@@ -11,16 +9,13 @@ on:
 permissions:
   contents: read
 
-env:
-  # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
-  BUILD_TYPE: Release
-
 jobs:
-  build:
-    # The CMake configure and build commands are platform agnostic and should work equally well on Windows or Mac.
-    # You can convert this to a matrix build if you need cross-platform coverage.
-    # See: https://docs.github.com/en/free-pro-team@latest/actions/learn-github-actions/managing-complex-workflows#using-a-build-matrix
+  analysis:
+    # Static analysis (cppcheck, clang-tidy, Clang Static Analyzer) plus the
+    # Makefile wrapper. Compiler and configuration coverage lives in `test`.
     runs-on: ubuntu-latest
+    env:
+      BUILD_TYPE: Release
 
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -42,8 +37,6 @@ jobs:
           include tests examples
 
     - name: Configure CMake
-      # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
-      # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
       run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 
     - name: Run clang-tidy
@@ -55,7 +48,6 @@ jobs:
         clang-tidy -p ${{github.workspace}}/build "${SOURCES[@]}"
 
     - name: Build
-      # Build your program with the given configuration
       # scan-build wraps the compiler to run the Clang Static Analyzer and
       # emit an HTML report; the build artifacts land in build/ as normal.
       run: |
@@ -71,12 +63,75 @@ jobs:
 
     - name: Test
       working-directory: ${{github.workspace}}/build
-      # Execute tests defined by the CMake configuration.
-      # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
-      run: ctest -C ${{env.BUILD_TYPE}}
+      run: ctest -C ${{env.BUILD_TYPE}} --output-on-failure
 
     - name: Build and test (wrapper for CMake)
       run: make test
+
+  test:
+    # Compiler x configuration matrix, with warnings treated as errors.
+    name: test (${{ matrix.compiler.name }}, ${{ matrix.build_type }})
+    runs-on: ${{ matrix.compiler.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler:
+          - { name: gcc, os: ubuntu-latest, cc: gcc, cxx: g++ }
+          - { name: clang, os: ubuntu-latest, cc: clang, cxx: clang++ }
+          - { name: appleclang, os: macos-latest, cc: clang, cxx: clang++ }
+        build_type: [ Debug, Release ]
+    env:
+      CC: ${{ matrix.compiler.cc }}
+      CXX: ${{ matrix.compiler.cxx }}
+
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+    - name: Configure CMake
+      run: >
+        cmake -B build
+        -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+        -DTHEFBLAS_WARNINGS_AS_ERRORS=ON
+
+    - name: Build
+      run: cmake --build build --config ${{ matrix.build_type }} --parallel
+
+    - name: Test
+      run: ctest --test-dir build -C ${{ matrix.build_type }} --output-on-failure
+
+  sanitizers:
+    # AddressSanitizer + UndefinedBehaviorSanitizer via THEFBLAS_ENABLE_SANITIZERS
+    # (applied to Debug builds only, see CMakeLists.txt).
+    name: sanitizers (${{ matrix.compiler.name }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler:
+          - { name: gcc, cc: gcc, cxx: g++ }
+          - { name: clang, cc: clang, cxx: clang++ }
+    env:
+      CC: ${{ matrix.compiler.cc }}
+      CXX: ${{ matrix.compiler.cxx }}
+      # UBSan only reports by default; make any finding fail the test.
+      UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+      ASAN_OPTIONS: detect_leaks=1:strict_string_checks=1:detect_stack_use_after_return=1
+
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+    - name: Configure CMake
+      run: >
+        cmake -B build
+        -DCMAKE_BUILD_TYPE=Debug
+        -DTHEFBLAS_ENABLE_SANITIZERS=ON
+        -DTHEFBLAS_WARNINGS_AS_ERRORS=ON
+
+    - name: Build
+      run: cmake --build build --parallel
+
+    - name: Test
+      run: ctest --test-dir build --output-on-failure
 
   docs:
     runs-on: ubuntu-latest
