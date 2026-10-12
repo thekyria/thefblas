@@ -5,7 +5,6 @@
 #include "thefblas/fixed.hpp"
 
 #include <cassert>
-#include <cctype>
 #include <complex>
 #include <cstddef>
 
@@ -32,8 +31,12 @@ namespace thefblas {
 
 namespace detail {
 
-inline char to_upper(char value) {
-    return static_cast<char>(std::toupper(static_cast<unsigned char>(value)));
+/// ASCII upper case for the BLAS option characters. Unlike std::toupper it
+/// does not depend on the locale and folds at compile time, so with a constant
+/// option the compiler sees which branch runs (newlib's std::toupper is an
+/// opaque call, which led GCC to warn about the branches that do not run).
+constexpr char to_upper(char value) {
+    return (value >= 'a' && value <= 'z') ? static_cast<char>(value - 'a' + 'A') : value;
 }
 
 inline bool valid_trans(char value) {

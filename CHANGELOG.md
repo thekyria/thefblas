@@ -41,6 +41,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   system CBLAS, covering random sizes, positive and negative strides, `lda`
   padding and all `uplo`/`trans`/`diag` options. CI runs it against Netlib
   reference BLAS in the `analysis` and `sanitizers` jobs.
+- CI cross-compiles every test and example with warnings as errors:
+  `arm-linux-gnueabihf` (32-bit ARM, no `__int128`; Debug and Release, tests
+  run under qemu-user) and `arm-none-eabi` for Cortex-M4, Cortex-M4F
+  (hard float) and Cortex-M0 (compiled and linked against newlib stubs, not
+  run).
+- `THEFBLAS_ARM_FLOAT_ABI` and `THEFBLAS_ARM_FPU` options in the
+  `arm-none-eabi` toolchain file, next to `THEFBLAS_ARM_MCU`.
 
 ### Changed
 
@@ -58,6 +65,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- The Level 2 option characters (`trans`, `uplo`, `diag`) are upper-cased
+  with a `constexpr` ASCII conversion instead of `std::toupper`, which depends
+  on the locale. With newlib's out-of-line `std::toupper`, GCC could not tell
+  which branch a constant option selects and reported `-Warray-bounds` on a
+  branch that does not run (in `test_accumulators.cpp`, Cortex-M Release).
 - Multiplication of negative fixed-point values rounded towards negative
   infinity instead of to nearest, ties away from zero, introducing a one-ULP
   bias. Rounding is now symmetric about zero.

@@ -142,6 +142,78 @@ jobs:
     - name: Test
       run: ctest --test-dir build --output-on-failure
 
+  arm-linux:
+    # 32-bit ARM (armv7-a, hard float) Linux build. The compiler has no
+    # __int128, so the 64-bit fixed-point paths use their fallbacks. The tests
+    # run under qemu-user through CMAKE_CROSSCOMPILING_EMULATOR.
+    name: arm-linux-gnueabihf (${{ matrix.build_type }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        build_type: [ Debug, Release ]
+
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+    - name: Install cross compiler and qemu
+      run: sudo apt-get update && sudo apt-get install -y g++-arm-linux-gnueabihf qemu-user
+
+    - name: Configure CMake
+      run: >
+        cmake -B build
+        -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/arm-linux-gnueabihf.cmake
+        -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+        -DTHEFBLAS_BUILD_TESTS=ON
+        -DTHEFBLAS_BUILD_EXAMPLES=ON
+        -DTHEFBLAS_WARNINGS_AS_ERRORS=ON
+        "-DCMAKE_CROSSCOMPILING_EMULATOR=qemu-arm;-L;/usr/arm-linux-gnueabihf"
+
+    - name: Build
+      run: cmake --build build --parallel
+
+    - name: Test
+      run: ctest --test-dir build --output-on-failure
+
+  arm-none-eabi:
+    # Bare-metal Cortex-M builds of every test and example, with warnings as
+    # errors. They are linked against newlib's stubs (nosys.specs) to check that
+    # everything compiles and links; running them would need firmware startup
+    # code, so they are not executed.
+    name: arm-none-eabi (${{ matrix.target.name }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - { name: cortex-m4, mcu: cortex-m4, float_abi: soft, fpu: "" }
+          - { name: cortex-m4f, mcu: cortex-m4, float_abi: hard, fpu: fpv4-sp-d16 }
+          - { name: cortex-m0, mcu: cortex-m0, float_abi: soft, fpu: "" }
+
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+    - name: Install bare-metal toolchain
+      run: >
+        sudo apt-get update && sudo apt-get install -y
+        gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib
+
+    - name: Configure CMake
+      run: >
+        cmake -B build
+        -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/arm-none-eabi.cmake
+        -DCMAKE_BUILD_TYPE=Release
+        -DTHEFBLAS_ARM_MCU=${{ matrix.target.mcu }}
+        -DTHEFBLAS_ARM_FLOAT_ABI=${{ matrix.target.float_abi }}
+        -DTHEFBLAS_ARM_FPU=${{ matrix.target.fpu }}
+        -DTHEFBLAS_BUILD_TESTS=ON
+        -DTHEFBLAS_BUILD_EXAMPLES=ON
+        -DTHEFBLAS_WARNINGS_AS_ERRORS=ON
+        -DCMAKE_EXE_LINKER_FLAGS=--specs=nosys.specs
+
+    - name: Build
+      run: cmake --build build --parallel
+
   docs:
     runs-on: ubuntu-latest
 

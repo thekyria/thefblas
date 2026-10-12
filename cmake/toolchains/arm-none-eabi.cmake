@@ -40,10 +40,11 @@ set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
 # Bare-metal: disable shared libraries and set executable suffix
 set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
 
-# The hosted test and example executables cannot be linked without a firmware
+# The hosted test and example executables cannot run without a firmware
 # startup/runtime setup, so they default to OFF for this toolchain. Not FORCEd:
 # pass -DTHEFBLAS_BUILD_TESTS=ON / -DTHEFBLAS_BUILD_EXAMPLES=ON together with
-# your own linker setup to override.
+# your own linker setup, or with -DCMAKE_EXE_LINKER_FLAGS=--specs=nosys.specs
+# to compile and link them against newlib's stubs (what CI does).
 set(THEFBLAS_BUILD_TESTS
     OFF
     CACHE BOOL "Build thefblas unit tests")
@@ -60,10 +61,25 @@ set(THEFBLAS_BUILD_EXAMPLES
 set(THEFBLAS_ARM_MCU
     "cortex-m4"
     CACHE STRING "ARM Cortex-M variant (e.g. cortex-m4, cortex-m7)")
+# Float ABI and FPU: the default (soft) runs on any Cortex-M. For a core with
+# an FPU use e.g. -DTHEFBLAS_ARM_FLOAT_ABI=hard -DTHEFBLAS_ARM_FPU=fpv4-sp-d16
+# (Cortex-M4F) or -DTHEFBLAS_ARM_FPU=fpv5-d16 (Cortex-M7).
+set(THEFBLAS_ARM_FLOAT_ABI
+    "soft"
+    CACHE STRING "ARM float ABI (soft, softfp or hard)")
+set(THEFBLAS_ARM_FPU
+    ""
+    CACHE STRING "ARM FPU for softfp/hard (e.g. fpv4-sp-d16); empty for none")
+
+set(THEFBLAS_ARM_FLAGS
+    "-mcpu=${THEFBLAS_ARM_MCU} -mthumb -mfloat-abi=${THEFBLAS_ARM_FLOAT_ABI}")
+if(THEFBLAS_ARM_FPU)
+  string(APPEND THEFBLAS_ARM_FLAGS " -mfpu=${THEFBLAS_ARM_FPU}")
+endif()
 
 set(CMAKE_C_FLAGS_INIT
-    "-mcpu=${THEFBLAS_ARM_MCU} -mthumb -mfloat-abi=soft -Wall"
+    "${THEFBLAS_ARM_FLAGS} -Wall"
     CACHE STRING "C flags" FORCE)
 set(CMAKE_CXX_FLAGS_INIT
-    "-mcpu=${THEFBLAS_ARM_MCU} -mthumb -mfloat-abi=soft -Wall"
+    "${THEFBLAS_ARM_FLAGS} -Wall"
     CACHE STRING "CXX flags" FORCE)
