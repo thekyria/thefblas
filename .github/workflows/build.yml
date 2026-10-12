@@ -21,7 +21,8 @@ jobs:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
     - name: Install dependencies
-      run: sudo apt-get update && sudo apt-get install -y cppcheck clang-tidy clang-tools
+      # libblas-dev: Netlib reference BLAS (with CBLAS) for test_reference_blas.
+      run: sudo apt-get update && sudo apt-get install -y cppcheck clang-tidy clang-tools libblas-dev
 
     - name: Run cppcheck
       # thefblas is header-only: there is no src/ directory.
@@ -37,7 +38,11 @@ jobs:
           include tests examples
 
     - name: Configure CMake
-      run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+      run: >
+        cmake -B ${{github.workspace}}/build
+        -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
+        -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+        -DTHEFBLAS_ENABLE_REFERENCE_TESTS=ON
 
     - name: Run clang-tidy
       # Header-only: analyse every translation unit (tests + examples), which
@@ -120,12 +125,16 @@ jobs:
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
+    - name: Install Netlib reference BLAS
+      run: sudo apt-get update && sudo apt-get install -y libblas-dev
+
     - name: Configure CMake
       run: >
         cmake -B build
         -DCMAKE_BUILD_TYPE=Debug
         -DTHEFBLAS_ENABLE_SANITIZERS=ON
         -DTHEFBLAS_WARNINGS_AS_ERRORS=ON
+        -DTHEFBLAS_ENABLE_REFERENCE_TESTS=ON
 
     - name: Build
       run: cmake --build build --parallel

@@ -36,7 +36,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   with warnings as errors, and an ASan/UBSan job (GCC and Clang) using
   `THEFBLAS_ENABLE_SANITIZERS`. Static analysis moved to its own `analysis` job.
 
+- `tests/test_reference_blas.cpp` (opt-in, `THEFBLAS_ENABLE_REFERENCE_TESTS`):
+  randomised comparison of every floating-point and complex routine against a
+  system CBLAS, covering random sizes, positive and negative strides, `lda`
+  padding and all `uplo`/`trans`/`diag` options. CI runs it against Netlib
+  reference BLAS in the `analysis` and `sanitizers` jobs.
+
 ### Changed
+
+- `scal` and `asum` now treat a non-positive `incx` as an empty vector (no-op,
+  and a result of 0), as Netlib BLAS does and as `iamax` already did. They
+  previously walked the vector backwards.
+- Complex `rotg` with `a == 0` now follows Netlib reference BLAS 3.10+:
+  `c = 0`, `s = conj(b) / |b|` and `a = |b|` (real), or `c = 1`, `s = 0` when
+  `b == 0` too. It previously returned `c = 0`, `s = 1`, `a = b`.
 
 - `thefblas::fixed` now takes three template parameters; the third is
   defaulted, so existing two-parameter uses continue to compile.
@@ -57,6 +70,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Dense Level 2 routines (`gemv`, `ger`, `geru`, `gerc`, `symv`, `hemv`, `syr`,
   `her`, `syr2`, `her2`, `trmv`, `trsv`) now return early when `lda` is smaller
   than the number of rows, instead of accessing the matrix out of bounds.
+- `rotmg` returned a matrix `H` that did not eliminate `b2` unless `d1 == d2`,
+  and rejected any non-positive `d2`. It is now a port of Netlib's algorithm
+  (flags -1/0/1/-2, Netlib's handling of negative `d1`/`d2`, and, for
+  `float`/`double`, rescaling of the magnitudes of nonzero `d1`/`d2` into
+  [2^-24, 2^24]; a valid negative `d2` keeps its sign). This also removes the
+  hard-coded `1e-30` floor it used.
 
 ## [0.1.0] - 2026-09-25
 

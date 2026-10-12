@@ -26,6 +26,7 @@ The library honours BLAS-style stride parameters (`incx`, `incy`), negative stri
 - [tests/test_level1.cpp](tests/test_level1.cpp): Level 1 unit tests using `assert` and `almost_equal` helpers
 - [tests/test_level2_core.cpp](tests/test_level2_core.cpp): Representative Level 2 operation tests
 - [tests/test_level2_variants.cpp](tests/test_level2_variants.cpp): Level 2 precision, edge-case, and coverage-variant tests
+- [tests/test_reference_blas.cpp](tests/test_reference_blas.cpp): Opt-in randomised comparison of all floating-point and complex routines against a system CBLAS
 
 ## Examples
 
@@ -35,7 +36,7 @@ The library honours BLAS-style stride parameters (`incx`, `incy`), negative stri
 
 ## Build and Configuration
 
-- [CMakeLists.txt](CMakeLists.txt): Root CMake build — library target, install rules, options (`THEFBLAS_ENABLE_IPO`, `THEFBLAS_ENABLE_RELEASE_HARDENING`, `THEFBLAS_ENABLE_SANITIZERS`, `THEFBLAS_ENABLE_STRICT_WARNINGS`, `THEFBLAS_WARNINGS_AS_ERRORS`), `CMAKE_EXPORT_COMPILE_COMMANDS ON`
+- [CMakeLists.txt](CMakeLists.txt): Root CMake build — library target, install rules, options (`THEFBLAS_ENABLE_IPO`, `THEFBLAS_ENABLE_RELEASE_HARDENING`, `THEFBLAS_ENABLE_REFERENCE_TESTS`, `THEFBLAS_ENABLE_SANITIZERS`, `THEFBLAS_ENABLE_STRICT_WARNINGS`, `THEFBLAS_WARNINGS_AS_ERRORS`), `CMAKE_EXPORT_COMPILE_COMMANDS ON`
 - [CMakePresets.json](CMakePresets.json): Configure/build/test presets for `gcc-debug`, `gcc-release`, `gcc-debug-sanitized`, `clang-debug`, `clang-debug-sanitized`, `clang-release`, `msvc-release`, `arm-linux-debug`, `arm-linux-release`, `arm-none-eabi-debug`, `arm-none-eabi-release`
 - [tests/CMakeLists.txt](tests/CMakeLists.txt): CTest integration for the test suite
 - [examples/CMakeLists.txt](examples/CMakeLists.txt): Example targets (`example_vector_ops`, `example_complex_ops`, `example_benchmark`)

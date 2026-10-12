@@ -131,7 +131,7 @@ void test_real_float() {
         const float b2 = 0.0F;
         std::array<float, 5> p = {};
         thefblas::rotmg(&d1, &d2, &b1, b2, p.data());
-        assert(almost_equal(p[0], -1.0F));
+        assert(almost_equal(p[0], -2.0F));
     }
 
     {
@@ -140,7 +140,9 @@ void test_real_float() {
         float b1 = 1.0F;
         std::array<float, 5> p = {};
         thefblas::rotmg(&d1, &d2, &b1, 1.0F, p.data());
-        assert(almost_equal(p[0], -2.0F));
+        assert(almost_equal(p[0], -1.0F));
+        assert(d1 == 0.0F && d2 == 0.0F && b1 == 0.0F);
+        assert(p[1] == 0.0F && p[2] == 0.0F && p[3] == 0.0F && p[4] == 0.0F);
     }
 
     {
@@ -242,7 +244,7 @@ void test_real_fixed() {
         fixed32 b1(1.0);
         std::array<fixed32, 5> p = {};
         thefblas::rotmg(&d1, &d2, &b1, fixed32(0.0), p.data());
-        assert(almost_equal(p[0], fixed32(-1.0)));
+        assert(almost_equal(p[0], fixed32(-2.0)));
     }
 
     {
@@ -314,8 +316,18 @@ void test_complex_float() {
         std::complex<float> s = {0.0F, 0.0F};
         thefblas::rotg(&a, b, &c, &s);
         assert(almost_equal(c, 0.0F));
-        assert(almost_equal(s, {1.0F, 0.0F}));
-        assert(almost_equal(a, b));
+        assert(almost_equal(s, {0.6F, -0.8F}));
+        assert(almost_equal(a, {5.0F, 0.0F}));
+    }
+
+    {
+        std::complex<float> a = {0.0F, 0.0F};
+        float c = 0.0F;
+        std::complex<float> s = {2.0F, 2.0F};
+        thefblas::rotg(&a, {0.0F, 0.0F}, &c, &s);
+        assert(almost_equal(c, 1.0F));
+        assert(almost_equal(s, {0.0F, 0.0F}));
+        assert(almost_equal(a, {0.0F, 0.0F}));
     }
 }
 
@@ -431,6 +443,109 @@ void test_nrm2_scaling() {
 
 } // namespace
 
+// H * (b1, b2)^T must equal (b1', 0)^T for the H that rotmg encodes.
+void check_rotmg(double d1, double d2, double b1, double b2, double expected_flag) {
+    const double weighted = d1 * b1 * b1 + d2 * b2 * b2;
+    std::array<double, 5> p = {};
+    double x = b1;
+    double y = b2;
+    thefblas::rotmg(&d1, &d2, &b1, b2, p.data());
+    assert(p[0] == expected_flag);
+    thefblas::rotm(1, &x, 1, &y, 1, p.data());
+    assert(std::fabs(x - b1) <= 1e-12 * std::fabs(b1));
+    assert(std::fabs(y) <= 1e-12 * std::fabs(b1));
+    // The weighted norm d1 * b1^2 + d2 * b2^2 is preserved.
+    assert(std::fabs(d1 * b1 * b1 - weighted) <= 1e-12 * std::fabs(weighted));
+    // Netlib keeps the scale factors within [2^-24, 2^24].
+    assert(d1 > 5.9e-8 && d1 < 16777216.0);
+}
+
+// Behaviour aligned with Netlib reference BLAS by the randomised comparison in
+// test_reference_blas.cpp (which needs a system CBLAS and is opt-in).
+void test_netlib_conventions() {
+    // scal and asum treat a non-positive stride as an empty vector.
+    std::array<float, 3> x = {1.0F, -2.0F, 3.0F};
+    thefblas::scal(3, 2.0F, x.data(), -1);
+    assert(x[0] == 1.0F && x[1] == -2.0F && x[2] == 3.0F);
+    assert(thefblas::asum(3, x.data(), -1) == 0.0F);
+    std::array<std::complex<float>, 2> cx = {{{1.0F, 1.0F}, {2.0F, -2.0F}}};
+    thefblas::scal(2, 2.0F, cx.data(), -1);
+    thefblas::scal(2, std::complex<float>(0.0F, 1.0F), cx.data(), -1);
+    assert(cx[0] == std::complex<float>(1.0F, 1.0F));
+    assert(thefblas::asum(2, cx.data(), -1) == 0.0F);
+
+    // rotmg: flag 0 (|q1| > |q2|), flag 1 (|q1| <= |q2|) and the rescaling of
+    // d1 and d2 into [2^-24, 2^24] from both sides, starting from either form.
+    check_rotmg(2.0, 1.0, 3.0, 1.0, 0.0);
+    check_rotmg(1.0, 2.0, 1.0, 3.0, 1.0);
+    check_rotmg(1e-12, 1e-14, 1.0, 1.0, -1.0);
+    check_rotmg(1e12, 1e10, 1.0, 1.0, -1.0);
+    check_rotmg(1e-14, 1e-12, 1.0, 1.0, -1.0);
+    check_rotmg(1e10, 1e12, 1.0, 1.0, -1.0);
+    check_rotmg(1.0, 1e-12, 1.0, 1e3, -1.0);
+    check_rotmg(1.0, -1e12, 1.0, 1e-9, -1.0);
+    check_rotmg(1.0, 1e12, 1.0, 1e-8, -1.0);
+    check_rotmg(1.0, -1e-12, 1.0, 1e-3, -1.0);
+
+    // The same rescaling for float (each element type has its own instantiation).
+    float fd1_small = 1e-12F;
+    float fd2_small = 1e-14F;
+    float fb1_small = 1.0F;
+    std::array<float, 5> fp_small = {};
+    thefblas::rotmg(&fd1_small, &fd2_small, &fb1_small, 1.0F, fp_small.data());
+    assert(fp_small[0] == -1.0F);
+    assert(fd1_small > 5.9e-8F && fd2_small > 5.9e-8F);
+
+    // Complex rotg must not underflow or overflow |a| and |b| for finite extremes.
+    {
+        std::complex<float> a = {0.0F, 0.0F};
+        float c = 1.0F;
+        std::complex<float> s = {};
+        thefblas::rotg(&a, {1e-30F, 0.0F}, &c, &s);
+        assert(c == 0.0F && s == std::complex<float>(1.0F, 0.0F));
+        assert(std::fabs(a.real() - 1e-30F) <= 1e-36F && a.imag() == 0.0F);
+
+        a = {0.0F, 0.0F};
+        thefblas::rotg(&a, {3e30F, 4e30F}, &c, &s);
+        assert(c == 0.0F && almost_equal(s, {0.6F, -0.8F}));
+        assert(std::fabs(a.real() - 5e30F) <= 1e25F);
+
+        a = {1e-30F, 0.0F};
+        thefblas::rotg(&a, {1.0F, 0.0F}, &c, &s);
+        assert(c > 0.0F && c < 2e-30F);
+        assert(almost_equal(s, {1.0F, 0.0F}) && almost_equal(a, {1.0F, 0.0F}));
+    }
+
+    // Real rotg with |a| > |b|: z = s (with |a| <= |b|, z = 1/c is covered above).
+    double ra = 4.0;
+    double rb = 3.0;
+    double rc = 0.0;
+    double rs = 0.0;
+    thefblas::rotg(&ra, &rb, &rc, &rs);
+    assert(std::fabs(ra - 5.0) < 1e-12 && std::fabs(rc - 0.8) < 1e-12);
+    assert(std::fabs(rs - 0.6) < 1e-12 && std::fabs(rb - 0.6) < 1e-12);
+
+    // rotmg rejects a negative d2 that makes |q2| dominate: everything is zeroed.
+    double d1 = 1.0;
+    double d2 = -4.0;
+    double b1 = 1.0;
+    std::array<double, 5> p = {9.0, 9.0, 9.0, 9.0, 9.0};
+    thefblas::rotmg(&d1, &d2, &b1, 1.0, p.data());
+    assert(p[0] == -1.0 && p[1] == 0.0 && p[2] == 0.0 && p[3] == 0.0 && p[4] == 0.0);
+    assert(d1 == 0.0 && d2 == 0.0 && b1 == 0.0);
+
+    // Fixed point skips the rescaling but follows the same flags.
+    fixed32 fd1(2.0);
+    fixed32 fd2(1.0);
+    fixed32 fb1(3.0);
+    std::array<fixed32, 5> fp = {};
+    thefblas::rotmg(&fd1, &fd2, &fb1, fixed32(1.0), fp.data());
+    assert(fp[0] == fixed32(0.0));
+    assert(almost_equal(fp[2], fixed32(-1.0 / 3.0), 1e-5));
+    assert(almost_equal(fp[3], fixed32(1.0 / 6.0), 1e-5));
+    assert(almost_equal(fb1, fixed32(19.0 / 6.0), 1e-5));
+}
+
 int main() {
     test_real_float();
     test_real_double();
@@ -439,5 +554,6 @@ int main() {
     test_complex_double();
     test_complex_fixed();
     test_nrm2_scaling();
+    test_netlib_conventions();
     return 0;
 }

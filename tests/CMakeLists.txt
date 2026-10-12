@@ -60,3 +60,15 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/test_checked_release.cpp)
   target_link_libraries(thefblas_test_checked_release PRIVATE thefblas::thefblas)
   add_test(NAME thefblas_test_checked_release COMMAND thefblas_test_checked_release)
 endif()
+
+# Randomised comparison against a reference CBLAS (Netlib, OpenBLAS, ...). Opt-in
+# because it needs a system BLAS that provides the CBLAS interface and cblas.h.
+if(THEFBLAS_ENABLE_REFERENCE_TESTS)
+  find_package(BLAS REQUIRED)
+  find_path(THEFBLAS_CBLAS_INCLUDE_DIR NAMES cblas.h PATH_SUFFIXES openblas REQUIRED)
+  add_executable(thefblas_test_reference_blas test_reference_blas.cpp)
+  target_include_directories(thefblas_test_reference_blas SYSTEM
+                             PRIVATE ${THEFBLAS_CBLAS_INCLUDE_DIR})
+  target_link_libraries(thefblas_test_reference_blas PRIVATE thefblas::thefblas BLAS::BLAS)
+  add_test(NAME thefblas_test_reference_blas COMMAND thefblas_test_reference_blas)
+endif()
