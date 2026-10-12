@@ -186,6 +186,29 @@ runs every `float`, `double` and complex routine on random sizes, strides
 combinations, and compares the whole output buffers with the reference. The
 seed is fixed for reproducibility; set `THEFBLAS_TEST_SEED` to try others.
 
+### Cross-compiling
+
+The toolchain files in `cmake/toolchains/` cover 32-bit ARM Linux and
+bare-metal Cortex-M. CI builds every test and example with both (warnings as
+errors):
+
+```sh
+# 32-bit ARM Linux (no __int128); runs the tests under qemu-user.
+cmake -S . -B build-arm -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/arm-linux-gnueabihf.cmake \
+      -DTHEFBLAS_BUILD_TESTS=ON "-DCMAKE_CROSSCOMPILING_EMULATOR=qemu-arm;-L;/usr/arm-linux-gnueabihf"
+cmake --build build-arm && ctest --test-dir build-arm
+
+# Bare-metal Cortex-M4F; links against newlib's stubs, so it checks that the
+# code compiles and links but the binaries are not run.
+cmake -S . -B build-m4 -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/arm-none-eabi.cmake \
+      -DTHEFBLAS_ARM_MCU=cortex-m4 -DTHEFBLAS_ARM_FLOAT_ABI=hard -DTHEFBLAS_ARM_FPU=fpv4-sp-d16 \
+      -DTHEFBLAS_BUILD_TESTS=ON -DCMAKE_EXE_LINKER_FLAGS=--specs=nosys.specs
+cmake --build build-m4
+```
+
+`THEFBLAS_ARM_MCU` (default `cortex-m4`), `THEFBLAS_ARM_FLOAT_ABI` (default
+`soft`) and `THEFBLAS_ARM_FPU` (default none) select the Cortex-M variant.
+
 `examples/fixed_point_ops.cpp` shows Level 1, dense, banded and packed Level 2
 calls on a `fixed<std::int32_t, 20>` (Q11.20) element type:
 
