@@ -287,6 +287,14 @@ template <typename T> class complex_mac {
         imag_.subtract_product(a.imag(), b.real());
     }
 
+    /// `sum += conj(a) * conj(b)`, i.e. `conj(a * b)`
+    void add_conj_conj_product(const value_type &a, const value_type &b) {
+        real_.add_product(a.real(), b.real());
+        real_.subtract_product(a.imag(), b.imag());
+        imag_.subtract_product(a.real(), b.imag());
+        imag_.subtract_product(a.imag(), b.real());
+    }
+
     /// `sum -= conj(a) * b`
     void subtract_conj_product(const value_type &a, const value_type &b) {
         real_.subtract_product(a.real(), b.real());

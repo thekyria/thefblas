@@ -72,3 +72,7 @@ if(THEFBLAS_ENABLE_REFERENCE_TESTS)
   target_link_libraries(thefblas_test_reference_blas PRIVATE thefblas::thefblas BLAS::BLAS)
   add_test(NAME thefblas_test_reference_blas COMMAND thefblas_test_reference_blas)
 endif()
+
+add_executable(thefblas_test_level3 test_level3.cpp)
+target_link_libraries(thefblas_test_level3 PRIVATE thefblas::thefblas)
+add_test(NAME thefblas_test_level3 COMMAND thefblas_test_level3)
