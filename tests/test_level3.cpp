@@ -176,7 +176,7 @@ template <typename T> void test_gemm_all_transposes() {
 void test_gemm_special_cases() {
     const double a[4] = {1.0, 2.0, 3.0, 4.0};
     const double b[4] = {1.0, 0.0, 0.0, 1.0};
-    const double nan = std::numeric_limits<double>::quiet_NaN();
+    constexpr double nan = std::numeric_limits<double>::quiet_NaN();
 
     // beta == 0: c is not read, so NaN in c does not propagate.
     double c[4] = {nan, nan, nan, nan};
@@ -329,7 +329,7 @@ template <typename R> void test_herk_all_options() {
 
 void test_rank_k_special_cases() {
     using C = std::complex<double>;
-    const double nan = std::numeric_limits<double>::quiet_NaN();
+    constexpr double nan = std::numeric_limits<double>::quiet_NaN();
     const C a[4] = {{1.0, 1.0}, {2.0, 0.0}, {0.0, 1.0}, {1.0, -1.0}};
     const C nan_a[4] = {{nan, nan}, {nan, nan}, {nan, nan}, {nan, nan}};
 
@@ -484,7 +484,7 @@ template <typename T> void test_trsm_all_options() {
 }
 
 void test_trsm_special_cases() {
-    const double nan = std::numeric_limits<double>::quiet_NaN();
+    constexpr double nan = std::numeric_limits<double>::quiet_NaN();
     const double nan_a[4] = {nan, nan, nan, nan};
     const double a[4] = {2.0, 0.0, 1.0, 4.0};
 
