@@ -50,8 +50,9 @@ that selects, at compile time, what happens when it does:
 | `thefblas::saturate` | clamps to the minimum/maximum representable value | one comparison per operation | signal processing, control loops, production firmware |
 
 The policy governs every narrowing operation: `+`, `-`, unary negation, `*`,
-`/`, the compound assignments, `abs`, and construction from a floating-point
-or integral value. Note that `-x` and `abs(x)` can overflow, because the most
+`/`, the compound assignments, `abs`, conversion from another `fixed` type
+(see [Conversions](#conversions-and-numeric_limits)), and construction from a
+floating-point or integral value. Note that `-x` and `abs(x)` can overflow, because the most
 negative value of a two's-complement format has no positive counterpart.
 Division by zero is treated as out-of-range and maps to the signed limit chosen
 by the active policy (with a debug assertion under `checked`).
@@ -80,6 +81,32 @@ converts to zero.
 > clamps to `0.9921875` before the subtraction — whereas
 > `0.78125 + (0.78125 + (-0.78125))` is `0.78125`. Expression order matters,
 > and no compiler reassociation is permitted.
+
+## Conversions and `numeric_limits`
+
+A `fixed` value converts to another Q format or policy explicitly, either with
+the converting constructor or with `thefblas::fixed_cast`:
+
+```cpp
+thefblas::q31 x(0.3);
+auto a = thefblas::fixed_cast<thefblas::q15_sat>(x); // drop 16 fractional bits
+thefblas::q16_16 b(a);                               // exact: widens the grid
+```
+
+Dropped fractional bits round to nearest, ties away from zero, as the
+arithmetic does. A result outside the target's range goes through the
+target's policy, so it saturates under `saturate`, wraps under `wrap`, and
+asserts under `checked`. The conversion is exact when the target has at least
+as many integer bits and at least as many fractional bits as the source, which
+includes changing only the policy.
+
+`std::numeric_limits<fixed<...>>` is specialised. Its values follow the
+floating-point convention rather than the integer one: `min()` is the smallest
+positive value (one raw unit, `2^-FracBits`), `lowest()` is the most negative
+value, and `epsilon()` is the grid step, even in formats such as Q1.15 where 1
+itself is not representable. `is_exact` is true, `is_integer` is false, and
+`is_modulo` is true only for `wrap`. The remaining properties (`digits`,
+`radix`, no infinity or NaN) are those of the storage type.
 
 ## Wide accumulators
 

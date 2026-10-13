@@ -23,10 +23,11 @@ namespace thefblas {
  * `fixed<std::int32_t, 31>` is Q1.31.
  *
  * Overflow policy: every operation — `+`, `-`, unary `-`, `*`, `/`, the
- * compound assignments, `abs` and construction from a floating-point value — is
- * evaluated in an intermediate type at least twice as wide as `IntType` and
- * narrowed back through `Policy` (see overflow.hpp). `Policy` defaults to
- * `checked`, which asserts in debug builds and wraps in release builds; use
+ * compound assignments, `abs`, conversion from another `fixed` type and
+ * construction from a floating-point value — is evaluated in an intermediate
+ * type at least twice as wide as `IntType` and narrowed back through `Policy`
+ * (see overflow.hpp). `Policy` defaults to `checked`, which asserts in debug
+ * builds and wraps in release builds; use
  * `saturate` (or the `*_sat` aliases below) for sign-preserving clamping, or
  * `wrap` for plain modular arithmetic. There is no undefined behaviour under
  * any policy.
@@ -170,6 +171,15 @@ template <typename IntType, int FracBits, typename Policy = checked> class fixed
         : value_(std::is_floating_point<Number>::value ? from_float(static_cast<double>(v))
                                                        : from_integer(v)) {}
 
+    /// Convert from another Q format and/or overflow policy. Dropping fractional
+    /// bits rounds to nearest, ties away from zero; a result outside the range
+    /// of this type is resolved by this type's `Policy`. The conversion is exact
+    /// when this type has at least as many integer and fractional bits as the
+    /// source. `fixed_cast` does the same thing.
+    template <typename OtherInt, int OtherFrac, typename OtherPolicy>
+    explicit constexpr fixed(fixed<OtherInt, OtherFrac, OtherPolicy> other) noexcept
+        : value_(from_fixed<OtherInt, OtherFrac>(other.raw())) {}
+
     constexpr IntType raw() const noexcept { return value_; }
 
     template <typename FloatType = double> constexpr FloatType to_float() const noexcept {
@@ -281,6 +291,19 @@ template <typename IntType, int FracBits, typename Policy = checked> class fixed
                          detail::scale_pow2(static_cast<wide>(v), FracBits));
     }
 
+    // The common type is twice as wide as the wider of the two storage types,
+    // so the source raw value shifted left by up to `FracBits` places always
+    // fits before the policy narrows it.
+    template <typename OtherInt, int OtherFrac>
+    static constexpr IntType from_fixed(OtherInt raw) noexcept {
+        using common = typename std::conditional<(sizeof(OtherInt) > sizeof(IntType)),
+                                                 detail::widen_t<OtherInt>, wide>::type;
+        const common value = static_cast<common>(raw);
+        return Policy::template narrow<IntType>(
+            FracBits >= OtherFrac ? detail::scale_pow2(value, FracBits - OtherFrac)
+                                  : detail::round_shift(value, OtherFrac - FracBits));
+    }
+
     IntType value_;
 };
 
@@ -373,4 +396,62 @@ struct wider_fixed<fixed<IntType, FracBits, Policy>>
 
 } // namespace detail
 
+/// Convert between Q formats and/or overflow policies, e.g.
+/// `fixed_cast<q15_sat>(x)`. Same as the explicit converting constructor:
+/// dropped fractional bits round to nearest, ties away from zero, and a result
+/// out of range is resolved by the policy of `To`.
+template <typename To, typename IntType, int FracBits, typename Policy>
+constexpr To fixed_cast(fixed<IntType, FracBits, Policy> from) noexcept {
+    static_assert(detail::is_fixed_v<To>, "fixed_cast<To>: To must be a thefblas::fixed type");
+    return To(from);
+}
+
 } // namespace thefblas
+
+namespace std {
+
+/// `std::numeric_limits` for `fixed`. The value-free properties (`digits`,
+/// `radix`, `is_signed`, `has_infinity`, ...) are those of the storage type.
+/// The values follow the floating-point convention: `min()` is the smallest
+/// positive value (one raw unit), `lowest()` the most negative one, and
+/// `epsilon()` the grid step `2^-FracBits`, even when 1 itself is not
+/// representable (as in Q1.15).
+template <typename IntType, int FracBits, typename Policy>
+class numeric_limits<thefblas::fixed<IntType, FracBits, Policy>> : public numeric_limits<IntType> {
+    using type = thefblas::fixed<IntType, FracBits, Policy>;
+    using rep_limits = numeric_limits<IntType>;
+
+  public:
+    static constexpr bool is_specialized = true;
+    static constexpr bool is_integer = false;
+    // Every value is an exact multiple of 2^-FracBits.
+    static constexpr bool is_exact = true;
+    // Only `wrap` defines overflow as modular; `checked` treats it as an error.
+    static constexpr bool is_modulo = is_same<Policy, thefblas::wrap>::value;
+    static constexpr bool traps = false;
+    static constexpr float_round_style round_style = round_to_nearest;
+
+    // Parenthesised names keep Windows' min/max macros from expanding.
+    static constexpr type(min)() noexcept { return type::from_raw(1); }
+    static constexpr type lowest() noexcept { return type::from_raw(rep_limits::lowest()); }
+    static constexpr type(max)() noexcept { return type::from_raw((rep_limits::max)()); }
+    static constexpr type epsilon() noexcept { return type::from_raw(1); }
+    /// Half a unit in the last place, as for floating-point types. With no
+    /// fractional bits 0.5 is not representable, and one unit is returned.
+    static constexpr type round_error() noexcept {
+        if constexpr (FracBits > 0) {
+            return type::from_raw(static_cast<IntType>(IntType(1) << (FracBits - 1)));
+        } else {
+            return type::from_raw(1);
+        }
+    }
+    static constexpr type infinity() noexcept { return type(); }
+    // NOLINTBEGIN(readability-identifier-naming): names fixed by the standard
+    static constexpr type quiet_NaN() noexcept { return type(); }
+    static constexpr type signaling_NaN() noexcept { return type(); }
+    // NOLINTEND(readability-identifier-naming)
+    // There are no subnormals: the smallest positive value is `min()`.
+    static constexpr type denorm_min() noexcept { return (min)(); }
+};
+
+} // namespace std
