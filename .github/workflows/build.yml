@@ -60,7 +60,7 @@ jobs:
           cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}
 
     - name: Upload scan-build report
-      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
       with:
         name: scan-build-report
         path: ${{github.workspace}}/scan-results/
@@ -227,7 +227,7 @@ jobs:
       run: doxygen Doxyfile
 
     - name: Upload Doxygen HTML
-      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
       with:
         name: doxygen-html
         path: docs/doxygen/html
