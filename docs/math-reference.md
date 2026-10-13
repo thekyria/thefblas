@@ -618,7 +618,9 @@ C \leftarrow \alpha\,A^H A + \beta\,C \quad (\text{trans} = \texttt{'C'})$$
 
 with real $\alpha, \beta$. $C$ is $n \times n$ Hermitian; only its `uplo`
 triangle is updated, and the imaginary parts of its diagonal are taken as zero
-and set to zero.
+and set to zero. As in Netlib BLAS, the call returns without touching $C$ when
+$\beta = 1$ and $\alpha = 0$ or $k = 0$, so in that case the imaginary parts of
+the diagonal are left as they are.
 
 ---
 
