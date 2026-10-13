@@ -508,7 +508,8 @@ void test_trsm_special_cases() {
 }
 
 // alpha * B is formed in the accumulator: in Q7.8 (range [-128, 128))
-// 16 * 10 = 160 is out of range, but (160 - 100) / 2 = 30 is not.
+// 16 * 10 = 160 is out of range, but the solutions computed from it
+// (160 / 2 = 80 below, and x = [0, 80] in the left-side case) are not.
 void test_trsm_fixed_accumulator() {
     using F = thefblas::fixed<std::int16_t, 8, thefblas::saturate>;
     const F a[4] = {F(1.0), F(0.0), F(10.0), F(2.0)}; // upper: [[1, 10], [0, 2]]
