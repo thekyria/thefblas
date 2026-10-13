@@ -12,7 +12,8 @@
  * or `std::complex<T>` of any of the above.
  *
  * Including this header pulls in the fixed-point type plus all Level 1 and
- * Level 2 routines (dense, banded and packed storage).
+ * Level 2 routines (dense, banded and packed storage) and the Level 3 routines
+ * implemented so far (`gemm`, `syrk`, `herk`, `trsm`).
  */
 
 #include "thefblas/fixed.hpp"
@@ -20,3 +21,4 @@
 #include "thefblas/level2.hpp"
 #include "thefblas/level2_banded.hpp"
 #include "thefblas/level2_packed.hpp"
+#include "thefblas/level3.hpp"

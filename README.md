@@ -110,6 +110,12 @@ through the element type's overflow policy exactly once, at the end:
   symmetric/Hermitian routines gather the mirrored element from the stored
   triangle instead of updating `y` term by term, so partial sums that leave
   the element range cannot saturate or wrap before later terms cancel them.
+- The Level 3 routines (`gemm`, `syrk`, `herk`, `trsm`) do the same for every
+  element type: each element of `C` (or of the solution `X` in `trsm`) is one
+  widened multiply-accumulate over the inner dimension, with `alpha`, the
+  `beta`-scaled old element (or, in `trsm`, `alpha * B` and the division by
+  the diagonal) in the accumulator, and a single narrowing. No temporary
+  buffers are needed.
 
 Three deliberate limitations:
 
@@ -127,9 +133,11 @@ Three deliberate limitations:
   summed in the wider integer, but the final `alpha` scaling and `y` update are
   narrowed through the policy in the element width.
 
-`float` and `double` accumulate in themselves, so floating-point results are
-bit-identical to the straightforward loops that Netlib BLAS specifies. The one
-exception is `nrm2`, which for `float`/`double` (and their complex forms) uses
+`float` and `double` accumulate in themselves, so floating-point Level 1 and
+Level 2 results are bit-identical to the straightforward loops that Netlib BLAS
+specifies. The Level 3 routines use the per-element order above for every type,
+which differs from Netlib's loop order, so their floating-point results agree
+with Netlib to rounding rather than bit for bit. The other exception is `nrm2`, which for `float`/`double` (and their complex forms) uses
 Blue's scaled algorithm, as Netlib reference BLAS 3.10+ does: elements in the
 mid range are summed unscaled (so the result is bit-identical to
 `sqrt(sum of squares)` there), while very large or very small elements are
@@ -150,6 +158,7 @@ keep the Netlib column-update order.
   `hbmv`, `tbmv`, `tbsv`.
 - **Level 2, packed** (`include/thefblas/level2_packed.hpp`): `spmv`, `hpmv`,
   `tpmv`, `tpsv`, `spr`, `hpr`, `spr2`, `hpr2`.
+- **Level 3** (`include/thefblas/level3.hpp`): `gemm`, `syrk`, `herk`, `trsm`.
 
 Matrices are column-major. As in Netlib BLAS, a dense routine whose leading
 dimension is smaller than the number of rows (`lda < m` for `gemv`/`ger`/`geru`/`gerc`,
@@ -161,9 +170,9 @@ bands), and packed matrices store the referenced triangle column by column
 (`ap[i + j * (j + 1) / 2]` for upper, `ap[(i - j) + j * (2n - j + 1) / 2]` for
 lower); see the header comments for details.
 
-Level 3 routines, and integer division/sqrt algorithms optimized for a
-specific embedded target (e.g. CORDIC or Cortex-M DSP intrinsics), are not yet
-implemented; the current `fixed<>` division/sqrt are portable, dependency-free
+The remaining Level 3 routines (`symm`, `hemm`, `syr2k`, `her2k`, `trmm`),
+and integer division/sqrt algorithms optimized for a specific embedded target
+(e.g. CORDIC or Cortex-M DSP intrinsics), are not yet implemented; the current `fixed<>` division/sqrt are portable, dependency-free
 integer algorithms suitable as a baseline for any target, including bare-metal
 ARM.
 

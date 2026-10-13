@@ -49,6 +49,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `THEFBLAS_ARM_FLOAT_ABI` and `THEFBLAS_ARM_FPU` options in the
   `arm-none-eabi` toolchain file, next to `THEFBLAS_ARM_MCU`.
 
+- Level 3 routines `gemm`, `syrk`, `herk` and `trsm`
+  (`include/thefblas/level3.hpp`, included by `thefblas.h`). Each output
+  element is a single widened multiply-accumulate with `alpha`/`beta` (or, in
+  `trsm`, `alpha * B` and the division by the diagonal) in the accumulator and
+  one narrowing, for every element type and without temporary buffers;
+  floating-point results match Netlib to rounding, not bit for bit. Argument
+  checks and the `alpha == 0` / `beta == 0` rules follow Netlib.
+  `tests/test_level3.cpp` covers every option combination for float, double,
+  fixed point and their complex forms, and the reference-BLAS comparison now
+  includes the four routines.
+
 ### Changed
 
 - `scal` and `asum` now treat a non-positive `incx` as an empty vector (no-op,

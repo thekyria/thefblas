@@ -573,3 +573,63 @@ where $A$ is symmetric.
 $$A \leftarrow \alpha\,x\,y^T + \alpha\,y\,x^T + A$$
 
 where $A$ is symmetric, stored in packed format.
+
+---
+
+# Level 3 BLAS — Matrix-Matrix Operations
+
+Level 3 routines use the Level 2 notation, plus $B$ and $C$ (column-major, with
+leading dimensions $\text{ldb}$ and $\text{ldc}$) and
+$\operatorname{op}(X) \in \{X, X^T, X^H\}$ selected by a `trans` argument
+`'N'`, `'T'` or `'C'` (for real types `'C'` means `'T'`). When $\alpha = 0$,
+$A$ and $B$ are not read; when $\beta = 0$, $C$ is not read.
+
+---
+
+## gemm — General Matrix-Matrix Multiply
+
+**Routines:** `sgemm`, `dgemm`, `cgemm`, `zgemm`
+
+$$C \leftarrow \alpha\,\operatorname{op}(A)\,\operatorname{op}(B) + \beta\,C$$
+
+with $\operatorname{op}(A)$ of size $m \times k$, $\operatorname{op}(B)$ of size
+$k \times n$ and $C$ of size $m \times n$.
+
+---
+
+## syrk — Symmetric Rank-k Update
+
+**Routines:** `ssyrk`, `dsyrk`, `csyrk`, `zsyrk`
+
+$$C \leftarrow \alpha\,A\,A^T + \beta\,C \quad (\text{trans} = \texttt{'N'}), \qquad
+C \leftarrow \alpha\,A^T A + \beta\,C \quad (\text{trans} = \texttt{'T'})$$
+
+where $C$ is $n \times n$ symmetric and only its `uplo` triangle is updated. For
+complex types there is no `'C'` form (that is `herk`).
+
+---
+
+## herk — Hermitian Rank-k Update
+
+**Routines:** `cherk`, `zherk`
+
+$$C \leftarrow \alpha\,A\,A^H + \beta\,C \quad (\text{trans} = \texttt{'N'}), \qquad
+C \leftarrow \alpha\,A^H A + \beta\,C \quad (\text{trans} = \texttt{'C'})$$
+
+with real $\alpha, \beta$. $C$ is $n \times n$ Hermitian; only its `uplo`
+triangle is updated, and the imaginary parts of its diagonal are taken as zero
+and set to zero.
+
+---
+
+## trsm — Triangular Solve with Multiple Right-Hand Sides
+
+**Routines:** `strsm`, `dtrsm`, `ctrsm`, `ztrsm`
+
+Solves for $X$, which overwrites $B$ ($m \times n$):
+
+$$\operatorname{op}(A)\,X = \alpha\,B \quad (\text{side} = \texttt{'L'}), \qquad
+X\,\operatorname{op}(A) = \alpha\,B \quad (\text{side} = \texttt{'R'})$$
+
+where $A$ is triangular ($m \times m$ for `'L'`, $n \times n$ for `'R'`), with an
+implicit unit diagonal when `diag` is `'U'`. No test for singularity is made.
