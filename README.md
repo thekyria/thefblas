@@ -105,7 +105,8 @@ floating-point convention rather than the integer one: `min()` is the smallest
 positive value (one raw unit, `2^-FracBits`), `lowest()` is the most negative
 value, and `epsilon()` is the grid step, even in formats such as Q1.15 where 1
 itself is not representable. `is_exact` is true, `is_integer` is false, and
-`is_modulo` is true only for `wrap`. The remaining properties (`digits`,
+`is_modulo` is true only for `wrap`. `traps` is true only for `checked` while
+assertions are enabled, since its overflow check then aborts. The remaining properties (`digits`,
 `radix`, no infinity or NaN) are those of the storage type.
 
 ## Wide accumulators

@@ -428,7 +428,14 @@ class numeric_limits<thefblas::fixed<IntType, FracBits, Policy>> : public numeri
     static constexpr bool is_exact = true;
     // Only `wrap` defines overflow as modular; `checked` treats it as an error.
     static constexpr bool is_modulo = is_same<Policy, thefblas::wrap>::value;
+    // `checked` aborts through assert() on overflow and division by zero while
+    // assertions are enabled; the other policies, and `checked` under NDEBUG,
+    // always return a value.
+#if defined(NDEBUG)
     static constexpr bool traps = false;
+#else
+    static constexpr bool traps = is_same<Policy, thefblas::checked>::value;
+#endif
     static constexpr float_round_style round_style = round_to_nearest;
 
     // Parenthesised names keep Windows' min/max macros from expanding.

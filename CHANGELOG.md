@@ -67,7 +67,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `std::numeric_limits` specialisation for `fixed`. `min()` is the smallest
   positive value (one raw unit), as for floating-point types; `lowest()` and
   `max()` are the ends of the range and `epsilon()` is the grid step
-  `2^-FracBits`. `is_modulo` is true only under `wrap`.
+  `2^-FracBits`. `is_modulo` is true only under `wrap`, and `traps` only under
+  `checked` with assertions enabled.
 
 ### Changed
 

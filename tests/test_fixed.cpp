@@ -260,7 +260,11 @@ void test_numeric_limits() {
     static_assert(L::is_exact, "exact");
     static_assert(!L::is_integer, "not an integer type");
     static_assert(!L::is_iec559, "not IEC 559");
-    static_assert(!L::traps, "no traps");
+    // Assertions are enabled in this test, so checked overflow aborts.
+    static_assert(L::traps, "checked traps while assertions are enabled");
+    static_assert(!std::numeric_limits<thefblas::q15_sat>::traps, "saturate never traps");
+    static_assert(!std::numeric_limits<fixed<std::int16_t, 15, thefblas::wrap>>::traps,
+                  "wrap never traps");
     static_assert(!L::has_infinity, "no infinity");
     static_assert(!L::has_quiet_NaN, "no NaN");
     static_assert(!L::has_signaling_NaN, "no NaN");
