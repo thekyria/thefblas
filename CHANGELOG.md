@@ -76,6 +76,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   no-op otherwise.
 - `tests/test_api.cpp`: checks that every public routine is `noexcept`, and
   covers the range overloads and constant evaluation of `fixed` `sqrt`.
+- `sdsdot` and `dsdot`: dot products accumulated in a wider type (`double`
+  for `float` input, the widened fixed-point type for `fixed`), with range
+  overloads. `dsdot` returns the wide sum; `sdsdot` sums `sb` with the
+  products and narrows once. Fixed-point types without a wider accumulator
+  (64-bit storage, and 32-bit storage without `__int128`) are rejected. The `float` forms are compared against CBLAS in the
+  reference test.
 - The remaining Level 3 routines `symm`, `hemm`, `syr2k`, `her2k` and `trmm`,
   with the same single widened multiply-accumulate and single narrowing per
   output element as `gemm`, and the same argument checks and `alpha == 0` /

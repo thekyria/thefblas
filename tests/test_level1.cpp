@@ -546,6 +546,66 @@ void test_netlib_conventions() {
     assert(almost_equal(fb1, fixed32(19.0 / 6.0), 1e-5));
 }
 
+void test_extended_dot() {
+    // float: 1e8 + 1 - 1e8 loses the 1 when summed in float, not in double.
+    const float x[3] = {1e8F, 1.0F, -1e8F};
+    const float ones[3] = {1.0F, 1.0F, 1.0F};
+    static_assert(std::is_same_v<decltype(thefblas::dsdot(3, x, 1, ones, 1)), double>,
+                  "dsdot of float returns double");
+    assert(thefblas::dot(3, x, 1, ones, 1) == 0.0F);
+    assert(thefblas::dsdot(3, x, 1, ones, 1) == 1.0);
+    assert(thefblas::sdsdot(3, 0.5F, x, 1, ones, 1) == 1.5F);
+    // Negative strides walk the vectors backwards, as in dot.
+    const float a[2] = {1.0F, 2.0F};
+    const float b[2] = {3.0F, 4.0F};
+    assert(thefblas::dsdot(2, a, -1, b, 1) == 2.0 * 3.0 + 1.0 * 4.0);
+    // n <= 0 or a zero stride: zero, and sb returned unchanged.
+    assert(thefblas::dsdot(0, a, 1, b, 1) == 0.0);
+    assert(std::signbit(thefblas::sdsdot(0, -0.0F, a, 1, b, 1)));
+    assert(thefblas::sdsdot(2, 2.5F, a, 0, b, 1) == 2.5F);
+
+    // fixed: 0.75^2 + 0.75^2 = 1.125 is outside Q1.15. dsdot returns it in the
+    // widened type; sdsdot adds sb = -0.5 there and narrows 0.625 once, where
+    // dot followed by an addition saturates first.
+    using Q15 = thefblas::fixed<std::int16_t, 15, thefblas::saturate>;
+    using Wide = thefblas::fixed<std::int32_t, 15, thefblas::saturate>;
+    const Q15 q[2] = {Q15(0.75), Q15(0.75)};
+    static_assert(std::is_same_v<decltype(thefblas::dsdot(2, q, 1, q, 1)), Wide>,
+                  "dsdot of fixed returns the widened fixed type");
+    assert(thefblas::dsdot(2, q, 1, q, 1) == Wide(1.125));
+    assert(thefblas::sdsdot(2, Q15(-0.5), q, 1, q, 1) == Q15(0.625));
+    assert(thefblas::dot(2, q, 1, q, 1) + Q15(-0.5) != Q15(0.625));
+    assert(thefblas::dsdot(0, q, 1, q, 1) == Wide(0.0));
+    assert(thefblas::sdsdot(0, Q15(0.25), q, 1, q, 1) == Q15(0.25));
+    // sb takes part in the single rounding: in Q11.4, sb = 1 LSB and the product
+    // (-2 LSB) * (4 LSB) = -0.5 LSB sum to exactly +0.5 LSB, which rounds to 1
+    // LSB; rounding the product first (to -1 LSB) would give 0.
+    using Q4 = thefblas::fixed<std::int16_t, 4>;
+    const Q4 neg[1] = {Q4::from_raw(-2)};
+    const Q4 pos[1] = {Q4::from_raw(4)};
+    const Q4 one_lsb = Q4::from_raw(1);
+    assert(thefblas::sdsdot(1, one_lsb, neg, 1, pos, 1).raw() == 1);
+
+    // Only fixed-point types with a wider accumulator for the running sum are
+    // accepted: not 64-bit storage, and 32-bit storage only with __int128.
+    static_assert(thefblas::detail::has_extended_v<float>, "float");
+    static_assert(!thefblas::detail::has_extended_v<double>, "no portable wider type");
+    static_assert(thefblas::detail::has_extended_v<thefblas::fixed<std::int8_t, 7>>, "8-bit");
+    static_assert(thefblas::detail::has_extended_v<Q15>, "16-bit");
+#if defined(__SIZEOF_INT128__)
+    static_assert(thefblas::detail::has_extended_v<thefblas::q31>, "32-bit with __int128");
+    static_assert(!thefblas::detail::has_extended_v<thefblas::fixed<std::int64_t, 32>>, "64-bit");
+#else
+    static_assert(!thefblas::detail::has_extended_v<thefblas::q31>, "32-bit without __int128");
+#endif
+
+    // Range overloads.
+    const std::array<float, 3> vx = {1e8F, 1.0F, -1e8F};
+    const std::array<float, 3> vy = {1.0F, 1.0F, 1.0F};
+    assert(thefblas::dsdot(vx, vy) == 1.0);
+    assert(thefblas::sdsdot(0.25F, vx, vy) == 1.25F);
+}
+
 int main() {
     test_real_float();
     test_real_double();
@@ -555,5 +615,6 @@ int main() {
     test_complex_fixed();
     test_nrm2_scaling();
     test_netlib_conventions();
+    test_extended_dot();
     return 0;
 }

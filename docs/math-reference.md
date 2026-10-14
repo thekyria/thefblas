@@ -136,6 +136,21 @@ $$\text{dotc}(x, y) = \sum_{i=1}^{n} \bar{x}_i\, y_i$$
 The **first** argument $x$ is conjugated. This computes the standard inner
 product on $\mathbb{C}^n$, which satisfies $\langle x, x \rangle \geq 0$.
 
+### Extended-precision dot products (`sdsdot`, `dsdot`)
+
+$$\text{dsdot}(x, y) = \sum_{i=1}^{n} x_i\, y_i, \qquad
+\text{sdsdot}(s_b, x, y) = s_b + \sum_{i=1}^{n} x_i\, y_i$$
+
+The sum is formed in a wider type than the elements: `double` for `float`
+input (as in Netlib BLAS), and for `fixed<I, F, P>` the fixed-point type with
+twice the integer width and the same $F$. `dsdot` returns that wider value.
+`sdsdot` sums $s_b$ together with the products and rounds the result to the
+element type once; for fixed point, $s_b$ and the products are summed exactly
+at $2F$ fractional bits, so $s_b + \sum x_i y_i$ is rounded exactly once. With
+$n \le 0$, `dsdot` is $0$ and `sdsdot` returns $s_b$ unchanged. Fixed-point
+types are accepted only where the running sum has an integer wider than the
+products: 8- and 16-bit storage, and 32-bit storage with a 128-bit integer.
+
 ---
 
 ## nrm2 — Euclidean Norm
