@@ -1,8 +1,10 @@
 // Exercises the release-build fallback of the `checked` overflow policy: with
-// assertions disabled it must behave like `wrap` for arithmetic and clamp
-// out-of-range conversions, all without undefined behaviour. NDEBUG is defined
-// here, before any header, because the test CMakeLists keeps assertions enabled
-// for every other target; results are therefore checked without assert().
+// assertions disabled it must behave like `wrap` for arithmetic and for
+// conversions from another fixed type, and clamp out-of-range conversions from
+// floating-point and integer values, all without undefined behaviour. NDEBUG
+// is defined here, before any header, because the test CMakeLists keeps
+// assertions enabled for every other target; results are therefore checked
+// without assert().
 #ifndef NDEBUG
 #define NDEBUG
 #endif
@@ -59,6 +61,14 @@ int main() {
     check(F64(std::int64_t(1) << 40).raw() == (std::numeric_limits<std::int64_t>::max)(),
           "int64 conversion clamps to max");
 #endif
+
+    // Conversion from another fixed type goes through the policy's narrowing, so
+    // it wraps: 1.5 in Q16.16 is raw 98304, i.e. 49152 in Q1.15, which wraps to
+    // 49152 - 65536. With assertions disabled, nothing traps.
+    check(F(thefblas::q16_16(1.5)).raw() == 49152 - 65536, "fixed conversion wraps");
+    check(thefblas::fixed_cast<F>(thefblas::q16_16(-1.5)).raw() == 65536 - 49152,
+          "fixed_cast wraps");
+    static_assert(!std::numeric_limits<F>::traps, "checked does not trap under NDEBUG");
 
     // A BLAS reduction whose result leaves the format wraps once, at the final
     // narrowing: 0.9 * 0.9 + 0.9 * 0.9 = 1.62 -> raw 53083 -> 53083 - 65536.

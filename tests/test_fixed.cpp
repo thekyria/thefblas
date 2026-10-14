@@ -4,6 +4,7 @@
 #include <cassert>
 #include <cmath>
 #include <cstdint>
+#include <limits>
 #include <type_traits>
 
 using thefblas::fixed;
@@ -189,6 +190,115 @@ void test_q31_conversion_and_sqrt() {
     assert(std::fabs(thefblas::sqrt(quarter).to_float<double>() - 0.5) < 1e-4);
 }
 
+// ---------------------------------------------------------------------------
+// Conversions between Q formats and policies
+// ---------------------------------------------------------------------------
+
+void test_q_format_conversion() {
+    using thefblas::fixed_cast;
+    using thefblas::q15;
+    using thefblas::q15_sat;
+    using thefblas::q16_16;
+    using thefblas::q31;
+
+    static_assert(std::is_constructible<q31, q15>::value, "explicit conversion");
+    static_assert(!std::is_convertible<q15, q31>::value, "no implicit conversion");
+    static_assert(fixed_cast<q31>(q15::from_raw(1)).raw() == (1 << 16), "usable in constexpr");
+
+    // Adding fractional bits, or only changing the policy, is exact.
+    const q15 half(0.5);
+    assert(q31(half).raw() == (1 << 30));
+    assert(q16_16(half).raw() == (1 << 15));
+    using Q16_15 = fixed<std::int32_t, 15>;
+    assert(Q16_15(half).raw() == half.raw());
+    assert(fixed_cast<q15_sat>(half).raw() == half.raw());
+    assert(fixed_cast<q15>(q31(half)) == half);
+
+    // Dropping fractional bits rounds to nearest, ties away from zero.
+    using Q8 = fixed<std::int16_t, 8>;
+    assert(Q8(raw<q16_16>(384)).raw() == 2);   // 1.5 units -> 2
+    assert(Q8(raw<q16_16>(-384)).raw() == -2); // symmetric
+    assert(Q8(raw<q16_16>(383)).raw() == 1);
+    assert(Q8(raw<q16_16>(128)).raw() == 1); // exactly half a unit
+    assert(Q8(raw<q16_16>(-128)).raw() == -1);
+    assert(Q8(raw<q16_16>(127)).raw() == 0);
+    assert(fixed_cast<q15>(raw<q31>(1 << 15)).raw() == 1);
+    using Int = fixed<std::int32_t, 0>;
+    assert(fixed_cast<Int>(q16_16(2.5)).raw() == 3);
+    assert(fixed_cast<Int>(q16_16(-2.5)).raw() == -3);
+
+    // Out of range for the target: resolved by the target's policy.
+    const q16_16 big(200.0); // Q8.8 holds [-128, 128)
+    using Q8_sat = fixed<std::int16_t, 8, thefblas::saturate>;
+    using Q8_wrap = fixed<std::int16_t, 8, thefblas::wrap>;
+    assert(fixed_cast<Q8_sat>(big).raw() == 32767);
+    assert(fixed_cast<Q8_sat>(-big).raw() == -32768);
+    assert(fixed_cast<Q8_wrap>(big).raw() == 51200 - 65536);
+    // The largest Q1.31 value rounds up to 1, which Q1.15 cannot hold.
+    assert(fixed_cast<q15_sat>((std::numeric_limits<q31>::max)()).raw() == 32767);
+    assert(fixed_cast<q15_sat>(std::numeric_limits<q31>::lowest()).raw() == -32768);
+
+#if defined(__SIZEOF_INT128__)
+    using Q32_32 = fixed<std::int64_t, 32>;
+    assert(Q32_32(half).raw() == (std::int64_t(1) << 31));
+    assert(q15(Q32_32(0.25)).raw() == (1 << 13));
+    assert(fixed_cast<Q32_32>((std::numeric_limits<q31>::max)()).raw() ==
+           (std::int64_t(0x7fffffff) << 1));
+#endif
+}
+
+// ---------------------------------------------------------------------------
+// std::numeric_limits
+// ---------------------------------------------------------------------------
+
+void test_numeric_limits() {
+    using thefblas::q15;
+    using L = std::numeric_limits<q15>;
+    static_assert(L::is_specialized, "specialised");
+    static_assert(L::is_signed, "signed");
+    static_assert(L::is_bounded, "bounded");
+    static_assert(L::is_exact, "exact");
+    static_assert(!L::is_integer, "not an integer type");
+    static_assert(!L::is_iec559, "not IEC 559");
+    // Assertions are enabled in this test, so checked overflow aborts.
+    static_assert(L::traps, "checked traps while assertions are enabled");
+    static_assert(!std::numeric_limits<thefblas::q15_sat>::traps, "saturate never traps");
+    static_assert(!std::numeric_limits<fixed<std::int16_t, 15, thefblas::wrap>>::traps,
+                  "wrap never traps");
+    static_assert(!L::has_infinity, "no infinity");
+    static_assert(!L::has_quiet_NaN, "no NaN");
+    static_assert(!L::has_signaling_NaN, "no NaN");
+    static_assert(L::digits == 15, "digits of the storage type");
+    static_assert(L::radix == 2, "binary");
+    static_assert(L::round_style == std::round_to_nearest, "round to nearest");
+    static_assert(!L::is_modulo, "checked is not modular");
+    static_assert(!std::numeric_limits<thefblas::q15_sat>::is_modulo, "saturate is not modular");
+    static_assert(std::numeric_limits<fixed<std::int16_t, 15, thefblas::wrap>>::is_modulo,
+                  "wrap is modular");
+    static_assert((L::max)().raw() == 32767, "usable in constexpr");
+
+    // Floating-point convention: min() is the smallest positive value.
+    assert((L::min)().raw() == 1);
+    assert(L::lowest().raw() == -32768);
+    assert((L::max)().raw() == 32767);
+    assert(L::epsilon().raw() == 1);
+    assert(L::round_error() == q15(0.5));
+    assert(L::denorm_min() == (L::min)());
+    assert(L::infinity().raw() == 0);
+    assert(L::quiet_NaN().raw() == 0);
+    assert(L::signaling_NaN().raw() == 0);
+
+    using Q16 = std::numeric_limits<thefblas::q16_16>;
+    assert(Q16::lowest().to_float<double>() == -32768.0);
+    assert(Q16::epsilon().to_float<double>() == 1.0 / 65536.0);
+    assert(Q16::round_error().to_float<double>() == 0.5);
+
+    // No fractional bits: 0.5 is not representable, so round_error() is one unit.
+    using I = std::numeric_limits<fixed<std::int32_t, 0>>;
+    assert(I::round_error().raw() == 1);
+    assert((I::min)().raw() == 1);
+}
+
 } // namespace
 
 int main() {
@@ -205,5 +315,7 @@ int main() {
     test_rounding();
     test_policy_aliases();
     test_q31_conversion_and_sqrt();
+    test_q_format_conversion();
+    test_numeric_limits();
     return 0;
 }
