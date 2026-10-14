@@ -27,6 +27,7 @@ The library honours BLAS-style stride parameters (`incx`, `incy`), negative stri
 - [tests/test_level2_core.cpp](tests/test_level2_core.cpp): Representative Level 2 operation tests
 - [tests/test_level2_variants.cpp](tests/test_level2_variants.cpp): Level 2 precision, edge-case, and coverage-variant tests
 - [tests/test_level3.cpp](tests/test_level3.cpp): Level 3 (gemm, syrk, herk, trsm) tests against a direct evaluation of each formula, for float, double, fixed point and complex
+- [tests/test_api.cpp](tests/test_api.cpp): `noexcept` checks for every public routine, the Level 1 contiguous-range overloads, and constant evaluation of `fixed` `sqrt`
 - [tests/test_reference_blas.cpp](tests/test_reference_blas.cpp): Opt-in randomised comparison of all floating-point and complex routines against a system CBLAS
 
 ## Examples

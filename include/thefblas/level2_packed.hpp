@@ -459,7 +459,7 @@ inline void hpr2_impl(char uplo, int n, std::complex<T> alpha, const std::comple
  */
 template <typename T>
 inline void spmv(char uplo, int n, T alpha, const T *ap, const T *x, int incx, T beta, T *y,
-                 int incy) {
+                 int incy) noexcept {
     detail::spmv_impl(uplo, n, alpha, ap, x, incx, beta, y, incy);
 }
 
@@ -471,7 +471,7 @@ inline void spmv(char uplo, int n, T alpha, const T *ap, const T *x, int incx, T
 template <typename T>
 inline void hpmv(char uplo, int n, std::complex<T> alpha, const std::complex<T> *ap,
                  const std::complex<T> *x, int incx, std::complex<T> beta, std::complex<T> *y,
-                 int incy) {
+                 int incy) noexcept {
     detail::hpmv_impl(uplo, n, alpha, ap, x, incx, beta, y, incy);
 }
 
@@ -479,7 +479,7 @@ inline void hpmv(char uplo, int n, std::complex<T> alpha, const std::complex<T> 
  * @brief Triangular packed matrix-vector multiply: `x <- op(a) * x`.
  */
 template <typename T>
-inline void tpmv(char uplo, char trans, char diag, int n, const T *ap, T *x, int incx) {
+inline void tpmv(char uplo, char trans, char diag, int n, const T *ap, T *x, int incx) noexcept {
     detail::tpmv_impl(uplo, trans, diag, n, ap, x, incx);
 }
 
@@ -487,14 +487,15 @@ inline void tpmv(char uplo, char trans, char diag, int n, const T *ap, T *x, int
  * @brief Triangular packed solve: solve `op(a) * x = b` in place.
  */
 template <typename T>
-inline void tpsv(char uplo, char trans, char diag, int n, const T *ap, T *x, int incx) {
+inline void tpsv(char uplo, char trans, char diag, int n, const T *ap, T *x, int incx) noexcept {
     detail::tpsv_impl(uplo, trans, diag, n, ap, x, incx);
 }
 
 /**
  * @brief Symmetric packed rank-1 update: `a <- alpha * x * x^T + a`.
  */
-template <typename T> inline void spr(char uplo, int n, T alpha, const T *x, int incx, T *ap) {
+template <typename T>
+inline void spr(char uplo, int n, T alpha, const T *x, int incx, T *ap) noexcept {
     detail::spr_impl(uplo, n, alpha, x, incx, ap);
 }
 
@@ -505,7 +506,7 @@ template <typename T> inline void spr(char uplo, int n, T alpha, const T *x, int
  */
 template <typename T>
 inline void hpr(char uplo, int n, T alpha, const std::complex<T> *x, int incx,
-                std::complex<T> *ap) {
+                std::complex<T> *ap) noexcept {
     detail::hpr_impl(uplo, n, alpha, x, incx, ap);
 }
 
@@ -513,7 +514,8 @@ inline void hpr(char uplo, int n, T alpha, const std::complex<T> *x, int incx,
  * @brief Symmetric packed rank-2 update: `a <- alpha * x * y^T + alpha * y * x^T + a`.
  */
 template <typename T>
-inline void spr2(char uplo, int n, T alpha, const T *x, int incx, const T *y, int incy, T *ap) {
+inline void spr2(char uplo, int n, T alpha, const T *x, int incx, const T *y, int incy,
+                 T *ap) noexcept {
     detail::spr2_impl(uplo, n, alpha, x, incx, y, incy, ap);
 }
 
@@ -522,7 +524,7 @@ inline void spr2(char uplo, int n, T alpha, const T *x, int incx, const T *y, in
  */
 template <typename T>
 inline void hpr2(char uplo, int n, std::complex<T> alpha, const std::complex<T> *x, int incx,
-                 const std::complex<T> *y, int incy, std::complex<T> *ap) {
+                 const std::complex<T> *y, int incy, std::complex<T> *ap) noexcept {
     detail::hpr2_impl(uplo, n, alpha, x, incx, y, incy, ap);
 }
 

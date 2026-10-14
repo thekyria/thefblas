@@ -417,7 +417,7 @@ inline void tbsv_impl(char uplo, char trans, char diag, int n, int k, const T *a
  */
 template <typename T>
 inline void gbmv(char trans, int m, int n, int kl, int ku, T alpha, const T *a, int lda, const T *x,
-                 int incx, T beta, T *y, int incy) {
+                 int incx, T beta, T *y, int incy) noexcept {
     detail::gbmv_impl(trans, m, n, kl, ku, alpha, a, lda, x, incx, beta, y, incy);
 }
 
@@ -426,7 +426,7 @@ inline void gbmv(char trans, int m, int n, int kl, int ku, T alpha, const T *a, 
  */
 template <typename T>
 inline void sbmv(char uplo, int n, int k, T alpha, const T *a, int lda, const T *x, int incx,
-                 T beta, T *y, int incy) {
+                 T beta, T *y, int incy) noexcept {
     detail::sbmv_impl(uplo, n, k, alpha, a, lda, x, incx, beta, y, incy);
 }
 
@@ -438,7 +438,7 @@ inline void sbmv(char uplo, int n, int k, T alpha, const T *a, int lda, const T 
 template <typename T>
 inline void hbmv(char uplo, int n, int k, std::complex<T> alpha, const std::complex<T> *a, int lda,
                  const std::complex<T> *x, int incx, std::complex<T> beta, std::complex<T> *y,
-                 int incy) {
+                 int incy) noexcept {
     detail::hbmv_impl(uplo, n, k, alpha, a, lda, x, incx, beta, y, incy);
 }
 
@@ -447,7 +447,7 @@ inline void hbmv(char uplo, int n, int k, std::complex<T> alpha, const std::comp
  */
 template <typename T>
 inline void tbmv(char uplo, char trans, char diag, int n, int k, const T *a, int lda, T *x,
-                 int incx) {
+                 int incx) noexcept {
     detail::tbmv_impl(uplo, trans, diag, n, k, a, lda, x, incx);
 }
 
@@ -456,7 +456,7 @@ inline void tbmv(char uplo, char trans, char diag, int n, int k, const T *a, int
  */
 template <typename T>
 inline void tbsv(char uplo, char trans, char diag, int n, int k, const T *a, int lda, T *x,
-                 int incx) {
+                 int incx) noexcept {
     detail::tbsv_impl(uplo, trans, diag, n, k, a, lda, x, incx);
 }
 

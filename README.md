@@ -20,7 +20,8 @@ by instantiating with `float`, `double`, `thefblas::fixed<IntType, FracBits, Pol
   `fixed<std::int32_t, 31>` ~ Q1.31). Multiplication and division round to
   nearest, ties away from zero; overflow behaviour is selected by the `Policy`
   template parameter (see [Overflow policies](#overflow-policies)).
-  Square root uses an integer-only Newton iteration; no external dependencies
+  Square root uses an integer-only Newton iteration and, like the arithmetic,
+  is `constexpr`; no external dependencies
   beyond the STL are required, keeping the library portable to bare-metal
   targets (e.g. ARM Cortex-M without an FPU).
 - **Wide accumulators**: internal reductions are performed in a type twice as
@@ -197,6 +198,29 @@ touching any operand, like the existing banded `lda` checks. Banded matrices use
 bands), and packed matrices store the referenced triangle column by column
 (`ap[i + j * (j + 1) / 2]` for upper, `ap[(i - j) + j * (2n - j + 1) / 2]` for
 lower); see the header comments for details.
+
+Every public routine is `noexcept`. The supported element types never throw
+and the routines never allocate, so an element type whose operations do throw
+would terminate the program rather than propagate the exception.
+
+### Range overloads
+
+The Level 1 routines also accept whole contiguous ranges with unit stride:
+`std::vector`, `std::array`, C arrays, or C++20 `std::span`. The element count
+comes from `std::size`:
+
+```cpp
+std::vector<double> x = {1.0, 2.0, 3.0}, y = {4.0, 5.0, 6.0};
+double d = thefblas::dot(x, y);  // 32
+thefblas::axpy(2.0, x, y);       // y = {6, 9, 12}
+int i = thefblas::iamax(y);      // 3: 1-based, as in the pointer API
+```
+
+Overloads exist for `copy`, `axpy`, `scal`, `dot`, `dotu`, `dotc`, `nrm2`,
+`asum`, `iamax`, `rot` and `rotm`. Two ranges of different sizes, or a size
+above `INT_MAX`, assert in debug builds and make the call a no-op (or return
+zero) otherwise. There is no range `swap`, so that it can't compete with
+`std::swap` through argument-dependent lookup.
 
 The remaining Level 3 routines (`symm`, `hemm`, `syr2k`, `her2k`, `trmm`),
 and integer division/sqrt algorithms optimized for a specific embedded target

@@ -69,9 +69,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `max()` are the ends of the range and `epsilon()` is the grid step
   `2^-FracBits`. `is_modulo` is true only under `wrap`, and `traps` only under
   `checked` with assertions enabled.
+- Contiguous-range overloads of the Level 1 routines `copy`, `axpy`, `scal`,
+  `dot`, `dotu`, `dotc`, `nrm2`, `asum`, `iamax`, `rot` and `rotm`, taking
+  `std::vector`, `std::array`, C arrays or C++20 `std::span` with unit stride.
+  Mismatched sizes, or sizes above `INT_MAX`, assert in debug builds and are a
+  no-op otherwise.
+- `tests/test_api.cpp`: checks that every public routine is `noexcept`, and
+  covers the range overloads and constant evaluation of `fixed` `sqrt`.
 
 ### Changed
 
+- Every public BLAS routine is now `noexcept`.
+- `sqrt` for `fixed` and the compound assignments `+=`, `-=`, `*=`, `/=` are
+  now `constexpr`.
 - `scal` and `asum` now treat a non-positive `incx` as an empty vector (no-op,
   and a result of 0), as Netlib BLAS does and as `iamax` already did. They
   previously walked the vector backwards.
