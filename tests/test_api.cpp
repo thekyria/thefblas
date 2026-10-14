@@ -85,6 +85,11 @@ void test_noexcept() {
     THEFBLAS_CHECK_NOEXCEPT(thefblas::syrk('U', 'N', 1, 1, 1.0, cp, 1, 0.0, p, 1));
     THEFBLAS_CHECK_NOEXCEPT(thefblas::herk('U', 'N', 1, 1, 1.0, cq, 1, 0.0, q, 1));
     THEFBLAS_CHECK_NOEXCEPT(thefblas::trsm('L', 'U', 'N', 'N', 1, 1, 1.0, cp, 1, p, 1));
+    THEFBLAS_CHECK_NOEXCEPT(thefblas::symm('L', 'U', 1, 1, 1.0, cp, 1, cp, 1, 0.0, p, 1));
+    THEFBLAS_CHECK_NOEXCEPT(thefblas::hemm('L', 'U', 1, 1, w, cq, 1, cq, 1, w, q, 1));
+    THEFBLAS_CHECK_NOEXCEPT(thefblas::syr2k('U', 'N', 1, 1, 1.0, cp, 1, cp, 1, 0.0, p, 1));
+    THEFBLAS_CHECK_NOEXCEPT(thefblas::her2k('U', 'N', 1, 1, w, cq, 1, cq, 1, 0.0, q, 1));
+    THEFBLAS_CHECK_NOEXCEPT(thefblas::trmm('L', 'U', 'N', 'N', 1, 1, 1.0, cp, 1, p, 1));
 
     // Range overloads
     THEFBLAS_CHECK_NOEXCEPT(thefblas::dot(std::declval<std::vector<double> &>(),

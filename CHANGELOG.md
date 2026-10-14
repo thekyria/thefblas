@@ -76,6 +76,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   no-op otherwise.
 - `tests/test_api.cpp`: checks that every public routine is `noexcept`, and
   covers the range overloads and constant evaluation of `fixed` `sqrt`.
+- The remaining Level 3 routines `symm`, `hemm`, `syr2k`, `her2k` and `trmm`,
+  with the same single widened multiply-accumulate and single narrowing per
+  output element as `gemm`, and the same argument checks and `alpha == 0` /
+  `beta == 0` rules as Netlib. `tests/test_level3.cpp` covers every option for
+  float, double, fixed point and complex, and the reference-BLAS comparison
+  includes all five.
 
 ### Changed
 
