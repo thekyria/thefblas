@@ -163,40 +163,55 @@ template <typename T> class blue_nrm2 {
 
 /// The wider type in which `sdsdot` and `dsdot` accumulate: `double` for
 /// `float`, and for `fixed<I, F, P>` the accumulator type `fixed<wider(I), F,
-/// P>` (the same type when `I` has no wider integer, as for 64-bit storage).
-template <typename> constexpr bool always_false_v = false;
+/// P>`. Fixed-point types are supported only where an integer wider than the
+/// products exists for the running sum (8- and 16-bit storage, and 32-bit
+/// storage with a 128-bit integer), so that the sum is exact (for 8-bit
+/// storage up to 2^17 maximal products, as in `real_mac`); 64-bit storage, and
+/// 32-bit storage without `__int128`, are rejected at compile time.
+template <typename T, typename = void> struct has_extended : std::is_same<T, float> {};
+template <typename T>
+struct has_extended<T, typename std::enable_if<is_fixed_v<T>>::type>
+    : std::integral_constant<bool, can_widen_v<typename T::rep>> {};
+template <typename T> constexpr bool has_extended_v = has_extended<T>::value;
 
 template <typename T, typename = void> struct extended {
-    static_assert(always_false_v<T>, "sdsdot/dsdot support float and fixed element types");
+    static_assert(has_extended_v<T>,
+                  "sdsdot/dsdot support float, and fixed-point types whose products have a "
+                  "wider integer for the running sum (not 64-bit storage, nor 32-bit storage "
+                  "without __int128)");
 };
 template <> struct extended<float> {
     using type = double;
 };
-template <typename T> struct extended<T, typename std::enable_if<is_fixed_v<T>>::type> {
+template <typename T>
+struct extended<T, typename std::enable_if<has_extended_v<T> && is_fixed_v<T>>::type> {
     using type = accumulator_t<T>;
 };
 template <typename T> using extended_t = typename extended<T>::type;
 
-/// `x^T y` summed in `extended_t<T>`; zero for `n <= 0` or a zero stride.
+/// `init + x^T y` summed in `extended_t<T>`; just `init` for `n <= 0` or a
+/// zero stride. For `float`, `init` starts the `double` sum, as in Netlib's
+/// `sdsdot`. For fixed point, `init` and the unshifted products are summed
+/// exactly at `2 * FracBits` and rounded once.
 template <typename T>
-inline extended_t<T> extended_dot(int n, const T *x, int incx, const T *y, int incy) {
-    if (n <= 0 || incx == 0 || incy == 0) {
-        return extended_t<T>{};
-    }
-    int ix = start_index(n, incx);
-    int iy = start_index(n, incy);
+inline extended_t<T> extended_dot(const T &init, int n, const T *x, int incx, const T *y,
+                                  int incy) {
+    const bool empty = n <= 0 || incx == 0 || incy == 0;
+    int ix = empty ? 0 : start_index(n, incx);
+    int iy = empty ? 0 : start_index(n, incy);
+    const int count = empty ? 0 : n;
     if constexpr (std::is_same_v<T, float>) {
-        double sum = 0.0;
-        for (int i = 0; i < n; ++i) {
+        double sum = static_cast<double>(init);
+        for (int i = 0; i < count; ++i) {
             sum += static_cast<double>(x[ix]) * static_cast<double>(y[iy]);
             ix += incx;
             iy += incy;
         }
         return sum;
     } else {
-        // Products are summed exactly at 2 * FracBits and rounded once.
         real_mac<T> acc;
-        for (int i = 0; i < n; ++i) {
+        acc.add(init);
+        for (int i = 0; i < count; ++i) {
             acc.add_product(x[ix], y[iy]);
             ix += incx;
             iy += incy;
@@ -402,33 +417,30 @@ inline std::complex<T> dotc(int n, const std::complex<T> *x, int incx, const std
  *
  * Returns `x^T y` in `detail::extended_t<T>`: `double` for `float` input, and
  * the widened fixed-point type (same `FracBits`, twice the integer width) for
- * `fixed` input, without narrowing back to `T`. Only `float` and `fixed` are
- * supported.
+ * `fixed` input, without narrowing back to `T`. Supports `float` and the
+ * fixed-point types with a wider accumulator (see `detail::extended`).
  * @return The sum, or zero when `n <= 0` or a stride is zero.
  */
 template <typename T>
 inline detail::extended_t<T> dsdot(int n, const T *x, int incx, const T *y, int incy) noexcept {
-    return detail::extended_dot(n, x, incx, y, incy);
+    return detail::extended_dot(T{}, n, x, incx, y, incy);
 }
 
 /**
  * @brief `sb + x^T y` accumulated in extended precision (Netlib `sdsdot`).
  *
- * The sum and the addition of `sb` happen in `detail::extended_t<T>` (see
- * `dsdot`), and the result is narrowed to `T` once, through the overflow
- * policy for fixed point. Only `float` and `fixed` are supported.
+ * `sb` and the products are summed in `detail::extended_t<T>` (see `dsdot`) and
+ * the result is narrowed to `T` once, through the overflow policy for fixed
+ * point, which rounds `sb + x^T y` exactly once.
  * @return The result, or `sb` when `n <= 0` or a stride is zero.
  */
 template <typename T>
 inline T sdsdot(int n, T sb, const T *x, int incx, const T *y, int incy) noexcept {
-    if (n <= 0 || incx == 0 || incy == 0) {
-        return sb;
-    }
-    const detail::extended_t<T> sum = detail::extended_dot(n, x, incx, y, incy);
+    const detail::extended_t<T> sum = detail::extended_dot(sb, n, x, incx, y, incy);
     if constexpr (std::is_same_v<T, float>) {
-        return static_cast<float>(static_cast<double>(sb) + sum);
+        return static_cast<float>(sum);
     } else {
-        return detail::from_accumulator<T>(detail::to_accumulator(sb) + sum);
+        return detail::from_accumulator<T>(sum);
     }
 }
 

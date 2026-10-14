@@ -143,9 +143,13 @@ $$\text{dsdot}(x, y) = \sum_{i=1}^{n} x_i\, y_i, \qquad
 
 The sum is formed in a wider type than the elements: `double` for `float`
 input (as in Netlib BLAS), and for `fixed<I, F, P>` the fixed-point type with
-twice the integer width and the same $F$. `dsdot` returns that wider value;
-`sdsdot` adds $s_b$ in the wider type and rounds the result to the element type
-once. With $n \le 0$, `dsdot` is $0$ and `sdsdot` returns $s_b$ unchanged.
+twice the integer width and the same $F$. `dsdot` returns that wider value.
+`sdsdot` sums $s_b$ together with the products and rounds the result to the
+element type once; for fixed point, $s_b$ and the products are summed exactly
+at $2F$ fractional bits, so $s_b + \sum x_i y_i$ is rounded exactly once. With
+$n \le 0$, `dsdot` is $0$ and `sdsdot` returns $s_b$ unchanged. Fixed-point
+types are accepted only where the running sum has an integer wider than the
+products: 8- and 16-bit storage, and 32-bit storage with a 128-bit integer.
 
 ---
 

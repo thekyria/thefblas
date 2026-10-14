@@ -183,8 +183,10 @@ keep the Netlib column-update order.
   (including real-scalar scaling of complex vectors), `dot`, `dotu`, `dotc`,
   `sdsdot`, `dsdot`, `nrm2`, `asum`, `rot`, `rotg`, `rotm`, `rotmg`, `iamax`.
   `dsdot` returns `x^T y` summed in a wider type (`double` for `float`, the
-  widened fixed-point type for `fixed`), and `sdsdot` adds `sb` in that type
-  before narrowing once; both accept `float` and `fixed` only.
+  widened fixed-point type for `fixed`), and `sdsdot` sums `sb` with the
+  products in that type before narrowing once. They accept `float`, and
+  fixed-point types with 8- or 16-bit storage, or 32-bit storage where the
+  compiler has a 128-bit integer.
 - **Level 2, dense** (`include/thefblas/level2.hpp`): `gemv`, `ger`, `geru`,
   `gerc`, `symv`, `hemv`, `syr`, `her`, `syr2`, `her2`, `trmv`, `trsv`.
 - **Level 2, banded** (`include/thefblas/level2_banded.hpp`): `gbmv`, `sbmv`,
@@ -223,8 +225,8 @@ int i = thefblas::iamax(y);      // 3: 1-based, as in the pointer API
 
 Overloads exist for `copy`, `axpy`, `scal`, `dot`, `dotu`, `dotc`, `dsdot`,
 `sdsdot`, `nrm2`, `asum`, `iamax`, `rot` and `rotm`. Two ranges of different sizes, or a size
-above `INT_MAX`, assert in debug builds and make the call a no-op (or return
-zero) otherwise. There is no range `swap`, so that it can't compete with
+above `INT_MAX`, assert in debug builds and otherwise act as `n == 0` (a
+no-op, or the routine's empty result: zero, or `sb` for `sdsdot`). There is no range `swap`, so that it can't compete with
 `std::swap` through argument-dependent lookup.
 
 Integer division/sqrt algorithms optimized for a specific embedded target

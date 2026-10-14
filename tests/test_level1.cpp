@@ -577,13 +577,26 @@ void test_extended_dot() {
     assert(thefblas::dot(2, q, 1, q, 1) + Q15(-0.5) != Q15(0.625));
     assert(thefblas::dsdot(0, q, 1, q, 1) == Wide(0.0));
     assert(thefblas::sdsdot(0, Q15(0.25), q, 1, q, 1) == Q15(0.25));
+    // sb takes part in the single rounding: in Q11.4, sb = 1 LSB and the product
+    // (-2 LSB) * (4 LSB) = -0.5 LSB sum to exactly +0.5 LSB, which rounds to 1
+    // LSB; rounding the product first (to -1 LSB) would give 0.
+    using Q4 = thefblas::fixed<std::int16_t, 4>;
+    const Q4 neg[1] = {Q4::from_raw(-2)};
+    const Q4 pos[1] = {Q4::from_raw(4)};
+    const Q4 one_lsb = Q4::from_raw(1);
+    assert(thefblas::sdsdot(1, one_lsb, neg, 1, pos, 1).raw() == 1);
+
+    // Only fixed-point types with a wider accumulator for the running sum are
+    // accepted: not 64-bit storage, and 32-bit storage only with __int128.
+    static_assert(thefblas::detail::has_extended_v<float>, "float");
+    static_assert(!thefblas::detail::has_extended_v<double>, "no portable wider type");
+    static_assert(thefblas::detail::has_extended_v<thefblas::fixed<std::int8_t, 7>>, "8-bit");
+    static_assert(thefblas::detail::has_extended_v<Q15>, "16-bit");
 #if defined(__SIZEOF_INT128__)
-    // 64-bit storage has no wider fixed type: dsdot returns the input type.
-    using Q32_32 = thefblas::fixed<std::int64_t, 32>;
-    const Q32_32 big[1] = {Q32_32(3.0)};
-    static_assert(std::is_same_v<decltype(thefblas::dsdot(1, big, 1, big, 1)), Q32_32>,
-                  "no wider type for 64-bit storage");
-    assert(thefblas::dsdot(1, big, 1, big, 1) == Q32_32(9.0));
+    static_assert(thefblas::detail::has_extended_v<thefblas::q31>, "32-bit with __int128");
+    static_assert(!thefblas::detail::has_extended_v<thefblas::fixed<std::int64_t, 32>>, "64-bit");
+#else
+    static_assert(!thefblas::detail::has_extended_v<thefblas::q31>, "32-bit without __int128");
 #endif
 
     // Range overloads.
