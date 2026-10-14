@@ -1,8 +1,8 @@
 # thefblas
 
 Minimal, value-type-generic (templated), header-only C++17 BLAS-style library
-implementing Level 1 vector routines and dense Level 2 matrix-vector routines
-for real and complex types, including a generic fixed-point number type.
+implementing the Level 1, Level 2 and Level 3 BLAS routines for real and
+complex types, including a generic fixed-point number type.
 
 thefblas is the fixed-point-capable counterpart of
 [theblas](https://github.com/thekyria/theblas). Instead of separate
@@ -139,12 +139,13 @@ through the element type's overflow policy exactly once, at the end:
   symmetric/Hermitian routines gather the mirrored element from the stored
   triangle instead of updating `y` term by term, so partial sums that leave
   the element range cannot saturate or wrap before later terms cancel them.
-- The Level 3 routines (`gemm`, `syrk`, `herk`, `trsm`) do the same for every
-  element type: each element of `C` (or of the solution `X` in `trsm`) is one
-  widened multiply-accumulate over the inner dimension, with `alpha`, the
+- The Level 3 routines do the same for every element type: each element of
+  `C` (or of `B` in `trmm`, or of the solution `X` in `trsm`) is one widened
+  multiply-accumulate over the inner dimension, with `alpha`, the
   `beta`-scaled old element (or, in `trsm`, `alpha * B` and the division by
-  the diagonal) in the accumulator, and a single narrowing. No temporary
-  buffers are needed.
+  the diagonal) in the accumulator, and a single narrowing. `her2k` keeps its
+  two products in separate accumulators, since they are scaled by `alpha` and
+  `conj(alpha)`. No temporary buffers are needed.
 
 Three deliberate limitations:
 
@@ -187,7 +188,8 @@ keep the Netlib column-update order.
   `hbmv`, `tbmv`, `tbsv`.
 - **Level 2, packed** (`include/thefblas/level2_packed.hpp`): `spmv`, `hpmv`,
   `tpmv`, `tpsv`, `spr`, `hpr`, `spr2`, `hpr2`.
-- **Level 3** (`include/thefblas/level3.hpp`): `gemm`, `syrk`, `herk`, `trsm`.
+- **Level 3** (`include/thefblas/level3.hpp`): `gemm`, `symm`, `hemm`, `syrk`,
+  `herk`, `syr2k`, `her2k`, `trmm`, `trsm`.
 
 Matrices are column-major. As in Netlib BLAS, a dense routine whose leading
 dimension is smaller than the number of rows (`lda < m` for `gemv`/`ger`/`geru`/`gerc`,
@@ -222,9 +224,8 @@ above `INT_MAX`, assert in debug builds and make the call a no-op (or return
 zero) otherwise. There is no range `swap`, so that it can't compete with
 `std::swap` through argument-dependent lookup.
 
-The remaining Level 3 routines (`symm`, `hemm`, `syr2k`, `her2k`, `trmm`),
-and integer division/sqrt algorithms optimized for a specific embedded target
-(e.g. CORDIC or Cortex-M DSP intrinsics), are not yet implemented; the current `fixed<>` division/sqrt are portable, dependency-free
+Integer division/sqrt algorithms optimized for a specific embedded target
+(e.g. CORDIC or Cortex-M DSP intrinsics) are not yet implemented; the current `fixed<>` division/sqrt are portable, dependency-free
 integer algorithms suitable as a baseline for any target, including bare-metal
 ARM.
 

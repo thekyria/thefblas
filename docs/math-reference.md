@@ -597,6 +597,28 @@ $k \times n$ and $C$ of size $m \times n$.
 
 ---
 
+## symm — Symmetric Matrix-Matrix Multiply
+
+**Routines:** `ssymm`, `dsymm`, `csymm`, `zsymm`
+
+$$C \leftarrow \alpha\,A\,B + \beta\,C \quad (\text{side} = \texttt{'L'}), \qquad
+C \leftarrow \alpha\,B\,A + \beta\,C \quad (\text{side} = \texttt{'R'})$$
+
+where $B$ and $C$ are $m \times n$ and $A$ is symmetric ($m \times m$ for `'L'`,
+$n \times n$ for `'R'`); only the `uplo` triangle of $A$ is read.
+
+---
+
+## hemm — Hermitian Matrix-Matrix Multiply
+
+**Routines:** `chemm`, `zhemm`
+
+As `symm`, for a Hermitian $A$: $a_{sr} = \overline{a_{rs}}$ for the triangle
+that is not stored, and the imaginary parts of the diagonal are taken as zero
+(not read).
+
+---
+
 ## syrk — Symmetric Rank-k Update
 
 **Routines:** `ssyrk`, `dsyrk`, `csyrk`, `zsyrk`
@@ -621,6 +643,49 @@ triangle is updated, and the imaginary parts of its diagonal are taken as zero
 and set to zero. As in Netlib BLAS, the call returns without touching $C$ when
 $\beta = 1$ and either $\alpha = 0$ or $k = 0$, so in that case the imaginary
 parts of the diagonal are left as they are.
+
+---
+
+## syr2k — Symmetric Rank-2k Update
+
+**Routines:** `ssyr2k`, `dsyr2k`, `csyr2k`, `zsyr2k`
+
+$$C \leftarrow \alpha\,A\,B^T + \alpha\,B\,A^T + \beta\,C \quad (\text{trans} = \texttt{'N'}),$$
+$$C \leftarrow \alpha\,A^T B + \alpha\,B^T A + \beta\,C \quad (\text{trans} = \texttt{'T'})$$
+
+where $A$ and $B$ are $n \times k$ (`'N'`) or $k \times n$ (`'T'`), and only the
+`uplo` triangle of the $n \times n$ symmetric $C$ is updated. As for `syrk`,
+complex types have no `'C'` form (that is `her2k`).
+
+---
+
+## her2k — Hermitian Rank-2k Update
+
+**Routines:** `cher2k`, `zher2k`
+
+$$C \leftarrow \alpha\,A\,B^H + \bar\alpha\,B\,A^H + \beta\,C \quad (\text{trans} = \texttt{'N'}),$$
+$$C \leftarrow \alpha\,A^H B + \bar\alpha\,B^H A + \beta\,C \quad (\text{trans} = \texttt{'C'})$$
+
+with complex $\alpha$ and real $\beta$. As for `herk`, only the `uplo` triangle of
+$C$ is updated, the imaginary parts of its diagonal are taken as zero and set
+to zero, and the call returns without touching $C$ when $\beta = 1$ and either
+$\alpha = 0$ or $k = 0$. The two products are accumulated separately, because
+they are scaled by $\alpha$ and $\bar\alpha$, and combined before the single
+narrowing.
+
+---
+
+## trmm — Triangular Matrix-Matrix Multiply
+
+**Routines:** `strmm`, `dtrmm`, `ctrmm`, `ztrmm`
+
+$$B \leftarrow \alpha\,\operatorname{op}(A)\,B \quad (\text{side} = \texttt{'L'}), \qquad
+B \leftarrow \alpha\,B\,\operatorname{op}(A) \quad (\text{side} = \texttt{'R'})$$
+
+where $B$ is $m \times n$ and $A$ is triangular ($m \times m$ for `'L'`,
+$n \times n$ for `'R'`), with an implicit unit diagonal when `diag` is `'U'`.
+$B$ is updated in place, each element computed before any element it depends
+on is overwritten.
 
 ---
 

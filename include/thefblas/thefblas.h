@@ -11,9 +11,8 @@
  * be `float`, `double`, `thefblas::fixed<IntType, FracBits>` (see fixed.hpp),
  * or `std::complex<T>` of any of the above.
  *
- * Including this header pulls in the fixed-point type plus all Level 1 and
- * Level 2 routines (dense, banded and packed storage) and the Level 3 routines
- * implemented so far (`gemm`, `syrk`, `herk`, `trsm`).
+ * Including this header pulls in the fixed-point type plus all Level 1,
+ * Level 2 (dense, banded and packed storage) and Level 3 routines.
  */
 
 #include "thefblas/fixed.hpp"

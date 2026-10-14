@@ -667,6 +667,81 @@ void herk(char uplo, char trans, int n, int k, R alpha, const std::complex<R> *a
 }
 
 template <typename T>
+void symm(char side, char uplo, int m, int n, T alpha, const T *a, int lda, const T *b, int ldb,
+          T beta, T *c, int ldc) {
+    const CBLAS_SIDE sd = side == 'L' ? CblasLeft : CblasRight;
+    const CBLAS_UPLO u = cb_uplo(uplo);
+    if constexpr (std::is_same_v<T, float>) {
+        cblas_ssymm(CblasColMajor, sd, u, m, n, alpha, a, lda, b, ldb, beta, c, ldc);
+    } else if constexpr (std::is_same_v<T, double>) {
+        cblas_dsymm(CblasColMajor, sd, u, m, n, alpha, a, lda, b, ldb, beta, c, ldc);
+    } else if constexpr (std::is_same_v<T, cfloat>) {
+        cblas_csymm(CblasColMajor, sd, u, m, n, &alpha, a, lda, b, ldb, &beta, c, ldc);
+    } else {
+        cblas_zsymm(CblasColMajor, sd, u, m, n, &alpha, a, lda, b, ldb, &beta, c, ldc);
+    }
+}
+
+template <typename R>
+void hemm(char side, char uplo, int m, int n, std::complex<R> alpha, const std::complex<R> *a,
+          int lda, const std::complex<R> *b, int ldb, std::complex<R> beta, std::complex<R> *c,
+          int ldc) {
+    const CBLAS_SIDE sd = side == 'L' ? CblasLeft : CblasRight;
+    const CBLAS_UPLO u = cb_uplo(uplo);
+    if constexpr (std::is_same_v<R, float>) {
+        cblas_chemm(CblasColMajor, sd, u, m, n, &alpha, a, lda, b, ldb, &beta, c, ldc);
+    } else {
+        cblas_zhemm(CblasColMajor, sd, u, m, n, &alpha, a, lda, b, ldb, &beta, c, ldc);
+    }
+}
+
+template <typename T>
+void syr2k(char uplo, char trans, int n, int k, T alpha, const T *a, int lda, const T *b, int ldb,
+           T beta, T *c, int ldc) {
+    const CBLAS_UPLO u = cb_uplo(uplo);
+    const CBLAS_TRANSPOSE t = cb_trans(trans);
+    if constexpr (std::is_same_v<T, float>) {
+        cblas_ssyr2k(CblasColMajor, u, t, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
+    } else if constexpr (std::is_same_v<T, double>) {
+        cblas_dsyr2k(CblasColMajor, u, t, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
+    } else if constexpr (std::is_same_v<T, cfloat>) {
+        cblas_csyr2k(CblasColMajor, u, t, n, k, &alpha, a, lda, b, ldb, &beta, c, ldc);
+    } else {
+        cblas_zsyr2k(CblasColMajor, u, t, n, k, &alpha, a, lda, b, ldb, &beta, c, ldc);
+    }
+}
+
+template <typename R>
+void her2k(char uplo, char trans, int n, int k, std::complex<R> alpha, const std::complex<R> *a,
+           int lda, const std::complex<R> *b, int ldb, R beta, std::complex<R> *c, int ldc) {
+    const CBLAS_UPLO u = cb_uplo(uplo);
+    const CBLAS_TRANSPOSE t = cb_trans(trans);
+    if constexpr (std::is_same_v<R, float>) {
+        cblas_cher2k(CblasColMajor, u, t, n, k, &alpha, a, lda, b, ldb, beta, c, ldc);
+    } else {
+        cblas_zher2k(CblasColMajor, u, t, n, k, &alpha, a, lda, b, ldb, beta, c, ldc);
+    }
+}
+
+template <typename T>
+void trmm(char side, char uplo, char transa, char diag, int m, int n, T alpha, const T *a, int lda,
+          T *b, int ldb) {
+    const CBLAS_SIDE sd = side == 'L' ? CblasLeft : CblasRight;
+    const CBLAS_UPLO u = cb_uplo(uplo);
+    const CBLAS_TRANSPOSE t = cb_trans(transa);
+    const CBLAS_DIAG d = cb_diag(diag);
+    if constexpr (std::is_same_v<T, float>) {
+        cblas_strmm(CblasColMajor, sd, u, t, d, m, n, alpha, a, lda, b, ldb);
+    } else if constexpr (std::is_same_v<T, double>) {
+        cblas_dtrmm(CblasColMajor, sd, u, t, d, m, n, alpha, a, lda, b, ldb);
+    } else if constexpr (std::is_same_v<T, cfloat>) {
+        cblas_ctrmm(CblasColMajor, sd, u, t, d, m, n, &alpha, a, lda, b, ldb);
+    } else {
+        cblas_ztrmm(CblasColMajor, sd, u, t, d, m, n, &alpha, a, lda, b, ldb);
+    }
+}
+
+template <typename T>
 void trsm(char side, char uplo, char transa, char diag, int m, int n, T alpha, const T *a, int lda,
           T *b, int ldb) {
     const CBLAS_SIDE sd = side == 'L' ? CblasLeft : CblasRight;
@@ -1323,6 +1398,116 @@ template <typename T> void test_trsm() {
     }
 }
 
+/// symm for every type, and hemm for complex types.
+template <typename T> void test_symm() {
+    for (int trial = 0; trial < trials_per_routine; ++trial) {
+        const char side = random_of("LR");
+        const char uplo = random_of("UL");
+        const int m = uniform_int(0, max_size);
+        const int n = uniform_int(0, max_size);
+        const int dim = side == 'L' ? m : n;
+        const int lda = random_lda(dim);
+        const int ldb = random_lda(m);
+        const int ldc = random_lda(m);
+        const std::vector<T> a = random_matrix<T>(lda, dim);
+        const std::vector<T> b = random_matrix<T>(ldb, n);
+        const std::vector<T> c = random_matrix<T>(ldc, n);
+        const T alpha = random_scalar<T>();
+        const T beta = random_scalar<T>();
+        const std::string p =
+            params("side=", side, " uplo=", uplo, " m=", m, " n=", n, " lda=", lda, " ldb=", ldb,
+                   " ldc=", ldc, " alpha=", alpha, " beta=", beta);
+        std::vector<T> c1 = c;
+        std::vector<T> c2 = c;
+        thefblas::symm(side, uplo, m, n, alpha, a.data(), lda, b.data(), ldb, beta, c1.data(), ldc);
+        ref::symm(side, uplo, m, n, alpha, a.data(), lda, b.data(), ldb, beta, c2.data(), ldc);
+        check_buffer(label<T>("symm", p), c1, c2);
+        if constexpr (is_complex_v<T>) {
+            c1 = c;
+            c2 = c;
+            thefblas::hemm(side, uplo, m, n, alpha, a.data(), lda, b.data(), ldb, beta, c1.data(),
+                           ldc);
+            ref::hemm(side, uplo, m, n, alpha, a.data(), lda, b.data(), ldb, beta, c2.data(), ldc);
+            check_buffer(label<T>("hemm", p), c1, c2);
+        }
+    }
+}
+
+/// syr2k for every type, and her2k for complex types.
+template <typename T> void test_rank_2k() {
+    using R = real_t<T>;
+    for (int trial = 0; trial < trials_per_routine; ++trial) {
+        const char uplo = random_of("UL");
+        const int n = uniform_int(0, max_size);
+        const int k = uniform_int(0, max_size);
+        const int ldc = random_lda(n);
+        const std::vector<T> c = random_matrix<T>(ldc, n);
+        const T alpha = random_scalar<T>();
+        {
+            // As for syrk: complex syr2k has no 'C' form.
+            const char trans = is_complex_v<T> ? random_of("NT") : random_of("NTC");
+            const int lda = random_lda(trans == 'N' ? n : k);
+            const int ldb = random_lda(trans == 'N' ? n : k);
+            const std::vector<T> a = random_matrix<T>(lda, trans == 'N' ? k : n);
+            const std::vector<T> b = random_matrix<T>(ldb, trans == 'N' ? k : n);
+            const T beta = random_scalar<T>();
+            const std::string p =
+                params("uplo=", uplo, " trans=", trans, " n=", n, " k=", k, " lda=", lda,
+                       " ldb=", ldb, " ldc=", ldc, " alpha=", alpha, " beta=", beta);
+            std::vector<T> c1 = c;
+            std::vector<T> c2 = c;
+            thefblas::syr2k(uplo, trans, n, k, alpha, a.data(), lda, b.data(), ldb, beta, c1.data(),
+                            ldc);
+            ref::syr2k(uplo, trans, n, k, alpha, a.data(), lda, b.data(), ldb, beta, c2.data(),
+                       ldc);
+            check_buffer(label<T>("syr2k", p), c1, c2);
+        }
+        if constexpr (is_complex_v<T>) {
+            const char trans = random_of("NC");
+            const int lda = random_lda(trans == 'N' ? n : k);
+            const int ldb = random_lda(trans == 'N' ? n : k);
+            const std::vector<T> a = random_matrix<T>(lda, trans == 'N' ? k : n);
+            const std::vector<T> b = random_matrix<T>(ldb, trans == 'N' ? k : n);
+            const R beta = random_scalar<R>();
+            const std::string p =
+                params("uplo=", uplo, " trans=", trans, " n=", n, " k=", k, " lda=", lda,
+                       " ldb=", ldb, " ldc=", ldc, " alpha=", alpha, " beta=", beta);
+            std::vector<T> c1 = c;
+            std::vector<T> c2 = c;
+            thefblas::her2k(uplo, trans, n, k, alpha, a.data(), lda, b.data(), ldb, beta, c1.data(),
+                            ldc);
+            ref::her2k(uplo, trans, n, k, alpha, a.data(), lda, b.data(), ldb, beta, c2.data(),
+                       ldc);
+            check_buffer(label<T>("her2k", p), c1, c2);
+        }
+    }
+}
+
+template <typename T> void test_trmm() {
+    for (int trial = 0; trial < trials_per_routine; ++trial) {
+        const char side = random_of("LR");
+        const char uplo = random_of("UL");
+        const char trans = random_of("NTC");
+        const char diag = random_of("NU");
+        const int m = uniform_int(0, max_size);
+        const int n = uniform_int(0, max_size);
+        const int dim = side == 'L' ? m : n;
+        const int lda = random_lda(dim);
+        const int ldb = random_lda(m);
+        const std::vector<T> a = random_matrix<T>(lda, dim);
+        const std::vector<T> b = random_matrix<T>(ldb, n);
+        const T alpha = random_scalar<T>();
+        const std::string p =
+            params("side=", side, " uplo=", uplo, " trans=", trans, " diag=", diag, " m=", m,
+                   " n=", n, " lda=", lda, " ldb=", ldb, " alpha=", alpha);
+        std::vector<T> b1 = b;
+        std::vector<T> b2 = b;
+        thefblas::trmm(side, uplo, trans, diag, m, n, alpha, a.data(), lda, b1.data(), ldb);
+        ref::trmm(side, uplo, trans, diag, m, n, alpha, a.data(), lda, b2.data(), ldb);
+        check_buffer(label<T>("trmm", p), b1, b2);
+    }
+}
+
 template <typename T> void test_type() {
     test_level1<T>();
     test_rotg<T>();
@@ -1337,7 +1522,10 @@ template <typename T> void test_type() {
     test_ger<T>();
     test_symmetric_update<T>();
     test_gemm<T>();
+    test_symm<T>();
     test_rank_k<T>();
+    test_rank_2k<T>();
+    test_trmm<T>();
     test_trsm<T>();
 }
 

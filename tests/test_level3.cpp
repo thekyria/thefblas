@@ -528,6 +528,410 @@ void test_trsm_fixed_accumulator() {
     assert(std::fabs(b2[0].to_float<double>()) < 0.01);
 }
 
+// ---------------------------------------------------------------------------
+// symm / hemm
+// ---------------------------------------------------------------------------
+
+/// A symmetric (or Hermitian) matrix stored in its uplo triangle, with 100 in
+/// the other triangle and, for Hermitian, a large imaginary part on the
+/// diagonal, neither of which may be read.
+template <bool Hermitian, typename T>
+std::vector<T> symmetric(values &gen, char uplo, int dim, int lda) {
+    std::vector<T> a = gen.matrix<T>(lda, dim);
+    for (int s = 0; s < dim; ++s) {
+        for (int r = 0; r < dim; ++r) {
+            const bool stored = uplo == 'U' ? r <= s : r >= s;
+            T &value = a[at(r, s, lda)];
+            if (r == s && Hermitian) {
+                value = from_cd<T>(cd(to_cd(value).real(), 7.0));
+            } else if (!stored) {
+                value = from_cd<T>(cd(100.0, 0.0));
+            }
+        }
+    }
+    return a;
+}
+
+/// Element (r, s) of the full symmetric (Hermitian) matrix described by the
+/// uplo triangle of a.
+template <bool Hermitian, typename T>
+cd symmetric_at(const std::vector<T> &a, int lda, char uplo, int r, int s) {
+    if (r == s) {
+        const cd value = to_cd(a[at(r, r, lda)]);
+        return Hermitian ? cd(value.real()) : value;
+    }
+    const bool stored = uplo == 'U' ? r < s : r > s;
+    if (stored) {
+        return to_cd(a[at(r, s, lda)]);
+    }
+    const cd value = to_cd(a[at(s, r, lda)]);
+    return Hermitian ? std::conj(value) : value;
+}
+
+template <bool Hermitian, typename T>
+void check_symm(char side, char uplo, const T &alpha, const T &beta, values &gen) {
+    const int m = 3;
+    const int n = 2;
+    const int dim = side == 'L' ? m : n;
+    const int lda = dim + 1;
+    const int ldb = m + 2;
+    const int ldc = m + 1;
+    const std::vector<T> a = symmetric<Hermitian, T>(gen, uplo, dim, lda);
+    const std::vector<T> b = gen.matrix<T>(ldb, n);
+    const std::vector<T> c0 = gen.matrix<T>(ldc, n);
+    std::vector<T> c = c0;
+    if constexpr (Hermitian) {
+        thefblas::hemm(side, uplo, m, n, alpha, a.data(), lda, b.data(), ldb, beta, c.data(), ldc);
+    } else {
+        thefblas::symm(side, uplo, m, n, alpha, a.data(), lda, b.data(), ldb, beta, c.data(), ldc);
+    }
+    for (int j = 0; j < n; ++j) {
+        for (int i = 0; i < ldc; ++i) {
+            const auto idx = at(i, j, ldc);
+            if (i >= m) {
+                assert(same(c[idx], c0[idx]));
+                continue;
+            }
+            cd sum = 0.0;
+            if (side == 'L') {
+                for (int l = 0; l < m; ++l) {
+                    sum += symmetric_at<Hermitian>(a, lda, uplo, i, l) * to_cd(b[at(l, j, ldb)]);
+                }
+            } else {
+                for (int l = 0; l < n; ++l) {
+                    sum += to_cd(b[at(i, l, ldb)]) * symmetric_at<Hermitian>(a, lda, uplo, l, j);
+                }
+            }
+            const cd old = same(beta, T{}) ? cd(0.0) : to_cd(beta) * to_cd(c0[idx]);
+            assert(near(c[idx], to_cd(alpha) * sum + old));
+        }
+    }
+}
+
+template <bool Hermitian, typename T> void test_symm_all_options() {
+    values gen;
+    const T alpha = from_cd<T>(cd(0.75, is_complex<T>::value ? -0.5 : 0.0));
+    const T beta = from_cd<T>(cd(-0.5, is_complex<T>::value ? 0.25 : 0.0));
+    for (const char side : {'L', 'R'}) {
+        for (const char uplo : {'U', 'L'}) {
+            check_symm<Hermitian>(side, uplo, alpha, beta, gen);
+            check_symm<Hermitian>(side, uplo, alpha, T{}, gen);
+        }
+    }
+}
+
+void test_symm_special_cases() {
+    using C = std::complex<double>;
+    constexpr double nan = std::numeric_limits<double>::quiet_NaN();
+    const double a[4] = {2.0, 1.0, 1.0, 3.0}; // symmetric [[2, 1], [1, 3]]
+    const double b[4] = {1.0, 0.0, 0.0, 1.0};
+    const double nan_ab[4] = {nan, nan, nan, nan};
+
+    // beta == 0: c is not read.
+    double c[4] = {nan, nan, nan, nan};
+    thefblas::symm('L', 'U', 2, 2, 1.0, a, 2, b, 2, 0.0, c, 2);
+    assert(c[0] == 2.0 && c[1] == 1.0 && c[2] == 1.0 && c[3] == 3.0);
+
+    // alpha == 0: a and b are not read; c <- beta * c, or zero.
+    double c2[4] = {1.0, 2.0, 3.0, 4.0};
+    thefblas::symm('R', 'L', 2, 2, 0.0, nan_ab, 2, nan_ab, 2, 2.0, c2, 2);
+    assert(c2[0] == 2.0 && c2[3] == 8.0);
+    thefblas::symm('R', 'L', 2, 2, 0.0, nan_ab, 2, nan_ab, 2, 1.0, c2, 2); // quick return
+    assert(c2[0] == 2.0 && c2[3] == 8.0);
+    thefblas::symm('R', 'L', 2, 2, 0.0, nan_ab, 2, nan_ab, 2, 0.0, c2, 2);
+    assert(c2[0] == 0.0 && c2[3] == 0.0);
+
+    // Invalid arguments leave c untouched; lower-case options are accepted.
+    double c3[4] = {5.0, 6.0, 7.0, 8.0};
+    thefblas::symm('X', 'U', 2, 2, 1.0, a, 2, b, 2, 0.0, c3, 2);
+    thefblas::symm('L', 'X', 2, 2, 1.0, a, 2, b, 2, 0.0, c3, 2);
+    thefblas::symm('L', 'U', 0, 2, 1.0, a, 2, b, 2, 0.0, c3, 2);
+    thefblas::symm('L', 'U', 2, -1, 1.0, a, 2, b, 2, 0.0, c3, 2);
+    thefblas::symm('L', 'U', 2, 2, 1.0, a, 1, b, 2, 0.0, c3, 2); // lda < m
+    thefblas::symm('R', 'U', 2, 2, 1.0, a, 1, b, 2, 0.0, c3, 2); // lda < n
+    thefblas::symm('L', 'U', 2, 2, 1.0, a, 2, b, 1, 0.0, c3, 2); // ldb < m
+    thefblas::symm('L', 'U', 2, 2, 1.0, a, 2, b, 2, 0.0, c3, 1); // ldc < m
+    assert(c3[0] == 5.0 && c3[1] == 6.0 && c3[2] == 7.0 && c3[3] == 8.0);
+    thefblas::symm('l', 'u', 2, 2, 1.0, a, 2, b, 2, 0.0, c3, 2);
+    assert(c3[0] == 2.0 && c3[3] == 3.0);
+
+    // hemm reads only the real part of the diagonal of a.
+    const C ha[4] = {
+        {2.0, 9.0}, {nan, nan}, {1.0, 1.0}, {3.0, -9.0}}; // upper: [[2, 1+i], [1-i, 3]]
+    const C hb[2] = {{1.0, 0.0}, {0.0, 0.0}};
+    C hc[2] = {{nan, nan}, {nan, nan}};
+    thefblas::hemm('L', 'U', 2, 1, C(1.0), ha, 2, hb, 2, C(0.0), hc, 2);
+    assert(hc[0] == C(2.0, 0.0) && hc[1] == C(1.0, -1.0));
+}
+
+// ---------------------------------------------------------------------------
+// syr2k / her2k
+// ---------------------------------------------------------------------------
+
+template <bool Hermitian, typename T>
+void check_rank_2k(char uplo, char trans, const cd &alpha, const cd &beta, const std::vector<T> &a,
+                   int lda, const std::vector<T> &b, int ldb, int n, int k,
+                   const std::vector<T> &c0, const std::vector<T> &c, int ldc) {
+    const char t = trans == 'N' ? 'N' : 'T';
+    for (int j = 0; j < n; ++j) {
+        for (int i = 0; i < ldc; ++i) {
+            const auto idx = at(i, j, ldc);
+            const bool in_triangle = i < n && (uplo == 'U' ? i <= j : i >= j);
+            if (!in_triangle) {
+                assert(same(c[idx], c0[idx]));
+                continue;
+            }
+            cd ab = 0.0;
+            cd ba = 0.0;
+            for (int l = 0; l < k; ++l) {
+                const cd ai = op_at(a, lda, t, i, l);
+                const cd aj = op_at(a, lda, t, j, l);
+                const cd bi = op_at(b, ldb, t, i, l);
+                const cd bj = op_at(b, ldb, t, j, l);
+                if (Hermitian) {
+                    ab += trans == 'N' ? ai * std::conj(bj) : std::conj(ai) * bj;
+                    ba += trans == 'N' ? bi * std::conj(aj) : std::conj(bi) * aj;
+                } else {
+                    ab += ai * bj;
+                    ba += bi * aj;
+                }
+            }
+            cd old = to_cd(c0[idx]);
+            if (Hermitian && i == j) {
+                old = old.real();
+            }
+            const cd alpha2 = Hermitian ? std::conj(alpha) : alpha;
+            cd expected = alpha * ab + alpha2 * ba + (beta == 0.0 ? cd(0.0) : beta * old);
+            if (Hermitian && i == j) {
+                assert(to_cd(c[idx]).imag() == 0.0);
+                expected = expected.real();
+            }
+            assert(near(c[idx], expected));
+        }
+    }
+}
+
+template <typename T> void test_syr2k_all_options() {
+    values gen;
+    const int n = 3;
+    const int k = 2;
+    const T alpha = from_cd<T>(cd(0.5, is_complex<T>::value ? 0.25 : 0.0));
+    const std::vector<char> transes =
+        is_complex<T>::value ? std::vector<char>{'N', 'T'} : std::vector<char>{'N', 'T', 'C'};
+    for (const char uplo : {'U', 'L'}) {
+        for (const char trans : transes) {
+            for (const T beta : {from_cd<T>(cd(-0.75, 0.0)), T{}, from_cd<T>(cd(1.0, 0.0))}) {
+                const int nrowa = trans == 'N' ? n : k;
+                const int lda = nrowa + 1;
+                const int ldb = nrowa + 2;
+                const int ldc = n + 1;
+                const std::vector<T> a = gen.matrix<T>(lda, trans == 'N' ? k : n);
+                const std::vector<T> b = gen.matrix<T>(ldb, trans == 'N' ? k : n);
+                const std::vector<T> c0 = gen.matrix<T>(ldc, n);
+                std::vector<T> c = c0;
+                thefblas::syr2k(uplo, trans, n, k, alpha, a.data(), lda, b.data(), ldb, beta,
+                                c.data(), ldc);
+                check_rank_2k<false>(uplo, trans, to_cd(alpha), to_cd(beta), a, lda, b, ldb, n, k,
+                                     c0, c, ldc);
+            }
+        }
+    }
+}
+
+template <typename R> void test_her2k_all_options() {
+    using C = std::complex<R>;
+    values gen;
+    const int n = 3;
+    const int k = 2;
+    const C alpha = from_cd<C>(cd(0.5, -0.25));
+    for (const char uplo : {'U', 'L'}) {
+        for (const char trans : {'N', 'C'}) {
+            for (const R beta : {from_cd<R>(cd(-0.75, 0.0)), R{}, from_cd<R>(cd(1.0, 0.0))}) {
+                const int nrowa = trans == 'N' ? n : k;
+                const int lda = nrowa + 1;
+                const int ldb = nrowa + 2;
+                const int ldc = n + 1;
+                const std::vector<C> a = gen.matrix<C>(lda, trans == 'N' ? k : n);
+                const std::vector<C> b = gen.matrix<C>(ldb, trans == 'N' ? k : n);
+                const std::vector<C> c0 = gen.matrix<C>(ldc, n);
+                std::vector<C> c = c0;
+                thefblas::her2k(uplo, trans, n, k, alpha, a.data(), lda, b.data(), ldb, beta,
+                                c.data(), ldc);
+                check_rank_2k<true>(uplo, trans, to_cd(alpha), to_cd(beta), a, lda, b, ldb, n, k,
+                                    c0, c, ldc);
+            }
+        }
+    }
+}
+
+void test_rank_2k_special_cases() {
+    using C = std::complex<double>;
+    constexpr double nan = std::numeric_limits<double>::quiet_NaN();
+    const C a[4] = {{1.0, 1.0}, {2.0, 0.0}, {0.0, 1.0}, {1.0, -1.0}};
+    const C nan_a[4] = {{nan, nan}, {nan, nan}, {nan, nan}, {nan, nan}};
+
+    // her2k, alpha == 0: a and b are not read; c <- beta * c, real diagonal.
+    C c[4] = {{1.0, 5.0}, {9.0, 9.0}, {2.0, 3.0}, {4.0, -1.0}};
+    thefblas::her2k('L', 'C', 2, 2, C(0.0), nan_a, 2, nan_a, 2, 2.0, c, 2);
+    assert(c[0] == C(2.0, 0.0) && c[1] == C(18.0, 18.0) && c[3] == C(8.0, 0.0));
+    assert(c[2] == C(2.0, 3.0)); // upper triangle untouched
+    // her2k, k == 0 and beta == 1: quick return, the diagonal keeps its
+    // imaginary part (as in Netlib BLAS).
+    C c2[4] = {{1.0, 5.0}, {0.0, 0.0}, {0.0, 0.0}, {1.0, 1.0}};
+    thefblas::her2k('U', 'N', 2, 0, C(1.0), a, 2, a, 2, 1.0, c2, 2);
+    assert(c2[0] == C(1.0, 5.0));
+    // k == 0 with beta != 1: c <- beta * c, diagonal made real.
+    thefblas::her2k('U', 'N', 2, 0, C(1.0), a, 2, a, 2, 3.0, c2, 2);
+    assert(c2[0] == C(3.0, 0.0) && c2[3] == C(3.0, 0.0));
+
+    // Invalid arguments leave c untouched.
+    C c3[4] = {{1.0, 1.0}, {2.0, 2.0}, {3.0, 3.0}, {4.0, 4.0}};
+    const auto untouched = [&]() {
+        return c3[0] == C(1.0, 1.0) && c3[1] == C(2.0, 2.0) && c3[2] == C(3.0, 3.0) &&
+               c3[3] == C(4.0, 4.0);
+    };
+    thefblas::her2k('X', 'N', 2, 2, C(1.0), a, 2, a, 2, 0.0, c3, 2);
+    thefblas::her2k('U', 'T', 2, 2, C(1.0), a, 2, a, 2, 0.0, c3, 2); // no 'T' for her2k
+    thefblas::her2k('U', 'N', 0, 2, C(1.0), a, 2, a, 2, 0.0, c3, 2);
+    thefblas::her2k('U', 'N', 2, -1, C(1.0), a, 2, a, 2, 0.0, c3, 2);
+    thefblas::her2k('U', 'N', 2, 2, C(1.0), a, 1, a, 2, 0.0, c3, 2);    // lda < n
+    thefblas::her2k('U', 'N', 2, 2, C(1.0), a, 2, a, 1, 0.0, c3, 2);    // ldb < n
+    thefblas::her2k('U', 'C', 2, 2, C(1.0), a, 2, a, 1, 0.0, c3, 2);    // ldb < k
+    thefblas::her2k('U', 'N', 2, 2, C(1.0), a, 2, a, 2, 0.0, c3, 1);    // ldc < n
+    thefblas::syr2k('U', 'C', 2, 2, C(1.0), a, 2, a, 2, C(0.0), c3, 2); // no 'C' for complex syr2k
+    thefblas::syr2k('X', 'N', 2, 2, C(1.0), a, 2, a, 2, C(0.0), c3, 2);
+    thefblas::syr2k('U', 'N', 2, -1, C(1.0), a, 2, a, 2, C(0.0), c3, 2);
+    thefblas::syr2k('U', 'N', 2, 2, C(1.0), a, 1, a, 2, C(0.0), c3, 2);
+    thefblas::syr2k('U', 'N', 2, 2, C(1.0), a, 2, a, 1, C(0.0), c3, 2);
+    thefblas::syr2k('U', 'N', 2, 2, C(1.0), a, 2, a, 2, C(0.0), c3, 1);
+    assert(untouched());
+
+    // syr2k, alpha == 0 (both beta cases) and the quick return.
+    double r[4] = {1.0, 2.0, 3.0, 4.0};
+    const double nan_r[4] = {nan, nan, nan, nan};
+    thefblas::syr2k('U', 'N', 2, 2, 0.0, nan_r, 2, nan_r, 2, 3.0, r, 2);
+    assert(r[0] == 3.0 && r[1] == 2.0 && r[2] == 9.0 && r[3] == 12.0);
+    thefblas::syr2k('U', 'N', 2, 2, 0.0, nan_r, 2, nan_r, 2, 1.0, r, 2);
+    assert(r[0] == 3.0);
+    thefblas::syr2k('L', 'T', 2, 2, 0.0, nan_r, 2, nan_r, 2, 0.0, r, 2);
+    assert(r[0] == 0.0 && r[1] == 0.0 && r[2] == 9.0 && r[3] == 0.0);
+    // beta == 0: c is not read.
+    const double ra[2] = {1.0, 2.0};
+    double rc[4] = {nan, nan, nan, nan};
+    thefblas::syr2k('U', 'N', 2, 1, 1.0, ra, 2, ra, 2, 0.0, rc, 2);
+    assert(rc[0] == 2.0 && rc[2] == 4.0 && rc[3] == 8.0 && std::isnan(rc[1]));
+}
+
+// The two products 0.9 * 0.9 of syr2k sum to 1.62, outside Q1.15; with beta *
+// c = -0.9 added in the accumulator before the single narrowing, the result is
+// 0.72, as in test_gemm_fixed_cancellation.
+void test_syr2k_fixed_cancellation() {
+    using F = thefblas::fixed<std::int16_t, 15, thefblas::saturate>;
+    const F a[1] = {F(0.9)};
+    const F b[1] = {F(0.9)};
+    const F almost_one = F::from_raw(32767);
+    F c[1] = {F(-0.9)};
+    thefblas::syr2k('U', 'N', 1, 1, almost_one, a, 1, b, 1, almost_one, c, 1);
+    assert(std::fabs(c[0].to_float<double>() - 0.72) < 0.01);
+}
+
+// ---------------------------------------------------------------------------
+// trmm
+// ---------------------------------------------------------------------------
+
+template <typename T>
+void check_trmm(char side, char uplo, char trans, char diag, const T &alpha, values &gen) {
+    const int m = 3;
+    const int n = 2;
+    const int dim = side == 'L' ? m : n;
+    const int lda = dim + 1;
+    const int ldb = m + 1;
+    const std::vector<T> a = triangular<T>(gen, uplo, diag, dim, lda);
+    const std::vector<T> b0 = gen.matrix<T>(ldb, n);
+    std::vector<T> b = b0;
+    thefblas::trmm(side, uplo, trans, diag, m, n, alpha, a.data(), lda, b.data(), ldb);
+    for (int j = 0; j < n; ++j) {
+        for (int i = 0; i < ldb; ++i) {
+            const auto idx = at(i, j, ldb);
+            if (i >= m) {
+                assert(same(b[idx], b0[idx]));
+                continue;
+            }
+            cd sum = 0.0;
+            if (side == 'L') {
+                for (int l = 0; l < m; ++l) {
+                    sum +=
+                        op_triangular(a, lda, uplo, trans, diag, i, l) * to_cd(b0[at(l, j, ldb)]);
+                }
+            } else {
+                for (int l = 0; l < n; ++l) {
+                    sum +=
+                        to_cd(b0[at(i, l, ldb)]) * op_triangular(a, lda, uplo, trans, diag, l, j);
+                }
+            }
+            assert(near(b[idx], to_cd(alpha) * sum));
+        }
+    }
+}
+
+template <typename T> void test_trmm_all_options() {
+    values gen;
+    const T alpha = from_cd<T>(cd(0.75, is_complex<T>::value ? 0.5 : 0.0));
+    for (const char side : {'L', 'R'}) {
+        for (const char uplo : {'U', 'L'}) {
+            for (const char trans : {'N', 'T', 'C'}) {
+                for (const char diag : {'N', 'U'}) {
+                    check_trmm(side, uplo, trans, diag, alpha, gen);
+                }
+            }
+        }
+    }
+}
+
+void test_trmm_special_cases() {
+    constexpr double nan = std::numeric_limits<double>::quiet_NaN();
+    const double nan_a[4] = {nan, nan, nan, nan};
+    const double a[4] = {2.0, 0.0, 1.0, 4.0};
+
+    // alpha == 0: a is not read and b is zeroed.
+    double b[4] = {1.0, 2.0, 3.0, 4.0};
+    thefblas::trmm('R', 'L', 'T', 'U', 2, 2, 0.0, nan_a, 2, b, 2);
+    assert(b[0] == 0.0 && b[1] == 0.0 && b[2] == 0.0 && b[3] == 0.0);
+
+    // Invalid arguments leave b untouched; lower-case options are accepted.
+    double b2[4] = {1.0, 2.0, 3.0, 4.0};
+    thefblas::trmm('X', 'U', 'N', 'N', 2, 2, 1.0, a, 2, b2, 2);
+    thefblas::trmm('L', 'X', 'N', 'N', 2, 2, 1.0, a, 2, b2, 2);
+    thefblas::trmm('L', 'U', 'X', 'N', 2, 2, 1.0, a, 2, b2, 2);
+    thefblas::trmm('L', 'U', 'N', 'X', 2, 2, 1.0, a, 2, b2, 2);
+    thefblas::trmm('L', 'U', 'N', 'N', 0, 2, 1.0, a, 2, b2, 2);
+    thefblas::trmm('L', 'U', 'N', 'N', 2, -1, 1.0, a, 2, b2, 2);
+    thefblas::trmm('L', 'U', 'N', 'N', 2, 2, 1.0, a, 1, b2, 2); // lda < m
+    thefblas::trmm('R', 'U', 'N', 'N', 2, 2, 1.0, a, 1, b2, 2); // lda < n
+    thefblas::trmm('L', 'U', 'N', 'N', 2, 2, 1.0, a, 2, b2, 1); // ldb < m
+    assert(b2[0] == 1.0 && b2[1] == 2.0 && b2[2] == 3.0 && b2[3] == 4.0);
+    // [[2, 1], [0, 4]] * [[1, 3], [2, 4]] = [[4, 10], [8, 16]]
+    thefblas::trmm('l', 'u', 'n', 'n', 2, 2, 1.0, a, 2, b2, 2);
+    assert(b2[0] == 4.0 && b2[1] == 8.0 && b2[2] == 10.0 && b2[3] == 16.0);
+}
+
+// op(A) * B is summed in the accumulator before alpha is applied: in Q7.8
+// (range [-128, 128)) the row sum 50 + 10 * 10 = 150 is out of range, but
+// 0.25 * 150 = 37.5 is not.
+void test_trmm_fixed_accumulator() {
+    using F = thefblas::fixed<std::int16_t, 8, thefblas::saturate>;
+    const F a[4] = {F(1.0), F(0.0), F(10.0), F(2.0)}; // upper: [[1, 10], [0, 2]]
+    F b[2] = {F(50.0), F(10.0)};
+    thefblas::trmm('L', 'U', 'N', 'N', 2, 1, F(0.25), a, 2, b, 2);
+    assert(std::fabs(b[0].to_float<double>() - 37.5) < 0.01);
+    assert(std::fabs(b[1].to_float<double>() - 5.0) < 0.01);
+    // The same with a unit diagonal: 0.25 * (50 + 10 * 10) and 0.25 * 10.
+    F b2[2] = {F(50.0), F(10.0)};
+    thefblas::trmm('L', 'U', 'N', 'U', 2, 1, F(0.25), a, 2, b2, 2);
+    assert(std::fabs(b2[0].to_float<double>() - 37.5) < 0.01);
+    assert(std::fabs(b2[1].to_float<double>() - 2.5) < 0.01);
+}
+
 } // namespace
 
 int main() {
@@ -557,5 +961,34 @@ int main() {
     test_trsm_all_options<std::complex<fixed32>>();
     test_trsm_special_cases();
     test_trsm_fixed_accumulator();
+
+    test_symm_all_options<false, float>();
+    test_symm_all_options<false, double>();
+    test_symm_all_options<false, std::complex<double>>();
+    test_symm_all_options<false, fixed32>();
+    test_symm_all_options<false, std::complex<fixed32>>();
+    test_symm_all_options<true, std::complex<float>>();
+    test_symm_all_options<true, std::complex<double>>();
+    test_symm_all_options<true, std::complex<fixed32>>();
+    test_symm_special_cases();
+
+    test_syr2k_all_options<float>();
+    test_syr2k_all_options<double>();
+    test_syr2k_all_options<std::complex<double>>();
+    test_syr2k_all_options<fixed32>();
+    test_syr2k_all_options<std::complex<fixed32>>();
+    test_her2k_all_options<float>();
+    test_her2k_all_options<double>();
+    test_her2k_all_options<fixed32>();
+    test_rank_2k_special_cases();
+    test_syr2k_fixed_cancellation();
+
+    test_trmm_all_options<float>();
+    test_trmm_all_options<double>();
+    test_trmm_all_options<std::complex<double>>();
+    test_trmm_all_options<fixed32>();
+    test_trmm_all_options<std::complex<fixed32>>();
+    test_trmm_special_cases();
+    test_trmm_fixed_accumulator();
     return 0;
 }
