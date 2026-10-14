@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <limits>
 #include <type_traits>
+#include <vector>
 
 using thefblas::fixed;
 
@@ -455,6 +456,34 @@ void test_round_shift_limits() {
     static_assert(round_shift(std::int64_t(6), 2) == 2, "1.5 rounds to 2");
 }
 
+// The sum of squares behind nrm2 and rotg is exact while it fits its unsigned
+// accumulator and is reported as out of range once it does not, instead of
+// wrapping back to a small in-range norm.
+void test_norm_accumulator_overflow() {
+    using S8 = fixed<std::int8_t, 4, thefblas::saturate>;
+    const auto max8 = (std::numeric_limits<S8>::max)().raw();
+    // 127^2 * 266289 just exceeds 2^32, the range of the uint32 sum; wrapped,
+    // it would leave 7985, a norm of about 5.6. One element fewer still fits.
+    const std::vector<S8> x(266289, S8::from_raw(max8));
+    CHECK_EQ(thefblas::nrm2(static_cast<int>(x.size()), x.data(), 1).raw(), max8);
+    CHECK_EQ(thefblas::nrm2(static_cast<int>(x.size()) - 1, x.data(), 1).raw(), max8);
+#if defined(__SIZEOF_INT128__)
+    using S64 = fixed<std::int64_t, 32, thefblas::saturate>;
+    const auto max64 = (std::numeric_limits<S64>::max)().raw();
+    // Five squares of 2^63 - 1 exceed 2^128; with signed wrapping, two did.
+    const S64 y[5] = {S64::from_raw(max64), S64::from_raw(max64), S64::from_raw(max64),
+                      S64::from_raw(max64), S64::from_raw(max64)};
+    CHECK_EQ(thefblas::nrm2(5, y, 1).raw(), max64);
+    CHECK_EQ(thefblas::nrm2(2, y, 1).raw(), max64);
+    std::complex<S64> a(y[0], y[0]);
+    S64 c{};
+    std::complex<S64> s{};
+    thefblas::rotg(&a, std::complex<S64>(y[0], y[0]), &c, &s);
+    CHECK_EQ(a.real().raw(), max64);
+    CHECK_EQ(a.imag().raw(), max64);
+#endif
+}
+
 #if defined(__SIZEOF_INT128__)
 // 64-bit fixed-point reductions accumulate in the same-width Q format, since
 // `__int128` has no wider type of its own; the sums are still formed exactly
@@ -490,6 +519,7 @@ int main() {
     test_asum_raw_min();
     test_from_integer_overflow();
     test_round_shift_limits();
+    test_norm_accumulator_overflow();
     test_symv_cancellation();
     test_symmetric_variants_cancellation();
     test_output_cancellation();

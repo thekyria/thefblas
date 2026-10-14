@@ -171,7 +171,11 @@ algorithm (as Netlib reference BLAS 3.10+ does): mid-range $\lvert x_i \rvert$
 are squared and summed directly, while very large and very small values are
 first scaled by exact powers of two, so the computation neither overflows nor
 underflows when $\|x\|_2$ is representable. Fixed-point types instead
-accumulate the exact squares in a wide integer accumulator.
+accumulate the exact squares in a wide integer accumulator and take its
+integer square root, so the norm is rounded once (to within half a unit in
+the last place). A sum too large for the accumulator means a norm beyond the
+range of the format; it is clamped to the largest value under every overflow
+policy, and `checked` asserts.
 
 ---
 
@@ -271,6 +275,13 @@ when $a \neq 0$. When $a = 0$, as in Netlib reference BLAS 3.10+, $c = 0$,
 $s = \bar{b} / \lvert b \rvert$ and $r = \lvert b \rvert$ (real), or $c = 1$,
 $s = 0$, $r = 0$ if $b = 0$ as well. The rotation matrix satisfies
 $c^2 + \lvert s \rvert^2 = 1$.
+
+For fixed-point types the sums of squares are formed exactly in the wide
+accumulator and their square roots are rounded once, so $r$ (and in the
+complex case $\lvert a \rvert$) needs none of the scaling that floating point
+uses to avoid overflow. In the real case the returned $z$ is $1/c$ when
+$\lvert a \rvert \le \lvert b \rvert$; for small $c$ it can exceed the range
+of a format with few integer bits, and the overflow policy then applies.
 
 ---
 

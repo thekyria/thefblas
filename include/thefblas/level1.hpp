@@ -64,14 +64,34 @@ template <typename T> inline T norm_square(const std::complex<T> &value) {
 }
 
 /// |z|. For floating-point parts this uses std::hypot, so tiny or huge finite
-/// parts neither underflow to 0 nor overflow to infinity; fixed point squares
-/// in T, whose range is bounded.
+/// parts neither underflow to 0 nor overflow to infinity; for fixed point the
+/// squares are summed exactly in the widened accumulator and the root is
+/// rounded once.
 template <typename T> inline T complex_abs(const std::complex<T> &value) {
     if constexpr (std::is_floating_point_v<T>) {
         return std::hypot(value.real(), value.imag());
     } else {
-        return sqrt_value(norm_square(value));
+        sum_of_squares<T> sum;
+        sum.add(value.real());
+        sum.add(value.imag());
+        return sum.root();
     }
+}
+
+/// `x * y / z` for fixed point, with the product exact in the wide type and a
+/// single rounding (to nearest, ties away from zero, as in `fixed::operator/`).
+/// `z` must be nonzero.
+template <typename T> inline T mul_div(const T &x, const T &y, const T &z) {
+    using wide = widen_t<typename T::rep>;
+    using Policy = typename T::policy;
+    const auto numerator =
+        static_cast<wide>(static_cast<wide>(x.raw()) * static_cast<wide>(y.raw()));
+    const auto divisor = static_cast<wide>(z.raw());
+    const auto half = static_cast<wide>(divisor / 2);
+    const wide biased = ((numerator >= 0) == (divisor >= 0)) ? static_cast<wide>(numerator + half)
+                                                             : static_cast<wide>(numerator - half);
+    return T::from_raw(
+        Policy::template narrow<typename T::rep>(static_cast<wide>(biased / divisor)));
 }
 
 template <typename T> inline T signed_magnitude(T magnitude, const T &sign_source) {
@@ -466,15 +486,15 @@ inline T nrm2(int n, const T *x, int incx) noexcept {
         }
         return norm.value();
     } else {
-        detail::real_mac<T> sum;
+        detail::sum_of_squares<T> sum;
         for (int i = 0; i < n; ++i) {
-            sum.add_product(x[ix], x[ix]);
+            sum.add(x[ix]);
             ix += incx;
         }
         // The sum of squares can legitimately exceed the range of T even when the
-        // norm itself does not, so the square root is taken in the wide accumulator
-        // type and only its result is narrowed back to T.
-        return detail::from_accumulator<T>(detail::sqrt_value(sum.wide_value()));
+        // norm itself does not, so the square root is taken of the exact sum in the
+        // accumulator, rounded once, and only its result is narrowed back to T.
+        return sum.root();
     }
 }
 
@@ -500,13 +520,13 @@ template <typename T> inline T nrm2(int n, const std::complex<T> *x, int incx) n
         }
         return norm.value();
     } else {
-        detail::real_mac<T> sum;
+        detail::sum_of_squares<T> sum;
         for (int i = 0; i < n; ++i) {
-            sum.add_product(x[ix].real(), x[ix].real());
-            sum.add_product(x[ix].imag(), x[ix].imag());
+            sum.add(x[ix].real());
+            sum.add(x[ix].imag());
             ix += incx;
         }
-        return detail::from_accumulator<T>(detail::sqrt_value(sum.wide_value()));
+        return sum.root();
     }
 }
 
@@ -625,8 +645,7 @@ inline void rotg(T *a, T *b, T *c, T *s) noexcept {
     const T abs_a = detail::abs_value(*a);
     const T abs_b = detail::abs_value(*b);
     const T roe = abs_a > abs_b ? *a : *b;
-    const T scale = abs_a + abs_b;
-    if (scale == T(0)) {
+    if (*a == T(0) && *b == T(0)) {
         *c = T(1);
         *s = T(0);
         *a = T(0);
@@ -634,7 +653,19 @@ inline void rotg(T *a, T *b, T *c, T *s) noexcept {
         return;
     }
 
-    T r = scale * detail::sqrt_value(((*a / scale) * (*a / scale)) + ((*b / scale) * (*b / scale)));
+    T r{};
+    if constexpr (std::is_floating_point_v<T>) {
+        const T scale = abs_a + abs_b;
+        r = scale *
+            detail::sqrt_value(((*a / scale) * (*a / scale)) + ((*b / scale) * (*b / scale)));
+    } else {
+        // a^2 + b^2 is exact in the widened accumulator, so the radius is its
+        // square root rounded once, without the scaling floating point needs.
+        detail::sum_of_squares<T> sum;
+        sum.add(*a);
+        sum.add(*b);
+        r = sum.root();
+    }
     r = detail::signed_magnitude(r, roe);
     *c = *a / r;
     *s = *b / r;
@@ -673,13 +704,31 @@ inline void rotg(std::complex<T> *a, std::complex<T> b, T *c, std::complex<T> *s
         return;
     }
 
-    const T scale = abs_a + abs_b;
-    const T norm = scale * detail::sqrt_value(detail::norm_square(*a / scale) +
-                                              detail::norm_square(b / scale));
+    T norm{};
+    if constexpr (std::is_floating_point_v<T>) {
+        const T scale = abs_a + abs_b;
+        norm = scale *
+               detail::sqrt_value(detail::norm_square(*a / scale) + detail::norm_square(b / scale));
+    } else {
+        // As for real rotg: the sum of squares is exact in the accumulator.
+        detail::sum_of_squares<T> sum;
+        sum.add(a->real());
+        sum.add(a->imag());
+        sum.add(b.real());
+        sum.add(b.imag());
+        norm = sum.root();
+    }
     const std::complex<T> alpha = *a / abs_a;
     *c = abs_a / norm;
     *s = alpha * detail::conj_value(b) / norm;
-    *a = alpha * norm;
+    if constexpr (std::is_floating_point_v<T>) {
+        *a = alpha * norm;
+    } else {
+        // a * (norm / |a|) with one rounding per part: multiplying the rounded
+        // alpha by norm would scale its rounding error by norm.
+        *a = std::complex<T>(detail::mul_div(a->real(), norm, abs_a),
+                             detail::mul_div(a->imag(), norm, abs_a));
+    }
 }
 
 /**

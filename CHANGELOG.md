@@ -98,6 +98,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   test continues. Every failure is counted, but only the first 50 are printed;
   each test ends with a summary line and a non-zero exit code on failure.
   `tests/test_support_selftest.cpp` checks the helper itself.
+- `tests/test_widths.cpp` runs every routine on 8-bit (`fixed<int8_t, 4>`) and
+  64-bit (`fixed<int64_t, 32>`, where a 128-bit integer exists) storage, real
+  and complex, and compares each result with the same routine in `double`
+  within the rounding bound of the routine.
 - Every public BLAS routine is now `noexcept`.
 - `sqrt` for `fixed` and the compound assignments `+=`, `-=`, `*=`, `/=` are
   now `constexpr`.
@@ -114,6 +118,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   every policy, including `checked`, is well defined once `NDEBUG` is set.
 
 ### Fixed
+
+- Fixed-point `nrm2` rounded the sum of squares to the element's fractional
+  bits before taking the square root, so small norms lost up to half of their
+  bits (`nrm2` of `[0.125]` in `fixed<int8_t, 4>` was 0). It now takes the
+  integer square root of the exact sum and rounds once. A sum of squares too
+  large for its accumulator (for example two 64-bit values near the limit of
+  the format) is now detected and clamped, with `checked` asserting, instead
+  of wrapping to a wrong norm or to 0.
+- Fixed-point `rotg` (real and complex) scaled its inputs as floating point
+  does, which multiplied the rounding error of the square root by the scale:
+  about 500 ulps for `fixed<int64_t, 32>` inputs near 256. The radius and
+  `|a|` are now rounded once from exact sums of squares, and the complex
+  radius is formed as `a * norm / |a|` with one rounding.
 
 - The Level 2 option characters (`trans`, `uplo`, `diag`) are upper-cased
   with a `constexpr` ASCII conversion instead of `std::toupper`, which depends

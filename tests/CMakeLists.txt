@@ -63,6 +63,11 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/test_checked_release.cpp)
   add_test(NAME thefblas_test_checked_release COMMAND thefblas_test_checked_release)
 endif()
 
+# Every routine on 8-bit and 64-bit fixed-point storage, against double.
+add_executable(thefblas_test_widths test_widths.cpp)
+target_link_libraries(thefblas_test_widths PRIVATE thefblas::thefblas)
+add_test(NAME thefblas_test_widths COMMAND thefblas_test_widths)
+
 # The test helper itself, also without GNU extensions (see above).
 add_executable(thefblas_test_support test_support_selftest.cpp)
 target_link_libraries(thefblas_test_support PRIVATE thefblas::thefblas)
