@@ -152,6 +152,8 @@ void test_range_overloads_fixed() {
     const std::vector<F> x = {F(1.5), F(-2.0)};
     const std::vector<F> y = {F(2.0), F(0.25)};
     assert(thefblas::dot(x, y) == F(2.5));
+    const std::vector<F> none;
+    assert(thefblas::dot(none, none) == F(0.0));
 }
 
 void test_constexpr_sqrt() {
