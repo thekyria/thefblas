@@ -173,7 +173,9 @@ first scaled by exact powers of two, so the computation neither overflows nor
 underflows when $\|x\|_2$ is representable. Fixed-point types instead
 accumulate the exact squares in a wide integer accumulator and take its
 integer square root, so the norm is rounded once (to within half a unit in
-the last place).
+the last place). A sum too large for the accumulator means a norm beyond the
+range of the format; it is clamped to the largest value under every overflow
+policy, and `checked` asserts.
 
 ---
 

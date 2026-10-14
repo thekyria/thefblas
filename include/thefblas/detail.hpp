@@ -277,21 +277,46 @@ template <typename T> class real_mac<T, typename std::enable_if<is_fixed_v<T>>::
 
     T value() const { return from_accumulator<T>(wide_value()); }
 
-    /// The square root of the sum, as a value of the widened fixed-point type,
-    /// rounded once: the root of the raw sum at `2 * FracBits` is the raw root
-    /// at `FracBits`. Used for norms, whose sums of squares are non-negative;
-    /// a negative sum (reachable only by wrapping past the accumulator's range)
-    /// gives zero.
-    accumulator_t<T> wide_sqrt() const {
-        using Acc = accumulator_t<T>;
+  private:
+    acc sum_{};
+};
+
+/// Exact sum of squares of fixed-point values, for norms. The squares are
+/// accumulated unshifted (at `2 * FracBits` fractional bits) in the unsigned
+/// form of the accumulator type, where an overflow is detected instead of
+/// wrapping. An overflowing sum means a norm of at least 2^(bits(acc) / 2) raw
+/// units, beyond the range of `T` for every supported width.
+template <typename T> class sum_of_squares {
+    using acc = widen_or_same_t<widen_t<typename T::rep>>;
+    using U = make_unsigned_integer_t<acc>;
+
+  public:
+    void add(const T &a) {
+        const auto raw = static_cast<acc>(a.raw());
+        const U magnitude =
+            raw < 0 ? static_cast<U>(U(0) - static_cast<U>(raw)) : static_cast<U>(raw);
+        const auto next = static_cast<U>(sum_ + static_cast<U>(magnitude * magnitude));
+        overflow_ = overflow_ || next < sum_;
+        sum_ = next;
+    }
+
+    /// The square root of the sum, rounded once (the root of the raw sum at
+    /// `2 * FracBits` is the raw root at `FracBits`) and narrowed through the
+    /// policy of `T`. A sum that overflowed the accumulator is out of range:
+    /// it is clamped to the largest value under every policy, and `checked`
+    /// asserts.
+    [[nodiscard]] T root() const {
         using Policy = typename T::policy;
-        using U = make_unsigned_integer_t<acc>;
-        const U root = sum_ > 0 ? isqrt_rounded(static_cast<U>(sum_)) : U(0);
-        return Acc::from_raw(Policy::template narrow<typename Acc::rep>(static_cast<acc>(root)));
+        using Rep = typename T::rep;
+        if (overflow_) {
+            return T::from_raw(Policy::template from_out_of_range<Rep>(true));
+        }
+        return T::from_raw(Policy::template narrow<Rep>(static_cast<acc>(isqrt_rounded(sum_))));
     }
 
   private:
-    acc sum_{};
+    U sum_{};
+    bool overflow_ = false;
 };
 
 /// Running sum of products of complex values, built from two real accumulators

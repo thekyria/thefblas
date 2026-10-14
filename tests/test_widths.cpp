@@ -157,10 +157,11 @@ double component_error(double got, double ref) {
     return std::fabs(got - ref);
 }
 
+/// The larger of the two component errors; NaN if either is NaN.
 double component_error(std::complex<double> got, std::complex<double> ref) {
     const double re = std::fabs(got.real() - ref.real());
     const double im = std::fabs(got.imag() - ref.imag());
-    return re > im ? re : im;
+    return std::isnan(re) || re > im ? re : im;
 }
 
 double magnitude(double v) {
@@ -284,7 +285,9 @@ template <typename Fmt, typename T> struct suite {
         bool within_tolerance = true;
         for (std::size_t i = 0; i < got.size(); ++i) {
             const auto g = to_double(got[i]);
-            if (component_error(g, ref[i]) > tolerance(magnitude(ref[i]), ulps)) {
+            // Written so that a NaN error or tolerance (a non-finite double
+            // reference) fails the check rather than passing it.
+            if (!(component_error(g, ref[i]) <= tolerance(magnitude(ref[i]), ulps))) {
                 index = i;
                 within_tolerance = false;
                 break;

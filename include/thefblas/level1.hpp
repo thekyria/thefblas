@@ -71,10 +71,10 @@ template <typename T> inline T complex_abs(const std::complex<T> &value) {
     if constexpr (std::is_floating_point_v<T>) {
         return std::hypot(value.real(), value.imag());
     } else {
-        real_mac<T> sum;
-        sum.add_product(value.real(), value.real());
-        sum.add_product(value.imag(), value.imag());
-        return from_accumulator<T>(sum.wide_sqrt());
+        sum_of_squares<T> sum;
+        sum.add(value.real());
+        sum.add(value.imag());
+        return sum.root();
     }
 }
 
@@ -486,15 +486,15 @@ inline T nrm2(int n, const T *x, int incx) noexcept {
         }
         return norm.value();
     } else {
-        detail::real_mac<T> sum;
+        detail::sum_of_squares<T> sum;
         for (int i = 0; i < n; ++i) {
-            sum.add_product(x[ix], x[ix]);
+            sum.add(x[ix]);
             ix += incx;
         }
         // The sum of squares can legitimately exceed the range of T even when the
         // norm itself does not, so the square root is taken of the exact sum in the
         // accumulator, rounded once, and only its result is narrowed back to T.
-        return detail::from_accumulator<T>(sum.wide_sqrt());
+        return sum.root();
     }
 }
 
@@ -520,13 +520,13 @@ template <typename T> inline T nrm2(int n, const std::complex<T> *x, int incx) n
         }
         return norm.value();
     } else {
-        detail::real_mac<T> sum;
+        detail::sum_of_squares<T> sum;
         for (int i = 0; i < n; ++i) {
-            sum.add_product(x[ix].real(), x[ix].real());
-            sum.add_product(x[ix].imag(), x[ix].imag());
+            sum.add(x[ix].real());
+            sum.add(x[ix].imag());
             ix += incx;
         }
-        return detail::from_accumulator<T>(sum.wide_sqrt());
+        return sum.root();
     }
 }
 
@@ -661,10 +661,10 @@ inline void rotg(T *a, T *b, T *c, T *s) noexcept {
     } else {
         // a^2 + b^2 is exact in the widened accumulator, so the radius is its
         // square root rounded once, without the scaling floating point needs.
-        detail::real_mac<T> sum;
-        sum.add_product(*a, *a);
-        sum.add_product(*b, *b);
-        r = detail::from_accumulator<T>(sum.wide_sqrt());
+        detail::sum_of_squares<T> sum;
+        sum.add(*a);
+        sum.add(*b);
+        r = sum.root();
     }
     r = detail::signed_magnitude(r, roe);
     *c = *a / r;
@@ -711,12 +711,12 @@ inline void rotg(std::complex<T> *a, std::complex<T> b, T *c, std::complex<T> *s
                detail::sqrt_value(detail::norm_square(*a / scale) + detail::norm_square(b / scale));
     } else {
         // As for real rotg: the sum of squares is exact in the accumulator.
-        detail::real_mac<T> sum;
-        sum.add_product(a->real(), a->real());
-        sum.add_product(a->imag(), a->imag());
-        sum.add_product(b.real(), b.real());
-        sum.add_product(b.imag(), b.imag());
-        norm = detail::from_accumulator<T>(sum.wide_sqrt());
+        detail::sum_of_squares<T> sum;
+        sum.add(a->real());
+        sum.add(a->imag());
+        sum.add(b.real());
+        sum.add(b.imag());
+        norm = sum.root();
     }
     const std::complex<T> alpha = *a / abs_a;
     *c = abs_a / norm;

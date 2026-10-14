@@ -122,7 +122,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Fixed-point `nrm2` rounded the sum of squares to the element's fractional
   bits before taking the square root, so small norms lost up to half of their
   bits (`nrm2` of `[0.125]` in `fixed<int8_t, 4>` was 0). It now takes the
-  integer square root of the exact sum and rounds once.
+  integer square root of the exact sum and rounds once. A sum of squares too
+  large for its accumulator (for example two 64-bit values near the limit of
+  the format) is now detected and clamped, with `checked` asserting, instead
+  of wrapping to a wrong norm or to 0.
 - Fixed-point `rotg` (real and complex) scaled its inputs as floating point
   does, which multiplied the rounding error of the square root by the scale:
   about 500 ulps for `fixed<int64_t, 32>` inputs near 256. The radius and
