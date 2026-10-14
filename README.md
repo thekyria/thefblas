@@ -181,7 +181,10 @@ keep the Netlib column-update order.
 
 - **Level 1** (`include/thefblas/level1.hpp`): `swap`, `copy`, `axpy`, `scal`
   (including real-scalar scaling of complex vectors), `dot`, `dotu`, `dotc`,
-  `nrm2`, `asum`, `rot`, `rotg`, `rotm`, `rotmg`, `iamax`.
+  `sdsdot`, `dsdot`, `nrm2`, `asum`, `rot`, `rotg`, `rotm`, `rotmg`, `iamax`.
+  `dsdot` returns `x^T y` summed in a wider type (`double` for `float`, the
+  widened fixed-point type for `fixed`), and `sdsdot` adds `sb` in that type
+  before narrowing once; both accept `float` and `fixed` only.
 - **Level 2, dense** (`include/thefblas/level2.hpp`): `gemv`, `ger`, `geru`,
   `gerc`, `symv`, `hemv`, `syr`, `her`, `syr2`, `her2`, `trmv`, `trsv`.
 - **Level 2, banded** (`include/thefblas/level2_banded.hpp`): `gbmv`, `sbmv`,
@@ -218,8 +221,8 @@ thefblas::axpy(2.0, x, y);       // y = {6, 9, 12}
 int i = thefblas::iamax(y);      // 3: 1-based, as in the pointer API
 ```
 
-Overloads exist for `copy`, `axpy`, `scal`, `dot`, `dotu`, `dotc`, `nrm2`,
-`asum`, `iamax`, `rot` and `rotm`. Two ranges of different sizes, or a size
+Overloads exist for `copy`, `axpy`, `scal`, `dot`, `dotu`, `dotc`, `dsdot`,
+`sdsdot`, `nrm2`, `asum`, `iamax`, `rot` and `rotm`. Two ranges of different sizes, or a size
 above `INT_MAX`, assert in debug builds and make the call a no-op (or return
 zero) otherwise. There is no range `swap`, so that it can't compete with
 `std::swap` through argument-dependent lookup.

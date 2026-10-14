@@ -546,6 +546,53 @@ void test_netlib_conventions() {
     assert(almost_equal(fb1, fixed32(19.0 / 6.0), 1e-5));
 }
 
+void test_extended_dot() {
+    // float: 1e8 + 1 - 1e8 loses the 1 when summed in float, not in double.
+    const float x[3] = {1e8F, 1.0F, -1e8F};
+    const float ones[3] = {1.0F, 1.0F, 1.0F};
+    static_assert(std::is_same_v<decltype(thefblas::dsdot(3, x, 1, ones, 1)), double>,
+                  "dsdot of float returns double");
+    assert(thefblas::dot(3, x, 1, ones, 1) == 0.0F);
+    assert(thefblas::dsdot(3, x, 1, ones, 1) == 1.0);
+    assert(thefblas::sdsdot(3, 0.5F, x, 1, ones, 1) == 1.5F);
+    // Negative strides walk the vectors backwards, as in dot.
+    const float a[2] = {1.0F, 2.0F};
+    const float b[2] = {3.0F, 4.0F};
+    assert(thefblas::dsdot(2, a, -1, b, 1) == 2.0 * 3.0 + 1.0 * 4.0);
+    // n <= 0 or a zero stride: zero, and sb returned unchanged.
+    assert(thefblas::dsdot(0, a, 1, b, 1) == 0.0);
+    assert(std::signbit(thefblas::sdsdot(0, -0.0F, a, 1, b, 1)));
+    assert(thefblas::sdsdot(2, 2.5F, a, 0, b, 1) == 2.5F);
+
+    // fixed: 0.75^2 + 0.75^2 = 1.125 is outside Q1.15. dsdot returns it in the
+    // widened type; sdsdot adds sb = -0.5 there and narrows 0.625 once, where
+    // dot followed by an addition saturates first.
+    using Q15 = thefblas::fixed<std::int16_t, 15, thefblas::saturate>;
+    using Wide = thefblas::fixed<std::int32_t, 15, thefblas::saturate>;
+    const Q15 q[2] = {Q15(0.75), Q15(0.75)};
+    static_assert(std::is_same_v<decltype(thefblas::dsdot(2, q, 1, q, 1)), Wide>,
+                  "dsdot of fixed returns the widened fixed type");
+    assert(thefblas::dsdot(2, q, 1, q, 1) == Wide(1.125));
+    assert(thefblas::sdsdot(2, Q15(-0.5), q, 1, q, 1) == Q15(0.625));
+    assert(thefblas::dot(2, q, 1, q, 1) + Q15(-0.5) != Q15(0.625));
+    assert(thefblas::dsdot(0, q, 1, q, 1) == Wide(0.0));
+    assert(thefblas::sdsdot(0, Q15(0.25), q, 1, q, 1) == Q15(0.25));
+#if defined(__SIZEOF_INT128__)
+    // 64-bit storage has no wider fixed type: dsdot returns the input type.
+    using Q32_32 = thefblas::fixed<std::int64_t, 32>;
+    const Q32_32 big[1] = {Q32_32(3.0)};
+    static_assert(std::is_same_v<decltype(thefblas::dsdot(1, big, 1, big, 1)), Q32_32>,
+                  "no wider type for 64-bit storage");
+    assert(thefblas::dsdot(1, big, 1, big, 1) == Q32_32(9.0));
+#endif
+
+    // Range overloads.
+    const std::array<float, 3> vx = {1e8F, 1.0F, -1e8F};
+    const std::array<float, 3> vy = {1.0F, 1.0F, 1.0F};
+    assert(thefblas::dsdot(vx, vy) == 1.0);
+    assert(thefblas::sdsdot(0.25F, vx, vy) == 1.25F);
+}
+
 int main() {
     test_real_float();
     test_real_double();
@@ -555,5 +602,6 @@ int main() {
     test_complex_fixed();
     test_nrm2_scaling();
     test_netlib_conventions();
+    test_extended_dot();
     return 0;
 }

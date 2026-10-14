@@ -22,6 +22,7 @@ constexpr double *p = nullptr;
 constexpr C *q = nullptr;
 constexpr const double *cp = nullptr;
 constexpr const C *cq = nullptr;
+constexpr const float *fp = nullptr;
 constexpr double d = 0.0;
 constexpr C w{};
 
@@ -36,6 +37,8 @@ void test_noexcept() {
     THEFBLAS_CHECK_NOEXCEPT(thefblas::dot(1, cp, 1, cp, 1));
     THEFBLAS_CHECK_NOEXCEPT(thefblas::dotu(1, cq, 1, cq, 1));
     THEFBLAS_CHECK_NOEXCEPT(thefblas::dotc(1, cq, 1, cq, 1));
+    THEFBLAS_CHECK_NOEXCEPT(thefblas::dsdot(1, fp, 1, fp, 1));
+    THEFBLAS_CHECK_NOEXCEPT(thefblas::sdsdot(1, 0.0F, fp, 1, fp, 1));
     THEFBLAS_CHECK_NOEXCEPT(thefblas::nrm2(1, cp, 1));
     THEFBLAS_CHECK_NOEXCEPT(thefblas::nrm2(1, cq, 1));
     THEFBLAS_CHECK_NOEXCEPT(thefblas::asum(1, cp, 1));

@@ -261,6 +261,14 @@ template <typename R> R dot(int n, const R *x, int incx, const R *y, int incy) {
     }
 }
 
+float sdsdot(int n, float sb, const float *x, int incx, const float *y, int incy) {
+    return cblas_sdsdot(n, sb, x, incx, y, incy);
+}
+
+double dsdot(int n, const float *x, int incx, const float *y, int incy) {
+    return cblas_dsdot(n, x, incx, y, incy);
+}
+
 template <typename R>
 std::complex<R> dotu(int n, const std::complex<R> *x, int incx, const std::complex<R> *y,
                      int incy) {
@@ -822,6 +830,14 @@ template <typename T> void test_level1() {
         } else {
             check_scalar(label<T>("dot", p), thefblas::dot(n, x.data(), incx, y.data(), incy),
                          ref::dot(n, x.data(), incx, y.data(), incy));
+            if constexpr (std::is_same_v<T, float>) {
+                check_scalar(label<T>("dsdot", p),
+                             thefblas::dsdot(n, x.data(), incx, y.data(), incy),
+                             ref::dsdot(n, x.data(), incx, y.data(), incy));
+                check_scalar(label<T>("sdsdot", p + params(" sb=", alpha)),
+                             thefblas::sdsdot(n, alpha, x.data(), incx, y.data(), incy),
+                             ref::sdsdot(n, alpha, x.data(), incx, y.data(), incy));
+            }
         }
 
         check_scalar(label<T>("nrm2", p), thefblas::nrm2(n, x.data(), incx),

@@ -161,6 +161,50 @@ template <typename T> class blue_nrm2 {
     bool notbig_ = true;
 };
 
+/// The wider type in which `sdsdot` and `dsdot` accumulate: `double` for
+/// `float`, and for `fixed<I, F, P>` the accumulator type `fixed<wider(I), F,
+/// P>` (the same type when `I` has no wider integer, as for 64-bit storage).
+template <typename> constexpr bool always_false_v = false;
+
+template <typename T, typename = void> struct extended {
+    static_assert(always_false_v<T>, "sdsdot/dsdot support float and fixed element types");
+};
+template <> struct extended<float> {
+    using type = double;
+};
+template <typename T> struct extended<T, typename std::enable_if<is_fixed_v<T>>::type> {
+    using type = accumulator_t<T>;
+};
+template <typename T> using extended_t = typename extended<T>::type;
+
+/// `x^T y` summed in `extended_t<T>`; zero for `n <= 0` or a zero stride.
+template <typename T>
+inline extended_t<T> extended_dot(int n, const T *x, int incx, const T *y, int incy) {
+    if (n <= 0 || incx == 0 || incy == 0) {
+        return extended_t<T>{};
+    }
+    int ix = start_index(n, incx);
+    int iy = start_index(n, incy);
+    if constexpr (std::is_same_v<T, float>) {
+        double sum = 0.0;
+        for (int i = 0; i < n; ++i) {
+            sum += static_cast<double>(x[ix]) * static_cast<double>(y[iy]);
+            ix += incx;
+            iy += incy;
+        }
+        return sum;
+    } else {
+        // Products are summed exactly at 2 * FracBits and rounded once.
+        real_mac<T> acc;
+        for (int i = 0; i < n; ++i) {
+            acc.add_product(x[ix], y[iy]);
+            ix += incx;
+            iy += incy;
+        }
+        return acc.wide_value();
+    }
+}
+
 } // namespace detail
 
 /**
@@ -351,6 +395,41 @@ inline std::complex<T> dotc(int n, const std::complex<T> *x, int incx, const std
         iy += incy;
     }
     return acc.value();
+}
+
+/**
+ * @brief Dot product accumulated in extended precision (Netlib `dsdot`).
+ *
+ * Returns `x^T y` in `detail::extended_t<T>`: `double` for `float` input, and
+ * the widened fixed-point type (same `FracBits`, twice the integer width) for
+ * `fixed` input, without narrowing back to `T`. Only `float` and `fixed` are
+ * supported.
+ * @return The sum, or zero when `n <= 0` or a stride is zero.
+ */
+template <typename T>
+inline detail::extended_t<T> dsdot(int n, const T *x, int incx, const T *y, int incy) noexcept {
+    return detail::extended_dot(n, x, incx, y, incy);
+}
+
+/**
+ * @brief `sb + x^T y` accumulated in extended precision (Netlib `sdsdot`).
+ *
+ * The sum and the addition of `sb` happen in `detail::extended_t<T>` (see
+ * `dsdot`), and the result is narrowed to `T` once, through the overflow
+ * policy for fixed point. Only `float` and `fixed` are supported.
+ * @return The result, or `sb` when `n <= 0` or a stride is zero.
+ */
+template <typename T>
+inline T sdsdot(int n, T sb, const T *x, int incx, const T *y, int incy) noexcept {
+    if (n <= 0 || incx == 0 || incy == 0) {
+        return sb;
+    }
+    const detail::extended_t<T> sum = detail::extended_dot(n, x, incx, y, incy);
+    if constexpr (std::is_same_v<T, float>) {
+        return static_cast<float>(static_cast<double>(sb) + sum);
+    } else {
+        return detail::from_accumulator<T>(detail::to_accumulator(sb) + sum);
+    }
 }
 
 /**
@@ -919,6 +998,18 @@ inline auto dotu(X &&x, Y &&y) noexcept {
 template <typename X, typename Y, detail::enable_if_ranges_t<X, Y> = 0>
 inline auto dotc(X &&x, Y &&y) noexcept {
     return dotc(detail::range_count(x, y), std::data(x), 1, std::data(y), 1);
+}
+
+/// Dot product in extended precision, as `dsdot`.
+template <typename X, typename Y, detail::enable_if_ranges_t<X, Y> = 0>
+inline auto dsdot(X &&x, Y &&y) noexcept {
+    return dsdot(detail::range_count(x, y), std::data(x), 1, std::data(y), 1);
+}
+
+/// `sb + x^T y` in extended precision, as `sdsdot`.
+template <typename T, typename X, typename Y, detail::enable_if_ranges_t<X, Y> = 0>
+inline T sdsdot(T sb, X &&x, Y &&y) noexcept {
+    return sdsdot(detail::range_count(x, y), sb, std::data(x), 1, std::data(y), 1);
 }
 
 /// Euclidean norm of a range.
