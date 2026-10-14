@@ -703,7 +703,7 @@ inline void her2_impl(char uplo, int n, std::complex<T> alpha, const std::comple
  */
 template <typename T>
 inline void gemv(char trans, int m, int n, T alpha, const T *a, int lda, const T *x, int incx,
-                 T beta, T *y, int incy) {
+                 T beta, T *y, int incy) noexcept {
     detail::gemv_impl(trans, m, n, alpha, a, lda, x, incx, beta, y, incy);
 }
 
@@ -711,7 +711,8 @@ inline void gemv(char trans, int m, int n, T alpha, const T *a, int lda, const T
  * @brief General rank-1 update: `a <- alpha * x * y^T + a`.
  */
 template <typename T>
-inline void ger(int m, int n, T alpha, const T *x, int incx, const T *y, int incy, T *a, int lda) {
+inline void ger(int m, int n, T alpha, const T *x, int incx, const T *y, int incy, T *a,
+                int lda) noexcept {
     detail::ger_impl(m, n, alpha, x, incx, y, incy, a, lda);
 }
 
@@ -720,7 +721,7 @@ inline void ger(int m, int n, T alpha, const T *x, int incx, const T *y, int inc
  */
 template <typename T>
 inline void geru(int m, int n, std::complex<T> alpha, const std::complex<T> *x, int incx,
-                 const std::complex<T> *y, int incy, std::complex<T> *a, int lda) {
+                 const std::complex<T> *y, int incy, std::complex<T> *a, int lda) noexcept {
     detail::geru_impl(m, n, alpha, x, incx, y, incy, a, lda);
 }
 
@@ -729,7 +730,7 @@ inline void geru(int m, int n, std::complex<T> alpha, const std::complex<T> *x, 
  */
 template <typename T>
 inline void gerc(int m, int n, std::complex<T> alpha, const std::complex<T> *x, int incx,
-                 const std::complex<T> *y, int incy, std::complex<T> *a, int lda) {
+                 const std::complex<T> *y, int incy, std::complex<T> *a, int lda) noexcept {
     detail::gerc_impl(m, n, alpha, x, incx, y, incy, a, lda);
 }
 
@@ -738,7 +739,7 @@ inline void gerc(int m, int n, std::complex<T> alpha, const std::complex<T> *x, 
  */
 template <typename T>
 inline void symv(char uplo, int n, T alpha, const T *a, int lda, const T *x, int incx, T beta, T *y,
-                 int incy) {
+                 int incy) noexcept {
     detail::symv_impl(uplo, n, alpha, a, lda, x, incx, beta, y, incy);
 }
 
@@ -750,7 +751,7 @@ inline void symv(char uplo, int n, T alpha, const T *a, int lda, const T *x, int
 template <typename T>
 inline void hemv(char uplo, int n, std::complex<T> alpha, const std::complex<T> *a, int lda,
                  const std::complex<T> *x, int incx, std::complex<T> beta, std::complex<T> *y,
-                 int incy) {
+                 int incy) noexcept {
     detail::hemv_impl(uplo, n, alpha, a, lda, x, incx, beta, y, incy);
 }
 
@@ -758,7 +759,7 @@ inline void hemv(char uplo, int n, std::complex<T> alpha, const std::complex<T> 
  * @brief Symmetric rank-1 update: `a <- alpha * x * x^T + a`.
  */
 template <typename T>
-inline void syr(char uplo, int n, T alpha, const T *x, int incx, T *a, int lda) {
+inline void syr(char uplo, int n, T alpha, const T *x, int incx, T *a, int lda) noexcept {
     detail::syr_impl(uplo, n, alpha, x, incx, a, lda);
 }
 
@@ -769,7 +770,7 @@ inline void syr(char uplo, int n, T alpha, const T *x, int incx, T *a, int lda) 
  */
 template <typename T>
 inline void her(char uplo, int n, T alpha, const std::complex<T> *x, int incx, std::complex<T> *a,
-                int lda) {
+                int lda) noexcept {
     detail::her_impl(uplo, n, alpha, x, incx, a, lda);
 }
 
@@ -778,7 +779,7 @@ inline void her(char uplo, int n, T alpha, const std::complex<T> *x, int incx, s
  */
 template <typename T>
 inline void syr2(char uplo, int n, T alpha, const T *x, int incx, const T *y, int incy, T *a,
-                 int lda) {
+                 int lda) noexcept {
     detail::syr2_impl(uplo, n, alpha, x, incx, y, incy, a, lda);
 }
 
@@ -787,7 +788,7 @@ inline void syr2(char uplo, int n, T alpha, const T *x, int incx, const T *y, in
  */
 template <typename T>
 inline void her2(char uplo, int n, std::complex<T> alpha, const std::complex<T> *x, int incx,
-                 const std::complex<T> *y, int incy, std::complex<T> *a, int lda) {
+                 const std::complex<T> *y, int incy, std::complex<T> *a, int lda) noexcept {
     detail::her2_impl(uplo, n, alpha, x, incx, y, incy, a, lda);
 }
 
@@ -795,7 +796,8 @@ inline void her2(char uplo, int n, std::complex<T> alpha, const std::complex<T> 
  * @brief Triangular matrix-vector multiply: `x <- op(a) * x`.
  */
 template <typename T>
-inline void trmv(char uplo, char trans, char diag, int n, const T *a, int lda, T *x, int incx) {
+inline void trmv(char uplo, char trans, char diag, int n, const T *a, int lda, T *x,
+                 int incx) noexcept {
     detail::trmv_impl(uplo, trans, diag, n, a, lda, x, incx);
 }
 
@@ -803,7 +805,8 @@ inline void trmv(char uplo, char trans, char diag, int n, const T *a, int lda, T
  * @brief Triangular solve: solve `op(a) * x = b` in place.
  */
 template <typename T>
-inline void trsv(char uplo, char trans, char diag, int n, const T *a, int lda, T *x, int incx) {
+inline void trsv(char uplo, char trans, char diag, int n, const T *a, int lda, T *x,
+                 int incx) noexcept {
     detail::trsv_impl(uplo, trans, diag, n, a, lda, x, incx);
 }
 

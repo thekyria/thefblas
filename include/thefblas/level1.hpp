@@ -8,8 +8,10 @@
 #include <cmath>
 #include <complex>
 #include <cstddef>
+#include <iterator>
 #include <limits>
 #include <type_traits>
+#include <utility>
 
 namespace thefblas {
 
@@ -169,7 +171,7 @@ template <typename T> class blue_nrm2 {
  * @param y Second vector, updated in place.
  * @param incy Stride between elements of y.
  */
-template <typename T> inline void swap(int n, T *x, int incx, T *y, int incy) {
+template <typename T> inline void swap(int n, T *x, int incx, T *y, int incy) noexcept {
     if (n <= 0 || incx == 0 || incy == 0) {
         return;
     }
@@ -193,7 +195,7 @@ template <typename T> inline void swap(int n, T *x, int incx, T *y, int incy) {
  * @param y Destination vector.
  * @param incy Stride between elements of y.
  */
-template <typename T> inline void copy(int n, const T *x, int incx, T *y, int incy) {
+template <typename T> inline void copy(int n, const T *x, int incx, T *y, int incy) noexcept {
     if (n <= 0 || incx == 0 || incy == 0) {
         return;
     }
@@ -216,7 +218,8 @@ template <typename T> inline void copy(int n, const T *x, int incx, T *y, int in
  * @param y Input/output vector y.
  * @param incy Stride between elements of y.
  */
-template <typename T> inline void axpy(int n, T alpha, const T *x, int incx, T *y, int incy) {
+template <typename T>
+inline void axpy(int n, T alpha, const T *x, int incx, T *y, int incy) noexcept {
     if (n <= 0 || incx == 0 || incy == 0) {
         return;
     }
@@ -238,7 +241,7 @@ template <typename T> inline void axpy(int n, T alpha, const T *x, int incx, T *
  * @param incx Stride between elements of x; must be positive (otherwise, as in
  *        Netlib BLAS, the call is a no-op).
  */
-template <typename T> inline void scal(int n, T alpha, T *x, int incx) {
+template <typename T> inline void scal(int n, T alpha, T *x, int incx) noexcept {
     if (n <= 0 || incx <= 0) {
         return;
     }
@@ -258,7 +261,7 @@ template <typename T> inline void scal(int n, T alpha, T *x, int incx) {
  * @param incx Stride between elements of x; must be positive (otherwise, as in
  *        Netlib BLAS, the call is a no-op).
  */
-template <typename T> inline void scal(int n, T alpha, std::complex<T> *x, int incx) {
+template <typename T> inline void scal(int n, T alpha, std::complex<T> *x, int incx) noexcept {
     if (n <= 0 || incx <= 0) {
         return;
     }
@@ -280,7 +283,7 @@ template <typename T> inline void scal(int n, T alpha, std::complex<T> *x, int i
  * @return Dot product value.
  */
 template <typename T, detail::enable_if_real_t<T> = 0>
-inline T dot(int n, const T *x, int incx, const T *y, int incy) {
+inline T dot(int n, const T *x, int incx, const T *y, int incy) noexcept {
     if (n <= 0 || incx == 0 || incy == 0) {
         return T(0);
     }
@@ -307,7 +310,7 @@ inline T dot(int n, const T *x, int incx, const T *y, int incy) {
  */
 template <typename T>
 inline std::complex<T> dotu(int n, const std::complex<T> *x, int incx, const std::complex<T> *y,
-                            int incy) {
+                            int incy) noexcept {
     if (n <= 0 || incx == 0 || incy == 0) {
         return std::complex<T>(T(0), T(0));
     }
@@ -334,7 +337,7 @@ inline std::complex<T> dotu(int n, const std::complex<T> *x, int incx, const std
  */
 template <typename T>
 inline std::complex<T> dotc(int n, const std::complex<T> *x, int incx, const std::complex<T> *y,
-                            int incy) {
+                            int incy) noexcept {
     if (n <= 0 || incx == 0 || incy == 0) {
         return std::complex<T>(T(0), T(0));
     }
@@ -357,7 +360,8 @@ inline std::complex<T> dotc(int n, const std::complex<T> *x, int incx, const std
  * @param incx Stride between elements of x.
  * @return Euclidean norm of x.
  */
-template <typename T, detail::enable_if_real_t<T> = 0> inline T nrm2(int n, const T *x, int incx) {
+template <typename T, detail::enable_if_real_t<T> = 0>
+inline T nrm2(int n, const T *x, int incx) noexcept {
     if (n <= 0 || incx == 0) {
         return T(0);
     }
@@ -390,7 +394,7 @@ template <typename T, detail::enable_if_real_t<T> = 0> inline T nrm2(int n, cons
  * @param incx Stride between elements of x.
  * @return Euclidean norm of x.
  */
-template <typename T> inline T nrm2(int n, const std::complex<T> *x, int incx) {
+template <typename T> inline T nrm2(int n, const std::complex<T> *x, int incx) noexcept {
     if (n <= 0 || incx == 0) {
         return T(0);
     }
@@ -423,7 +427,8 @@ template <typename T> inline T nrm2(int n, const std::complex<T> *x, int incx) {
  * @return Sum of absolute values, or 0 when `n <= 0` or `incx <= 0` (as in
  *         Netlib BLAS).
  */
-template <typename T, detail::enable_if_real_t<T> = 0> inline T asum(int n, const T *x, int incx) {
+template <typename T, detail::enable_if_real_t<T> = 0>
+inline T asum(int n, const T *x, int incx) noexcept {
     if (n <= 0 || incx <= 0) {
         return T(0);
     }
@@ -445,7 +450,7 @@ template <typename T, detail::enable_if_real_t<T> = 0> inline T asum(int n, cons
  * @return Sum of absolute component values, or 0 when `n <= 0` or `incx <= 0`
  *         (as in Netlib BLAS).
  */
-template <typename T> inline T asum(int n, const std::complex<T> *x, int incx) {
+template <typename T> inline T asum(int n, const std::complex<T> *x, int incx) noexcept {
     if (n <= 0 || incx <= 0) {
         return T(0);
     }
@@ -471,7 +476,7 @@ template <typename T> inline T asum(int n, const std::complex<T> *x, int incx) {
  * @param s Sine-like rotation coefficient.
  */
 template <typename T, detail::enable_if_real_t<T> = 0>
-inline void rot(int n, T *x, int incx, T *y, int incy, T c, T s) {
+inline void rot(int n, T *x, int incx, T *y, int incy, T c, T s) noexcept {
     if (n <= 0 || incx == 0 || incy == 0) {
         return;
     }
@@ -499,7 +504,8 @@ inline void rot(int n, T *x, int incx, T *y, int incy, T c, T s) {
  * @param s Real sine-like rotation coefficient.
  */
 template <typename T>
-inline void rot(int n, std::complex<T> *x, int incx, std::complex<T> *y, int incy, T c, T s) {
+inline void rot(int n, std::complex<T> *x, int incx, std::complex<T> *y, int incy, T c,
+                T s) noexcept {
     if (n <= 0 || incx == 0 || incy == 0) {
         return;
     }
@@ -523,7 +529,8 @@ inline void rot(int n, std::complex<T> *x, int incx, std::complex<T> *y, int inc
  * @param c Output cosine coefficient.
  * @param s Output sine coefficient.
  */
-template <typename T, detail::enable_if_real_t<T> = 0> inline void rotg(T *a, T *b, T *c, T *s) {
+template <typename T, detail::enable_if_real_t<T> = 0>
+inline void rotg(T *a, T *b, T *c, T *s) noexcept {
     const T abs_a = detail::abs_value(*a);
     const T abs_b = detail::abs_value(*b);
     const T roe = abs_a > abs_b ? *a : *b;
@@ -558,7 +565,7 @@ template <typename T, detail::enable_if_real_t<T> = 0> inline void rotg(T *a, T 
  * @param s Output complex sine-like coefficient.
  */
 template <typename T>
-inline void rotg(std::complex<T> *a, std::complex<T> b, T *c, std::complex<T> *s) {
+inline void rotg(std::complex<T> *a, std::complex<T> b, T *c, std::complex<T> *s) noexcept {
     const T abs_a = detail::complex_abs(*a);
     const T abs_b = detail::complex_abs(b);
     if (abs_a == T(0)) {
@@ -594,7 +601,7 @@ inline void rotg(std::complex<T> *a, std::complex<T> b, T *c, std::complex<T> *s
  * @param param Pointer to a 5-element modified Givens parameter array.
  */
 template <typename T, detail::enable_if_real_t<T> = 0>
-inline void rotm(int n, T *x, int incx, T *y, int incy, const T *param) {
+inline void rotm(int n, T *x, int incx, T *y, int incy, const T *param) noexcept {
     if (n <= 0 || incx == 0 || incy == 0) {
         return;
     }
@@ -653,7 +660,7 @@ inline void rotm(int n, T *x, int incx, T *y, int incy, const T *param) {
  * @param param Output 5-element modified Givens parameter array.
  */
 template <typename T, detail::enable_if_real_t<T> = 0>
-inline void rotmg(T *d1, T *d2, T *b1, T b2, T *param) {
+inline void rotmg(T *d1, T *d2, T *b1, T b2, T *param) noexcept {
     const T zero(0);
     const T one(1);
     T flag = -one;
@@ -778,7 +785,7 @@ inline void rotmg(T *d1, T *d2, T *b1, T b2, T *param) {
  * @return Netlib-style 1-based index, or 0 when `n <= 0` or `incx <= 0`.
  */
 template <typename T, detail::enable_if_real_t<T> = 0>
-inline int iamax(int n, const T *x, int incx) {
+inline int iamax(int n, const T *x, int incx) noexcept {
     if (n <= 0 || incx <= 0) {
         return 0;
     }
@@ -805,7 +812,7 @@ inline int iamax(int n, const T *x, int incx) {
  * @param incx Stride between elements of x; must be positive.
  * @return Netlib-style 1-based index, or 0 when `n <= 0` or `incx <= 0`.
  */
-template <typename T> inline int iamax(int n, const std::complex<T> *x, int incx) {
+template <typename T> inline int iamax(int n, const std::complex<T> *x, int incx) noexcept {
     if (n <= 0 || incx <= 0) {
         return 0;
     }
@@ -824,5 +831,125 @@ template <typename T> inline int iamax(int n, const std::complex<T> *x, int incx
 
     return best_logical + 1;
 }
+
+// ---------------------------------------------------------------------------
+// Contiguous-range overloads
+// ---------------------------------------------------------------------------
+
+namespace detail {
+
+template <typename R> using range_pointer_t = decltype(std::data(std::declval<R &>()));
+
+/// True for anything with `std::data` returning a pointer and `std::size`:
+/// `std::vector`, `std::array`, C arrays, and C++20 `std::span`.
+template <typename R, typename = void> struct is_contiguous_range : std::false_type {};
+
+template <typename R>
+struct is_contiguous_range<
+    R, std::void_t<range_pointer_t<R>, decltype(std::size(std::declval<R &>()))>>
+    : std::is_pointer<range_pointer_t<R>> {};
+
+template <typename... R>
+using enable_if_ranges_t =
+    typename std::enable_if<(is_contiguous_range<std::remove_reference_t<R>>::value && ...),
+                            int>::type;
+
+/// Number of elements of a range as the `int` count of the pointer API. A size
+/// above `INT_MAX` asserts and becomes 0, which makes every routine a no-op.
+template <typename R> constexpr int range_count(const R &r) noexcept {
+    const auto size = std::size(r);
+    constexpr auto int_max = static_cast<std::size_t>((std::numeric_limits<int>::max)());
+    assert(static_cast<std::size_t>(size) <= int_max && "thefblas: range larger than INT_MAX");
+    return static_cast<std::size_t>(size) <= int_max ? static_cast<int>(size) : 0;
+}
+
+/// Common element count of two ranges. Mismatched sizes assert and become 0.
+template <typename X, typename Y> constexpr int range_count(const X &x, const Y &y) noexcept {
+    const bool same =
+        static_cast<std::size_t>(std::size(x)) == static_cast<std::size_t>(std::size(y));
+    assert(same && "thefblas: ranges have different sizes");
+    return same ? range_count(x) : 0;
+}
+
+} // namespace detail
+
+/**
+ * @name Contiguous-range overloads
+ * Level-1 routines over whole contiguous ranges with unit stride, e.g.
+ * `dot(x, y)` for two `std::vector<double>`. The element count comes from
+ * `std::size`. Two ranges of different sizes, or a size above `INT_MAX`, assert
+ * in debug builds and make the call a no-op (or return zero) otherwise. Scalars
+ * and element types follow the pointer overloads, which these forward to.
+ * There is deliberately no range `swap`, which would compete with `std::swap`
+ * through argument-dependent lookup.
+ * @{
+ */
+
+/// `y := x` over two ranges of equal size.
+template <typename X, typename Y, detail::enable_if_ranges_t<X, Y> = 0>
+inline void copy(X &&x, Y &&y) noexcept {
+    copy(detail::range_count(x, y), std::data(x), 1, std::data(y), 1);
+}
+
+/// `y := alpha * x + y` over two ranges of equal size.
+template <typename A, typename X, typename Y, detail::enable_if_ranges_t<X, Y> = 0>
+inline void axpy(A alpha, X &&x, Y &&y) noexcept {
+    axpy(detail::range_count(x, y), alpha, std::data(x), 1, std::data(y), 1);
+}
+
+/// `x := alpha * x`; a real `alpha` with a complex range scales both parts.
+template <typename A, typename X, detail::enable_if_ranges_t<X> = 0>
+inline void scal(A alpha, X &&x) noexcept {
+    scal(detail::range_count(x), alpha, std::data(x), 1);
+}
+
+/// Dot product `x^T y` of two ranges of equal size.
+template <typename X, typename Y, detail::enable_if_ranges_t<X, Y> = 0>
+inline auto dot(X &&x, Y &&y) noexcept {
+    return dot(detail::range_count(x, y), std::data(x), 1, std::data(y), 1);
+}
+
+/// Unconjugated complex dot product `x^T y`.
+template <typename X, typename Y, detail::enable_if_ranges_t<X, Y> = 0>
+inline auto dotu(X &&x, Y &&y) noexcept {
+    return dotu(detail::range_count(x, y), std::data(x), 1, std::data(y), 1);
+}
+
+/// Conjugated complex dot product `x^H y`.
+template <typename X, typename Y, detail::enable_if_ranges_t<X, Y> = 0>
+inline auto dotc(X &&x, Y &&y) noexcept {
+    return dotc(detail::range_count(x, y), std::data(x), 1, std::data(y), 1);
+}
+
+/// Euclidean norm of a range.
+template <typename X, detail::enable_if_ranges_t<X> = 0> inline auto nrm2(X &&x) noexcept {
+    return nrm2(detail::range_count(x), std::data(x), 1);
+}
+
+/// Sum of absolute values (`|Re| + |Im|` for complex) of a range.
+template <typename X, detail::enable_if_ranges_t<X> = 0> inline auto asum(X &&x) noexcept {
+    return asum(detail::range_count(x), std::data(x), 1);
+}
+
+/// Netlib-style **1-based** index of the largest element, as in the pointer
+/// overload; 0 for an empty range.
+template <typename X, detail::enable_if_ranges_t<X> = 0> inline int iamax(X &&x) noexcept {
+    return iamax(detail::range_count(x), std::data(x), 1);
+}
+
+/// Apply a plane rotation to two ranges of equal size.
+template <typename X, typename Y, typename C, typename S, detail::enable_if_ranges_t<X, Y> = 0>
+inline void rot(X &&x, Y &&y, C c, S s) noexcept {
+    rot(detail::range_count(x, y), std::data(x), 1, std::data(y), 1, c, s);
+}
+
+/// Apply a modified Givens rotation (`param` as produced by `rotmg`) to two
+/// ranges of equal size.
+template <typename X, typename Y, typename T, detail::enable_if_ranges_t<X, Y> = 0>
+inline void rotm(X &&x, Y &&y, const T *param) noexcept {
+    rotm(detail::range_count(x, y), std::data(x), 1, std::data(y), 1, param);
+}
+
+/** @} */
 
 } // namespace thefblas

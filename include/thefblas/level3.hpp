@@ -295,7 +295,7 @@ inline void trsm_impl(char side, char uplo, char transa, char diag, int m, int n
  */
 template <typename T>
 inline void gemm(char transa, char transb, int m, int n, int k, T alpha, const T *a, int lda,
-                 const T *b, int ldb, T beta, T *c, int ldc) {
+                 const T *b, int ldb, T beta, T *c, int ldc) noexcept {
     detail::gemm_impl(transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
 }
 
@@ -310,7 +310,7 @@ inline void gemm(char transa, char transb, int m, int n, int k, T alpha, const T
  */
 template <typename T>
 inline void syrk(char uplo, char trans, int n, int k, T alpha, const T *a, int lda, T beta, T *c,
-                 int ldc) {
+                 int ldc) noexcept {
     detail::syrk_impl(uplo, trans, n, k, alpha, a, lda, beta, c, ldc);
 }
 
@@ -326,7 +326,7 @@ inline void syrk(char uplo, char trans, int n, int k, T alpha, const T *a, int l
  */
 template <typename T>
 inline void herk(char uplo, char trans, int n, int k, T alpha, const std::complex<T> *a, int lda,
-                 T beta, std::complex<T> *c, int ldc) {
+                 T beta, std::complex<T> *c, int ldc) noexcept {
     detail::herk_impl(uplo, trans, n, k, alpha, a, lda, beta, c, ldc);
 }
 
@@ -341,7 +341,7 @@ inline void herk(char uplo, char trans, int n, int k, T alpha, const std::comple
  */
 template <typename T>
 inline void trsm(char side, char uplo, char transa, char diag, int m, int n, T alpha, const T *a,
-                 int lda, T *b, int ldb) {
+                 int lda, T *b, int ldb) noexcept {
     detail::trsm_impl(side, uplo, transa, diag, m, n, alpha, a, lda, b, ldb);
 }
 

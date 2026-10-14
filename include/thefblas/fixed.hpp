@@ -226,10 +226,10 @@ template <typename IntType, int FracBits, typename Policy = checked> class fixed
         return from_raw(Policy::template narrow<IntType>(static_cast<wide>(biased / divisor)));
     }
 
-    fixed &operator+=(fixed o) noexcept { return *this = *this + o; }
-    fixed &operator-=(fixed o) noexcept { return *this = *this - o; }
-    fixed &operator*=(fixed o) noexcept { return *this = *this * o; }
-    fixed &operator/=(fixed o) noexcept { return *this = *this / o; }
+    constexpr fixed &operator+=(fixed o) noexcept { return *this = *this + o; }
+    constexpr fixed &operator-=(fixed o) noexcept { return *this = *this - o; }
+    constexpr fixed &operator*=(fixed o) noexcept { return *this = *this * o; }
+    constexpr fixed &operator/=(fixed o) noexcept { return *this = *this / o; }
 
     friend constexpr bool operator==(fixed a, fixed b) noexcept { return a.value_ == b.value_; }
     friend constexpr bool operator!=(fixed a, fixed b) noexcept { return a.value_ != b.value_; }
@@ -326,9 +326,11 @@ constexpr fixed<IntType, FracBits, Policy> abs(fixed<IntType, FracBits, Policy> 
     return f < fixed<IntType, FracBits, Policy>::from_raw(0) ? -f : f;
 }
 
-/// Integer-only Newton's method square root on the fixed-point grid.
+/// Integer-only Newton's method square root on the fixed-point grid. Usable in
+/// constant expressions; a negative argument asserts (and is not a constant
+/// expression) and otherwise returns zero.
 template <typename IntType, int FracBits, typename Policy>
-fixed<IntType, FracBits, Policy> sqrt(fixed<IntType, FracBits, Policy> f) {
+constexpr fixed<IntType, FracBits, Policy> sqrt(fixed<IntType, FracBits, Policy> f) noexcept {
     using F = fixed<IntType, FracBits, Policy>;
     assert(f >= F::from_raw(0) && "thefblas::fixed<>: sqrt of negative value");
     if (f <= F::from_raw(0)) {

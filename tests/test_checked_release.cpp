@@ -15,6 +15,7 @@
 #include <cstdio>
 #include <limits>
 #include <type_traits>
+#include <vector>
 
 namespace {
 
@@ -69,6 +70,14 @@ int main() {
     check(thefblas::fixed_cast<F>(thefblas::q16_16(-1.5)).raw() == 65536 - 49152,
           "fixed_cast wraps");
     static_assert(!std::numeric_limits<F>::traps, "checked does not trap under NDEBUG");
+
+    // Range overloads: with assertions disabled, ranges of different sizes make
+    // the call a no-op (or return zero) rather than read past the shorter one.
+    std::vector<double> a = {1.0, 2.0, 3.0};
+    std::vector<double> b = {4.0, 5.0};
+    check(thefblas::dot(a, b) == 0.0, "mismatched dot returns zero");
+    thefblas::axpy(1.0, a, b);
+    check(b[0] == 4.0 && b[1] == 5.0, "mismatched axpy is a no-op");
 
     // A BLAS reduction whose result leaves the format wraps once, at the final
     // narrowing: 0.9 * 0.9 + 0.9 * 0.9 = 1.62 -> raw 53083 -> 53083 - 65536.
