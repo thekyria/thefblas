@@ -245,6 +245,12 @@ ctest --test-dir build --output-on-failure
 The library itself is header-only (`INTERFACE` CMake target); the build only
 compiles the test suite and the examples.
 
+A failed check prints its location, the expression and the parameters it ran
+with (and, for the value-aware checks, the values involved), and the test
+carries on, so one run reports every failure (the first 50 in detail, the rest
+only in the count); each test ends with a line such as
+`5809 checks, 0 failures`.
+
 With `-DTHEFBLAS_ENABLE_REFERENCE_TESTS=ON`, the build also compiles
 `tests/test_reference_blas.cpp`, which needs a system BLAS with the CBLAS
 interface (for example `libblas-dev` or `libopenblas-dev` on Debian/Ubuntu). It

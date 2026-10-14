@@ -1,9 +1,9 @@
+#include "test_support.hpp"
 #include "thefblas/fixed.hpp"
 #include "thefblas/level2.hpp"
 #include "thefblas/level2_banded.hpp"
 
 #include <array>
-#include <cassert>
 #include <complex>
 #include <cstdint>
 #include <vector>
@@ -97,13 +97,15 @@ void test_gbmv_float_matches_dense() {
 
     const std::array<float, 4> x = {1.0F, -2.0F, 3.0F, 0.5F};
     for (const char trans : {'N', 'T', 'C'}) {
+        TEST_CONTEXT(__func__, " trans=", trans);
         std::array<float, 4> y_band = {1.0F, 1.0F, 1.0F, 1.0F};
         std::array<float, 4> y_dense = y_band;
         thefblas::gbmv(trans, n, n, kl, ku, 2.0F, ab.data(), ldab, x.data(), 1, 0.5F, y_band.data(),
                        1);
         thefblas::gemv(trans, n, n, 2.0F, dense.data(), n, x.data(), 1, 0.5F, y_dense.data(), 1);
         for (int i = 0; i < n; ++i) {
-            assert(almost_equal_scalar(y_band[uz(i)], y_dense[uz(i)]));
+            TEST_CONTEXT("i=", i);
+            CHECK_PRED(almost_equal_scalar, y_band[uz(i)], y_dense[uz(i)]);
         }
     }
 }
@@ -132,7 +134,8 @@ void test_gbmv_rectangular_negative_stride() {
     thefblas::gbmv('N', m, n, kl, ku, 1.0F, ab.data(), ldab, x.data(), -1, 0.0F, y_band.data(), -1);
     thefblas::gemv('N', m, n, 1.0F, dense.data(), m, x.data(), -1, 0.0F, y_dense.data(), -1);
     for (int i = 0; i < m; ++i) {
-        assert(almost_equal_scalar(y_band[uz(i)], y_dense[uz(i)]));
+        TEST_CONTEXT("i=", i);
+        CHECK_PRED(almost_equal_scalar, y_band[uz(i)], y_dense[uz(i)]);
     }
 }
 
@@ -148,9 +151,9 @@ void test_gbmv_fixed_and_invalid_args() {
     std::array<fixed32, 3> y = {fixed32(0), fixed32(0), fixed32(0)};
     thefblas::gbmv('N', n, n, 1, 1, fixed32(1), ab.data(), ldab, x.data(), 1, fixed32(0), y.data(),
                    1);
-    assert(almost_equal_scalar(y[0], fixed32(2)));
-    assert(almost_equal_scalar(y[1], fixed32(4)));
-    assert(almost_equal_scalar(y[2], fixed32(6)));
+    CHECK_PRED(almost_equal_scalar, y[0], fixed32(2));
+    CHECK_PRED(almost_equal_scalar, y[1], fixed32(4));
+    CHECK_PRED(almost_equal_scalar, y[2], fixed32(6));
 
     // Invalid trans, negative bandwidth and an lda that is too small are no-ops.
     thefblas::gbmv('X', n, n, 1, 1, fixed32(1), ab.data(), ldab, x.data(), 1, fixed32(1), y.data(),
@@ -158,9 +161,9 @@ void test_gbmv_fixed_and_invalid_args() {
     thefblas::gbmv('N', n, n, -1, 1, fixed32(1), ab.data(), ldab, x.data(), 1, fixed32(1), y.data(),
                    1);
     thefblas::gbmv('N', n, n, 1, 1, fixed32(1), ab.data(), 1, x.data(), 1, fixed32(1), y.data(), 1);
-    assert(almost_equal_scalar(y[0], fixed32(2)));
-    assert(almost_equal_scalar(y[1], fixed32(4)));
-    assert(almost_equal_scalar(y[2], fixed32(6)));
+    CHECK_PRED(almost_equal_scalar, y[0], fixed32(2));
+    CHECK_PRED(almost_equal_scalar, y[1], fixed32(4));
+    CHECK_PRED(almost_equal_scalar, y[2], fixed32(6));
 }
 
 void test_sbmv_matches_symv() {
@@ -168,6 +171,7 @@ void test_sbmv_matches_symv() {
     const int k = 1;
     const int ldab = k + 1;
     for (const char uplo : {'U', 'L'}) {
+        TEST_CONTEXT(__func__, " uplo=", uplo);
         std::vector<float> ab(static_cast<std::size_t>(ldab) * uz(n), 0.0F);
         for (int j = 0; j < n; ++j) {
             if (uplo == 'U') {
@@ -191,7 +195,8 @@ void test_sbmv_matches_symv() {
         thefblas::sbmv(uplo, n, k, 1.5F, ab.data(), ldab, x.data(), 1, 0.25F, y_band.data(), 1);
         thefblas::symv(uplo, n, 1.5F, dense.data(), n, x.data(), 1, 0.25F, y_dense.data(), 1);
         for (int i = 0; i < n; ++i) {
-            assert(almost_equal_scalar(y_band[uz(i)], y_dense[uz(i)]));
+            TEST_CONTEXT("i=", i);
+            CHECK_PRED(almost_equal_scalar, y_band[uz(i)], y_dense[uz(i)]);
         }
     }
 }
@@ -203,9 +208,9 @@ void test_sbmv_fixed() {
     const std::array<fixed32, 3> x = {fixed32(1), fixed32(1), fixed32(1)};
     std::array<fixed32, 3> y = {fixed32(0), fixed32(0), fixed32(0)};
     thefblas::sbmv('U', n, 0, fixed32(2), ab.data(), 1, x.data(), 1, fixed32(0), y.data(), 1);
-    assert(almost_equal_scalar(y[0], fixed32(2)));
-    assert(almost_equal_scalar(y[1], fixed32(4)));
-    assert(almost_equal_scalar(y[2], fixed32(8)));
+    CHECK_PRED(almost_equal_scalar, y[0], fixed32(2));
+    CHECK_PRED(almost_equal_scalar, y[1], fixed32(4));
+    CHECK_PRED(almost_equal_scalar, y[2], fixed32(8));
 }
 
 void test_hbmv_matches_hemv() {
@@ -213,6 +218,7 @@ void test_hbmv_matches_hemv() {
     const int k = 1;
     const int ldab = k + 1;
     for (const char uplo : {'U', 'L'}) {
+        TEST_CONTEXT(__func__, " uplo=", uplo);
         std::vector<cfloat> ab(static_cast<std::size_t>(ldab) * uz(n), cfloat(0.0F, 0.0F));
         for (int j = 0; j < n; ++j) {
             if (uplo == 'U') {
@@ -242,7 +248,8 @@ void test_hbmv_matches_hemv() {
         thefblas::hemv(uplo, n, cfloat(2.0F, 1.0F), dense.data(), n, x.data(), 1,
                        cfloat(0.5F, 0.0F), y_dense.data(), 1);
         for (int i = 0; i < n; ++i) {
-            assert(almost_equal_scalar(y_band[uz(i)], y_dense[uz(i)]));
+            TEST_CONTEXT("i=", i);
+            CHECK_PRED(almost_equal_scalar, y_band[uz(i)], y_dense[uz(i)]);
         }
     }
 }
@@ -260,8 +267,8 @@ void test_hbmv_complex_fixed() {
     thefblas::hbmv('U', n, k, cfixed(fixed32(1), fixed32(0)), ab.data(), ldab, x.data(), 1,
                    cfixed(fixed32(0), fixed32(0)), y.data(), 1);
     // y = [1 + i, -i + 2]
-    assert(almost_equal_scalar(y[0], cfixed(fixed32(1), fixed32(1))));
-    assert(almost_equal_scalar(y[1], cfixed(fixed32(2), fixed32(-1))));
+    CHECK_PRED(almost_equal_scalar, y[0], cfixed(fixed32(1), fixed32(1)));
+    CHECK_PRED(almost_equal_scalar, y[1], cfixed(fixed32(2), fixed32(-1)));
 }
 
 void test_tbmv_and_tbsv_match_dense() {
@@ -269,7 +276,9 @@ void test_tbmv_and_tbsv_match_dense() {
     const int k = 1;
     const int ldab = k + 1;
     for (const char uplo : {'U', 'L'}) {
+        TEST_CONTEXT(__func__, " uplo=", uplo);
         for (const char diag : {'N', 'U'}) {
+            TEST_CONTEXT(__func__, " diag=", diag);
             std::vector<float> ab(static_cast<std::size_t>(ldab) * uz(n), 0.0F);
             for (int j = 0; j < n; ++j) {
                 if (uplo == 'U') {
@@ -288,19 +297,22 @@ void test_tbmv_and_tbsv_match_dense() {
             }
             const std::vector<float> dense = expand_triangle_band(uplo, n, k, ab, ldab);
             for (const char trans : {'N', 'T', 'C'}) {
+                TEST_CONTEXT(__func__, " trans=", trans);
                 const std::array<float, 4> x0 = {1.0F, -2.0F, 3.0F, 0.5F};
                 std::array<float, 4> x_band = x0;
                 std::array<float, 4> x_dense = x0;
                 thefblas::tbmv(uplo, trans, diag, n, k, ab.data(), ldab, x_band.data(), 1);
                 thefblas::trmv(uplo, trans, diag, n, dense.data(), n, x_dense.data(), 1);
                 for (int i = 0; i < n; ++i) {
-                    assert(almost_equal_scalar(x_band[uz(i)], x_dense[uz(i)]));
+                    TEST_CONTEXT("i=", i);
+                    CHECK_PRED(almost_equal_scalar, x_band[uz(i)], x_dense[uz(i)]);
                 }
 
                 // Solving with the same triangular matrix undoes the multiply.
                 thefblas::tbsv(uplo, trans, diag, n, k, ab.data(), ldab, x_band.data(), 1);
                 for (int i = 0; i < n; ++i) {
-                    assert(almost_equal_scalar(x_band[uz(i)], x0[uz(i)], 1e-4));
+                    TEST_CONTEXT("i=", i);
+                    CHECK_PRED(almost_equal_scalar, x_band[uz(i)], x0[uz(i)], 1e-4);
                 }
             }
         }
@@ -325,22 +337,23 @@ void test_tbmv_negative_stride_and_fixed() {
     thefblas::tbmv('L', 'N', 'N', n, k, ab.data(), ldab, x_band.data(), -1);
     thefblas::trmv('L', 'N', 'N', n, dense.data(), n, x_dense.data(), -1);
     for (int i = 0; i < n; ++i) {
-        assert(almost_equal_scalar(x_band[uz(i)], x_dense[uz(i)]));
+        TEST_CONTEXT("i=", i);
+        CHECK_PRED(almost_equal_scalar, x_band[uz(i)], x_dense[uz(i)]);
     }
 
     // Fixed-point bidiagonal solve: [[2,1],[0,2]] * x = [4, 4] -> x = [1, 2].
     std::vector<fixed32> ab_fixed = {fixed32(0), fixed32(2), fixed32(1), fixed32(2)};
     std::array<fixed32, 2> x_fixed = {fixed32(4), fixed32(4)};
     thefblas::tbsv('U', 'N', 'N', 2, 1, ab_fixed.data(), 2, x_fixed.data(), 1);
-    assert(almost_equal_scalar(x_fixed[0], fixed32(1)));
-    assert(almost_equal_scalar(x_fixed[1], fixed32(2)));
+    CHECK_PRED(almost_equal_scalar, x_fixed[0], fixed32(1));
+    CHECK_PRED(almost_equal_scalar, x_fixed[1], fixed32(2));
 
     // Invalid characters and sizes leave the vector untouched.
     thefblas::tbmv('X', 'N', 'N', 2, 1, ab_fixed.data(), 2, x_fixed.data(), 1);
     thefblas::tbsv('U', 'N', 'Z', 2, 1, ab_fixed.data(), 2, x_fixed.data(), 1);
     thefblas::tbsv('U', 'N', 'N', 0, 1, ab_fixed.data(), 2, x_fixed.data(), 1);
-    assert(almost_equal_scalar(x_fixed[0], fixed32(1)));
-    assert(almost_equal_scalar(x_fixed[1], fixed32(2)));
+    CHECK_PRED(almost_equal_scalar, x_fixed[0], fixed32(1));
+    CHECK_PRED(almost_equal_scalar, x_fixed[1], fixed32(2));
 }
 
 } // namespace
@@ -355,4 +368,5 @@ int main() {
     test_hbmv_complex_fixed();
     test_tbmv_and_tbsv_match_dense();
     test_tbmv_negative_stride_and_fixed();
+    return thefblas_test::finish();
 }

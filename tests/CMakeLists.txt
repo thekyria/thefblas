@@ -1,5 +1,7 @@
-# Tests check behavior with assert(); keep it active in every configuration,
-# including Release presets that define NDEBUG.
+# The tests check results with tests/test_support.hpp, which does not depend on
+# assert(). The library's own assertions (the `checked` overflow policy) are
+# kept active in every configuration, including Release presets that define
+# NDEBUG, because some tests rely on them being enabled.
 add_compile_options($<IF:$<CXX_COMPILER_ID:MSVC>,/UNDEBUG,-UNDEBUG>)
 # Bit-identity checks against reference Netlib-order loops need the compiler not
 # to fuse multiplies and adds differently in the two (GCC's GNU-mode default).
@@ -60,6 +62,15 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/test_checked_release.cpp)
   target_link_libraries(thefblas_test_checked_release PRIVATE thefblas::thefblas)
   add_test(NAME thefblas_test_checked_release COMMAND thefblas_test_checked_release)
 endif()
+
+# The test helper itself, also without GNU extensions (see above).
+add_executable(thefblas_test_support test_support_selftest.cpp)
+target_link_libraries(thefblas_test_support PRIVATE thefblas::thefblas)
+add_test(NAME thefblas_test_support COMMAND thefblas_test_support)
+add_executable(thefblas_test_support_strict test_support_selftest.cpp)
+target_link_libraries(thefblas_test_support_strict PRIVATE thefblas::thefblas)
+set_target_properties(thefblas_test_support_strict PROPERTIES CXX_EXTENSIONS OFF)
+add_test(NAME thefblas_test_support_strict COMMAND thefblas_test_support_strict)
 
 add_executable(thefblas_test_api test_api.cpp)
 target_link_libraries(thefblas_test_api PRIVATE thefblas::thefblas)
