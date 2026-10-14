@@ -3,6 +3,7 @@
 
 #include "thefblas/fixed.hpp"
 
+#include <climits>
 #include <complex>
 #include <type_traits>
 
@@ -181,6 +182,29 @@ template <typename I> constexpr I wrap_sub(I a, I b) noexcept {
     return wrap_narrow<I>(static_cast<U>(static_cast<U>(a) - static_cast<U>(b)));
 }
 
+/// Square root of an unsigned integer, rounded to nearest. Ties cannot occur:
+/// `(r + 1/2)^2 = r^2 + r + 1/4` is never an integer.
+template <typename U> constexpr U isqrt_rounded(U value) noexcept {
+    U rem = value;
+    U root = 0;
+    U bit = static_cast<U>(U(1) << (sizeof(U) * CHAR_BIT - 2));
+    while (bit > rem) {
+        bit = static_cast<U>(bit >> 2U);
+    }
+    while (bit != 0) {
+        if (rem >= root + bit) {
+            rem = static_cast<U>(rem - (root + bit));
+            root = static_cast<U>((root >> 1U) + bit);
+        } else {
+            root = static_cast<U>(root >> 1U);
+        }
+        bit = static_cast<U>(bit >> 2U);
+    }
+    // root = floor(sqrt(value)) and rem = value - root^2; round up when
+    // value > root^2 + root, i.e. when value exceeds (root + 1/2)^2.
+    return rem > root ? static_cast<U>(root + 1) : root;
+}
+
 /// Running sum of products of real values.
 ///
 /// For floating point this is the plain `sum += a * b` loop of Netlib BLAS.
@@ -252,6 +276,19 @@ template <typename T> class real_mac<T, typename std::enable_if<is_fixed_v<T>>::
     }
 
     T value() const { return from_accumulator<T>(wide_value()); }
+
+    /// The square root of the sum, as a value of the widened fixed-point type,
+    /// rounded once: the root of the raw sum at `2 * FracBits` is the raw root
+    /// at `FracBits`. Used for norms, whose sums of squares are non-negative;
+    /// a negative sum (reachable only by wrapping past the accumulator's range)
+    /// gives zero.
+    accumulator_t<T> wide_sqrt() const {
+        using Acc = accumulator_t<T>;
+        using Policy = typename T::policy;
+        using U = make_unsigned_integer_t<acc>;
+        const U root = sum_ > 0 ? isqrt_rounded(static_cast<U>(sum_)) : U(0);
+        return Acc::from_raw(Policy::template narrow<typename Acc::rep>(static_cast<acc>(root)));
+    }
 
   private:
     acc sum_{};

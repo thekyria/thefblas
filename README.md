@@ -126,8 +126,10 @@ through the element type's overflow policy exactly once, at the end:
   at `2 * FracBits` fractional bits. This removes the per-product rounding
   error as well as the overflow: the reduction is exact up to the final
   rounding.
-- `nrm2` takes its square root in the accumulator type, because a sum of
-  squares routinely leaves the element range even when the norm does not.
+- `nrm2` takes the integer square root of the exact sum of squares in the
+  accumulator, because that sum routinely leaves the element range even when
+  the norm does not; the norm is rounded once. `rotg` computes its radius the
+  same way.
 - The Level 2 routines (`symv`/`sbmv`/`spmv`, `hemv`/`hbmv`/`hpmv`, the
   transpose and conjugate-transpose paths of `gemv`/`gbmv`, and
   `trmv`/`tbmv`/`tpmv`, `trsv`/`tbsv`/`tpsv`) form each output element as a
@@ -250,6 +252,11 @@ with (and, for the value-aware checks, the values involved), and the test
 carries on, so one run reports every failure (the first 50 in detail, the rest
 only in the count); each test ends with a line such as
 `5809 checks, 0 failures`.
+
+`tests/test_widths.cpp` runs every routine on 8-bit and 64-bit fixed-point
+storage and compares each result with the same routine in `double`, within
+the rounding bound of that routine. Its inputs are random but reproducible;
+set `THEFBLAS_TEST_SEED` to try others.
 
 With `-DTHEFBLAS_ENABLE_REFERENCE_TESTS=ON`, the build also compiles
 `tests/test_reference_blas.cpp`, which needs a system BLAS with the CBLAS
