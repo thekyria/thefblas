@@ -147,16 +147,34 @@ inline void gemv_impl(char trans, int m, int n, T alpha, const T *a, int lda, co
     }
 
     if (tr == 'N') {
-        scale_vector(leny, beta, y, incy);
-        int jx = start_index(lenx, incx);
-        for (int j = 0; j < n; ++j) {
-            const T temp = alpha * x[jx];
+        if constexpr (is_floating_v<T>) {
+            scale_vector(leny, beta, y, incy);
+            int jx = start_index(lenx, incx);
+            for (int j = 0; j < n; ++j) {
+                const T temp = alpha * x[jx];
+                int iy = start_index(leny, incy);
+                for (int i = 0; i < m; ++i) {
+                    y[iy] += temp * a[i + j * lda];
+                    iy += incy;
+                }
+                jx += incx;
+            }
+        } else {
+            // Fixed point: each output element is a single widened reduction
+            // along its row, scaled and narrowed once, as in the transposed
+            // forms (Netlib's column order would round alpha * x(j) and every
+            // partial sum).
             int iy = start_index(leny, incy);
             for (int i = 0; i < m; ++i) {
-                y[iy] += temp * a[i + j * lda];
+                mac_t<T> temp;
+                int jx = start_index(lenx, incx);
+                for (int j = 0; j < n; ++j) {
+                    temp.add_product(a[i + j * lda], x[jx]);
+                    jx += incx;
+                }
+                y[iy] = acc_scale_add_and_narrow(beta, y[iy], alpha, temp.wide_value());
                 iy += incy;
             }
-            jx += incx;
         }
     } else if (tr == 'T') {
         int jy = start_index(leny, incy);
@@ -477,11 +495,50 @@ inline void ger_impl(int m, int n, T alpha, const T *x, int incx, const T *y, in
 
     int jy = start_index(n, incy);
     for (int j = 0; j < n; ++j) {
-        const T temp = alpha * y[jy];
         int ix = start_index(m, incx);
-        for (int i = 0; i < m; ++i) {
-            a[i + j * lda] += x[ix] * temp;
-            ix += incx;
+        if constexpr (is_floating_v<T>) {
+            const T temp = alpha * y[jy];
+            for (int i = 0; i < m; ++i) {
+                a[i + j * lda] += x[ix] * temp;
+                ix += incx;
+            }
+        } else {
+            for (int i = 0; i < m; ++i) {
+                a[i + j * lda] = rank1_element<false>(a[i + j * lda], alpha, x[ix], y[jy]);
+                ix += incx;
+            }
+        }
+        jy += incy;
+    }
+}
+
+/// geru (`Conj` false) and gerc (`Conj` true): `a <- alpha * x * op(y)^T + a`.
+template <bool Conj, typename T>
+inline void ger_complex_impl(int m, int n, std::complex<T> alpha, const std::complex<T> *x,
+                             int incx, const std::complex<T> *y, int incy, std::complex<T> *a,
+                             int lda) {
+    using C = std::complex<T>;
+    if (m <= 0 || n <= 0 || lda < m || incx == 0 || incy == 0) {
+        return;
+    }
+    if (alpha == value_constants<C>::zero()) {
+        return;
+    }
+
+    int jy = start_index(n, incy);
+    for (int j = 0; j < n; ++j) {
+        int ix = start_index(m, incx);
+        if constexpr (is_floating_v<C>) {
+            const C temp = alpha * (Conj ? conj_value(y[jy]) : y[jy]);
+            for (int i = 0; i < m; ++i) {
+                a[i + j * lda] += x[ix] * temp;
+                ix += incx;
+            }
+        } else {
+            for (int i = 0; i < m; ++i) {
+                a[i + j * lda] = rank1_element<Conj>(a[i + j * lda], alpha, x[ix], y[jy]);
+                ix += incx;
+            }
         }
         jy += incy;
     }
@@ -490,47 +547,13 @@ inline void ger_impl(int m, int n, T alpha, const T *x, int incx, const T *y, in
 template <typename T>
 inline void geru_impl(int m, int n, std::complex<T> alpha, const std::complex<T> *x, int incx,
                       const std::complex<T> *y, int incy, std::complex<T> *a, int lda) {
-    using C = std::complex<T>;
-    if (m <= 0 || n <= 0 || lda < m || incx == 0 || incy == 0) {
-        return;
-    }
-    if (alpha == value_constants<C>::zero()) {
-        return;
-    }
-
-    int jy = start_index(n, incy);
-    for (int j = 0; j < n; ++j) {
-        const C temp = alpha * y[jy];
-        int ix = start_index(m, incx);
-        for (int i = 0; i < m; ++i) {
-            a[i + j * lda] += x[ix] * temp;
-            ix += incx;
-        }
-        jy += incy;
-    }
+    ger_complex_impl<false>(m, n, alpha, x, incx, y, incy, a, lda);
 }
 
 template <typename T>
 inline void gerc_impl(int m, int n, std::complex<T> alpha, const std::complex<T> *x, int incx,
                       const std::complex<T> *y, int incy, std::complex<T> *a, int lda) {
-    using C = std::complex<T>;
-    if (m <= 0 || n <= 0 || lda < m || incx == 0 || incy == 0) {
-        return;
-    }
-    if (alpha == value_constants<C>::zero()) {
-        return;
-    }
-
-    int jy = start_index(n, incy);
-    for (int j = 0; j < n; ++j) {
-        const C temp = alpha * conj_value(y[jy]);
-        int ix = start_index(m, incx);
-        for (int i = 0; i < m; ++i) {
-            a[i + j * lda] += x[ix] * temp;
-            ix += incx;
-        }
-        jy += incy;
-    }
+    ger_complex_impl<true>(m, n, alpha, x, incx, y, incy, a, lda);
 }
 
 template <typename T>
@@ -542,28 +565,26 @@ inline void syr_impl(char uplo, int n, T alpha, const T *x, int incx, T *a, int 
     if (alpha == value_constants<T>::zero()) {
         return;
     }
+    const bool upper = (ul == 'U');
 
     int jx = start_index(n, incx);
-    if (ul == 'U') {
-        for (int j = 0; j < n; ++j) {
+    for (int j = 0; j < n; ++j) {
+        const int first = upper ? 0 : j;
+        const int last = upper ? j : (n - 1);
+        int ix = upper ? start_index(n, incx) : jx;
+        if constexpr (is_floating_v<T>) {
             const T temp = alpha * x[jx];
-            int ix = start_index(n, incx);
-            for (int i = 0; i <= j; ++i) {
+            for (int i = first; i <= last; ++i) {
                 a[i + j * lda] += x[ix] * temp;
                 ix += incx;
             }
-            jx += incx;
-        }
-    } else {
-        for (int j = 0; j < n; ++j) {
-            const T temp = alpha * x[jx];
-            int ix = jx;
-            for (int i = j; i < n; ++i) {
-                a[i + j * lda] += x[ix] * temp;
+        } else {
+            for (int i = first; i <= last; ++i) {
+                a[i + j * lda] = rank1_element<false>(a[i + j * lda], alpha, x[ix], x[jx]);
                 ix += incx;
             }
-            jx += incx;
         }
+        jx += incx;
     }
 }
 
@@ -578,30 +599,31 @@ inline void her_impl(char uplo, int n, T alpha, const std::complex<T> *x, int in
     if (alpha == value_constants<T>::zero()) {
         return;
     }
+    const bool upper = (ul == 'U');
 
     int jx = start_index(n, incx);
-    if (ul == 'U') {
-        for (int j = 0; j < n; ++j) {
+    for (int j = 0; j < n; ++j) {
+        const int first = upper ? 0 : j + 1;
+        const int last = upper ? j - 1 : n - 1;
+        int ix = upper ? start_index(n, incx) : jx + incx;
+        C &ajj = a[j + j * lda];
+        if constexpr (is_floating_v<C>) {
             const C temp = C(alpha) * conj_value(x[jx]);
-            int ix = start_index(n, incx);
-            for (int i = 0; i < j; ++i) {
+            for (int i = first; i <= last; ++i) {
                 a[i + j * lda] += x[ix] * temp;
                 ix += incx;
             }
-            a[j + j * lda] = C(a[j + j * lda].real() + (x[jx] * temp).real(), T{});
-            jx += incx;
-        }
-    } else {
-        for (int j = 0; j < n; ++j) {
-            const C temp = C(alpha) * conj_value(x[jx]);
-            a[j + j * lda] = C(a[j + j * lda].real() + (x[jx] * temp).real(), T{});
-            int ix = jx;
-            for (int i = j + 1; i < n; ++i) {
+            ajj = C(ajj.real() + (x[jx] * temp).real(), T{});
+        } else {
+            const C calpha(alpha, T{});
+            for (int i = first; i <= last; ++i) {
+                a[i + j * lda] = rank1_element<true>(a[i + j * lda], calpha, x[ix], x[jx]);
                 ix += incx;
-                a[i + j * lda] += x[ix] * temp;
             }
-            jx += incx;
+            // The diagonal is real: its imaginary part is not read and is set to 0.
+            ajj = C(rank1_element<true>(C(ajj.real(), T{}), calpha, x[jx], x[jx]).real(), T{});
         }
+        jx += incx;
     }
 }
 
@@ -615,37 +637,32 @@ inline void syr2_impl(char uplo, int n, T alpha, const T *x, int incx, const T *
     if (alpha == value_constants<T>::zero()) {
         return;
     }
+    const bool upper = (ul == 'U');
 
     int jx = start_index(n, incx);
     int jy = start_index(n, incy);
-    if (ul == 'U') {
-        for (int j = 0; j < n; ++j) {
+    for (int j = 0; j < n; ++j) {
+        const int first = upper ? 0 : j;
+        const int last = upper ? j : (n - 1);
+        int ix = upper ? start_index(n, incx) : jx;
+        int iy = upper ? start_index(n, incy) : jy;
+        if constexpr (is_floating_v<T>) {
             const T temp1 = alpha * y[jy];
             const T temp2 = alpha * x[jx];
-            int ix = start_index(n, incx);
-            int iy = start_index(n, incy);
-            for (int i = 0; i <= j; ++i) {
+            for (int i = first; i <= last; ++i) {
                 a[i + j * lda] += x[ix] * temp1 + y[iy] * temp2;
                 ix += incx;
                 iy += incy;
             }
-            jx += incx;
-            jy += incy;
-        }
-    } else {
-        for (int j = 0; j < n; ++j) {
-            const T temp1 = alpha * y[jy];
-            const T temp2 = alpha * x[jx];
-            int ix = jx;
-            int iy = jy;
-            for (int i = j; i < n; ++i) {
-                a[i + j * lda] += x[ix] * temp1 + y[iy] * temp2;
+        } else {
+            for (int i = first; i <= last; ++i) {
+                a[i + j * lda] = rank2_element(a[i + j * lda], alpha, x[ix], y[jy], y[iy], x[jx]);
                 ix += incx;
                 iy += incy;
             }
-            jx += incx;
-            jy += incy;
         }
+        jx += incx;
+        jy += incy;
     }
 }
 
@@ -660,39 +677,39 @@ inline void her2_impl(char uplo, int n, std::complex<T> alpha, const std::comple
     if (alpha == value_constants<C>::zero()) {
         return;
     }
+    const bool upper = (ul == 'U');
 
     int jx = start_index(n, incx);
     int jy = start_index(n, incy);
-    if (ul == 'U') {
-        for (int j = 0; j < n; ++j) {
+    for (int j = 0; j < n; ++j) {
+        const int first = upper ? 0 : j + 1;
+        const int last = upper ? j - 1 : n - 1;
+        int ix = upper ? start_index(n, incx) : jx + incx;
+        int iy = upper ? start_index(n, incy) : jy + incy;
+        C &ajj = a[j + j * lda];
+        if constexpr (is_floating_v<C>) {
             const C temp1 = alpha * conj_value(y[jy]);
             const C temp2 = conj_value(alpha * x[jx]);
-            int ix = start_index(n, incx);
-            int iy = start_index(n, incy);
-            for (int i = 0; i < j; ++i) {
+            for (int i = first; i <= last; ++i) {
                 a[i + j * lda] += x[ix] * temp1 + y[iy] * temp2;
                 ix += incx;
                 iy += incy;
             }
-            a[j + j * lda] = C((a[j + j * lda] + x[jx] * temp1 + y[jy] * temp2).real(), T{});
-            jx += incx;
-            jy += incy;
-        }
-    } else {
-        for (int j = 0; j < n; ++j) {
-            const C temp1 = alpha * conj_value(y[jy]);
-            const C temp2 = conj_value(alpha * x[jx]);
-            a[j + j * lda] = C((a[j + j * lda] + x[jx] * temp1 + y[jy] * temp2).real(), T{});
-            int ix = jx;
-            int iy = jy;
-            for (int i = j + 1; i < n; ++i) {
+            ajj = C((ajj + x[jx] * temp1 + y[jy] * temp2).real(), T{});
+        } else {
+            for (int i = first; i <= last; ++i) {
+                a[i + j * lda] =
+                    hermitian_rank2_element(a[i + j * lda], alpha, x[ix], y[jy], y[iy], x[jx]);
                 ix += incx;
                 iy += incy;
-                a[i + j * lda] += x[ix] * temp1 + y[iy] * temp2;
             }
-            jx += incx;
-            jy += incy;
+            // The diagonal is real: its imaginary part is not read and is set to 0.
+            ajj = C(hermitian_rank2_element(C(ajj.real(), T{}), alpha, x[jx], y[jy], y[jy], x[jx])
+                        .real(),
+                    T{});
         }
+        jx += incx;
+        jy += incy;
     }
 }
 

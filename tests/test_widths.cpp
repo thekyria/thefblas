@@ -263,16 +263,6 @@ template <typename Fmt, typename T> struct suite {
         return complex ? 2.0 * terms + 1.0 : terms + 0.5;
     }
 
-    /// The non-transposed gemv/gbmv and the rank-1 and rank-2 updates round
-    /// alpha * x(j) before multiplying it by the other operand, so that rounding
-    /// is scaled by the operand's magnitude (up to `bound`): each term adds up
-    /// to 1/2 ulp * (1 + bound) per real product. This is the current
-    /// behaviour, not a limit of fixed point; rounding once per element would
-    /// keep these routines within `ulps_scaled(1)`.
-    static double ulps_in_place(int terms) {
-        return ulps_scaled(1) + terms * (complex ? 2.0 : 1.0) * (1.0 + bound);
-    }
-
     static double tolerance(double ref_magnitude, double ulps) {
         const double eps = std::numeric_limits<F>::epsilon().template to_float<double>();
         // The double reference itself is exact to about 2^-53 relative.
@@ -575,7 +565,7 @@ template <typename Fmt, typename T> struct suite {
                 std::vector<D> y2 = to_double(y);
                 thefblas::gemv(trans, m, n, alphad, ad.data(), lda, xd.data(), incx, betad,
                                y2.data(), incy);
-                check_close(y1, y2, trans == 'N' ? ulps_in_place(n) : ulps_scaled(1));
+                check_close(y1, y2, ulps_scaled(1));
             }
             {
                 TEST_CONTEXT("gbmv kl=", kl, " ku=", ku, " lda=", ldab);
@@ -585,7 +575,7 @@ template <typename Fmt, typename T> struct suite {
                 std::vector<D> y2 = to_double(y);
                 thefblas::gbmv(trans, m, n, kl, ku, alphad, abd.data(), ldab, xd.data(), incx,
                                betad, y2.data(), incy);
-                check_close(y1, y2, trans == 'N' ? ulps_in_place(n) : ulps_scaled(1));
+                check_close(y1, y2, ulps_scaled(1));
             }
         }
     }
@@ -755,19 +745,19 @@ template <typename Fmt, typename T> struct suite {
                     TEST_CONTEXT("geru");
                     thefblas::geru(m, n, alpha, x.data(), incx, y.data(), incy, a1.data(), lda);
                     thefblas::geru(m, n, alphad, xd.data(), incx, yd.data(), incy, a2.data(), lda);
-                    check_close(a1, a2, ulps_in_place(1));
+                    check_close(a1, a2, ulps_scaled(1));
                 }
                 TEST_CONTEXT("gerc");
                 a1 = a;
                 a2 = to_double(a);
                 thefblas::gerc(m, n, alpha, x.data(), incx, y.data(), incy, a1.data(), lda);
                 thefblas::gerc(m, n, alphad, xd.data(), incx, yd.data(), incy, a2.data(), lda);
-                check_close(a1, a2, ulps_in_place(1));
+                check_close(a1, a2, ulps_scaled(1));
             } else {
                 TEST_CONTEXT("ger");
                 thefblas::ger(m, n, alpha, x.data(), incx, y.data(), incy, a1.data(), lda);
                 thefblas::ger(m, n, alphad, xd.data(), incx, yd.data(), incy, a2.data(), lda);
-                check_close(a1, a2, ulps_in_place(1));
+                check_close(a1, a2, ulps_scaled(1));
             }
         }
     }
@@ -803,7 +793,7 @@ template <typename Fmt, typename T> struct suite {
                     thefblas::syr(uplo, n, real_alpha, x.data(), incx, a1.data(), lda);
                     thefblas::syr(uplo, n, real_alphad, xd.data(), incx, a2.data(), lda);
                 }
-                check_close(a1, a2, ulps_in_place(1));
+                check_close(a1, a2, ulps_scaled(1));
             }
             {
                 TEST_CONTEXT(complex ? "her2" : "syr2");
@@ -818,7 +808,7 @@ template <typename Fmt, typename T> struct suite {
                     thefblas::syr2(uplo, n, alphad, xd.data(), incx, yd.data(), incy, a2.data(),
                                    lda);
                 }
-                check_close(a1, a2, ulps_in_place(2));
+                check_close(a1, a2, ulps_scaled(complex ? 2 : 1));
             }
             {
                 TEST_CONTEXT(complex ? "hpr" : "spr");
@@ -831,7 +821,7 @@ template <typename Fmt, typename T> struct suite {
                     thefblas::spr(uplo, n, real_alpha, x.data(), incx, ap1.data());
                     thefblas::spr(uplo, n, real_alphad, xd.data(), incx, ap2.data());
                 }
-                check_close(ap1, ap2, ulps_in_place(1));
+                check_close(ap1, ap2, ulps_scaled(1));
             }
             {
                 TEST_CONTEXT(complex ? "hpr2" : "spr2");
@@ -844,7 +834,7 @@ template <typename Fmt, typename T> struct suite {
                     thefblas::spr2(uplo, n, alpha, x.data(), incx, y.data(), incy, ap1.data());
                     thefblas::spr2(uplo, n, alphad, xd.data(), incx, yd.data(), incy, ap2.data());
                 }
-                check_close(ap1, ap2, ulps_in_place(2));
+                check_close(ap1, ap2, ulps_scaled(complex ? 2 : 1));
             }
         }
     }

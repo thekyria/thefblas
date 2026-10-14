@@ -120,23 +120,6 @@ template <bool Hermitian, typename T> inline T hermitian_diag(const T &value) {
     }
 }
 
-/// `beta * y + alpha1 * w1 + alpha2 * w2` held in the accumulator type and
-/// narrowed once; `y` is not read when `beta` is zero.
-template <typename T>
-inline T acc_scale_add2_and_narrow(const T &beta, const T &y, const T &alpha1,
-                                   const accumulator_t<T> &w1, const T &alpha2,
-                                   const accumulator_t<T> &w2) {
-    using Acc = accumulator_t<T>;
-    Acc scaled_y = value_constants<Acc>::zero();
-    if (beta == value_constants<T>::one()) {
-        scaled_y = to_accumulator(y);
-    } else if (beta != value_constants<T>::zero()) {
-        scaled_y = to_accumulator(y) * to_accumulator(beta);
-    }
-    return from_accumulator<T>(scaled_y + to_accumulator(alpha1) * w1 +
-                               to_accumulator(alpha2) * w2);
-}
-
 /// `C <- alpha * op(A) * op(A)^T + beta * C` (or, with `Hermitian`,
 /// `op(A) * op(A)^H`) on the `uplo` triangle of the `n x n` matrix `C`. For
 /// `Hermitian`, `alpha` and `beta` are real (imaginary part zero), the

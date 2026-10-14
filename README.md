@@ -130,9 +130,9 @@ through the element type's overflow policy exactly once, at the end:
   accumulator, because that sum routinely leaves the element range even when
   the norm does not; the norm is rounded once. `rotg` computes its radius the
   same way.
-- The Level 2 routines (`symv`/`sbmv`/`spmv`, `hemv`/`hbmv`/`hpmv`, the
-  transpose and conjugate-transpose paths of `gemv`/`gbmv`, and
-  `trmv`/`tbmv`/`tpmv`, `trsv`/`tbsv`/`tpsv`) form each output element as a
+- The Level 2 routines (`symv`/`sbmv`/`spmv`, `hemv`/`hbmv`/`hpmv`,
+  `gemv`/`gbmv` in every `trans` form, and `trmv`/`tbmv`/`tpmv`,
+  `trsv`/`tbsv`/`tpsv`) form each output element as a
   single widened multiply-accumulate over its whole row, again at
   `2 * FracBits`, and narrow through the policy exactly once per element.
   Where the routine computes `alpha * op(A) * x + beta * y`, the `alpha`
@@ -141,6 +141,13 @@ through the element type's overflow policy exactly once, at the end:
   symmetric/Hermitian routines gather the mirrored element from the stored
   triangle instead of updating `y` term by term, so partial sums that leave
   the element range cannot saturate or wrap before later terms cancel them.
+  The non-transposed `gemv`/`gbmv` walk each row of `A` instead of Netlib's
+  columns, so they need no `O(m)` temporary.
+- The rank-1 and rank-2 updates (`ger`/`geru`/`gerc`, `syr`/`spr`,
+  `her`/`hpr`, `syr2`/`spr2`, `her2`/`hpr2`) form each element's products
+  exactly, scale their sum by `alpha` in the accumulator type, add the element
+  and narrow once. Netlib's order rounds `alpha * y(j)` first, and that
+  rounding would be multiplied by `x(i)`.
 - The Level 3 routines do the same for every element type: each element of
   `C` (or of `B` in `trmm`, or of the solution `X` in `trsm`) is one widened
   multiply-accumulate over the inner dimension, with `alpha`, the
@@ -149,12 +156,8 @@ through the element type's overflow policy exactly once, at the end:
   two products in separate accumulators, since they are scaled by `alpha` and
   `conj(alpha)`. No temporary buffers are needed.
 
-Three deliberate limitations:
+Two deliberate limitations:
 
-- The `'N'` (no-transpose) paths of `gemv` and `gbmv` accumulate directly into
-  `y`, as Netlib BLAS does. Widening them would require an `O(m)` temporary
-  buffer, which is unacceptable on the bare-metal targets this library is
-  aimed at, so those paths are marginally less accurate than `'T'`/`'C'`.
 - When `IntType` is 64 bits and the compiler provides no `__int128`, there is
   no wider type to evaluate the arithmetic in, so `fixed<std::int64_t, ...>`
   is rejected at compile time rather than silently risking undefined signed
@@ -163,7 +166,8 @@ Three deliberate limitations:
   `__int128`, or `fixed<std::int32_t, ...>` without it — has no wider `fixed`
   storage, so its accumulator keeps the element width. The products are still
   summed in the wider integer, but the final `alpha` scaling and `y` update are
-  narrowed through the policy in the element width.
+  narrowed through the policy in the element width. (In the rank-1 and rank-2
+  updates this means `x(i) * y(j)` itself must fit the element range.)
 
 `float` and `double` accumulate in themselves, so floating-point Level 1 and
 Level 2 results are bit-identical to the straightforward loops that Netlib BLAS
