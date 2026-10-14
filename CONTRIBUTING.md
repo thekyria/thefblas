@@ -75,10 +75,12 @@ If you add new functionality, include tests for:
 - Any regressions fixed by your change
 
 Write checks with the helpers in `tests/test_support.hpp` rather than
-`assert()`: `CHECK(cond)`, `CHECK_EQ(a, b)`, `CHECK_PRED(pred, got, expected)`
-and `CHECK_VALUES(cond, got, expected)` print the values involved, and
-`TEST_CONTEXT(...)` adds the current parameters (e.g. `"uplo=", uplo`) to any
-failure in its scope. A failed check does not stop the test, and `main` ends
+`assert()`. Every failed check prints its location and expression;
+`CHECK_EQ(a, b)`, `CHECK_PRED(pred, got, expected)` and
+`CHECK_VALUES(cond, got, expected)` also print the values involved, while plain
+`CHECK(cond)` does not, so prefer those when values help, or use
+`CHECK_MSG(cond, parts...)` to attach a note. `TEST_CONTEXT(...)` adds the
+current parameters (e.g. `"uplo=", uplo`) to any failure in its scope. A failed check does not stop the test, and `main` ends
 with `return thefblas_test::finish();`, which prints a summary and sets the exit
 code.
 

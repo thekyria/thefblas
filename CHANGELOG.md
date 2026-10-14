@@ -92,9 +92,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changed
 
 - The tests use a small in-repo helper (`tests/test_support.hpp`) instead of
-  `assert()`. A failed check prints the expression, the values involved and the
-  active parameters (routine, options, element index) and the test continues;
+  `assert()`. A failed check prints its location, the expression and the active
+  parameters (routine, options, element index), plus the values involved for
+  the value-aware checks (`CHECK_EQ`, `CHECK_PRED`, `CHECK_VALUES`), and the
+  test continues. Every failure is counted, but only the first 50 are printed;
   each test ends with a summary line and a non-zero exit code on failure.
+  `tests/test_support_selftest.cpp` checks the helper itself.
 - Every public BLAS routine is now `noexcept`.
 - `sqrt` for `fixed` and the compound assignments `+=`, `-=`, `*=`, `/=` are
   now `constexpr`.

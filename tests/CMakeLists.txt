@@ -63,6 +63,15 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/test_checked_release.cpp)
   add_test(NAME thefblas_test_checked_release COMMAND thefblas_test_checked_release)
 endif()
 
+# The test helper itself, also without GNU extensions (see above).
+add_executable(thefblas_test_support test_support_selftest.cpp)
+target_link_libraries(thefblas_test_support PRIVATE thefblas::thefblas)
+add_test(NAME thefblas_test_support COMMAND thefblas_test_support)
+add_executable(thefblas_test_support_strict test_support_selftest.cpp)
+target_link_libraries(thefblas_test_support_strict PRIVATE thefblas::thefblas)
+set_target_properties(thefblas_test_support_strict PROPERTIES CXX_EXTENSIONS OFF)
+add_test(NAME thefblas_test_support_strict COMMAND thefblas_test_support_strict)
+
 add_executable(thefblas_test_api test_api.cpp)
 target_link_libraries(thefblas_test_api PRIVATE thefblas::thefblas)
 add_test(NAME thefblas_test_api COMMAND thefblas_test_api)

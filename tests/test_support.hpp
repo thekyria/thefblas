@@ -2,12 +2,11 @@
 #pragma once
 
 // Minimal test helpers. Unlike assert(), a failed check records the failure,
-// prints the expression, the values involved and the active context, and lets
-// the test continue; finish() prints a summary and returns the exit code.
-// Only <cstdio> is used for output, so the tests still build for bare-metal
-// targets.
+// prints its location, the expression and the active context, and lets the
+// test continue; finish() prints a summary and returns the exit code. Only
+// <cstdio> is used for output, so the tests still build for bare-metal targets.
 //
-//   CHECK(cond)                        the condition must hold
+//   CHECK(cond)                        the condition must hold (prints no values)
 //   CHECK_EQ(a, b)                     a == b, printing both values
 //   CHECK_VALUES(cond, got, expected)  cond must hold; prints got and expected
 //   CHECK_PRED(pred, got, expected...) pred(got, expected...) must hold;
@@ -17,6 +16,7 @@
 //
 // Parts are printed one after another: strings as they are, numbers, fixed
 // point values (with their raw representation) and complex values formatted.
+// Every failure is counted, but only the first 50 are printed.
 
 #include "thefblas/fixed.hpp"
 
@@ -33,6 +33,59 @@ namespace detail {
 template <typename T> struct is_complex : std::false_type {};
 template <typename T> struct is_complex<std::complex<T>> : std::true_type {};
 
+// Unsigned integers, including unsigned __int128, which the standard traits
+// only recognise with GNU extensions enabled (see thefblas::detail::
+// is_signed_integer for the signed side).
+template <typename T>
+struct is_unsigned_integer
+    : std::integral_constant<bool, std::is_integral<T>::value && std::is_unsigned<T>::value> {};
+#if defined(__SIZEOF_INT128__)
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#endif
+template <> struct is_unsigned_integer<unsigned __int128> : std::true_type {};
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
+#endif
+
+template <typename T, bool = is_unsigned_integer<T>::value> struct unsigned_of {
+    using type = T;
+};
+template <typename T> struct unsigned_of<T, false> {
+    using type = thefblas::detail::make_unsigned_integer_t<T>;
+};
+
+/// Writes the decimal digits of an integer of any width (including __int128,
+/// which printf cannot format) to `out` (of `room` bytes), keeping it terminated.
+template <typename T> void append_integer(char *out, std::size_t room, T value) {
+    using U = typename unsigned_of<T>::type;
+    bool negative = false;
+    U magnitude = static_cast<U>(value);
+    if constexpr (!is_unsigned_integer<T>::value) {
+        negative = value < 0;
+        if (negative) {
+            magnitude = static_cast<U>(U{0} - magnitude);
+        }
+    }
+    char digits[48] = {};
+    std::size_t n = 0;
+    do {
+        const U digit = static_cast<U>(magnitude % U{10});
+        digits[n++] = static_cast<char>('0' + static_cast<int>(digit));
+        magnitude = static_cast<U>(magnitude / U{10});
+    } while (magnitude != 0);
+    if (negative) {
+        digits[n++] = '-';
+    }
+    std::size_t i = 0;
+    for (; i < n && i + 1 < room; ++i) {
+        out[i] = digits[n - 1 - i];
+    }
+    out[i] = '\0';
+}
+
 /// Appends a formatted value to `buf` (of `size` bytes), keeping it terminated.
 template <typename T> void append(char *buf, std::size_t size, const T &value) {
     const std::size_t used = std::strlen(buf);
@@ -45,15 +98,15 @@ template <typename T> void append(char *buf, std::size_t size, const T &value) {
         std::snprintf(out, room, "%s", value ? "true" : "false");
     } else if constexpr (std::is_same_v<T, char>) {
         std::snprintf(out, room, "%c", value);
-    } else if constexpr (std::is_integral_v<T> && std::is_signed_v<T>) {
-        std::snprintf(out, room, "%lld", static_cast<long long>(value));
-    } else if constexpr (std::is_integral_v<T>) {
-        std::snprintf(out, room, "%llu", static_cast<unsigned long long>(value));
+    } else if constexpr (thefblas::detail::is_signed_integer<T>::value ||
+                         is_unsigned_integer<T>::value) {
+        append_integer(out, room, value);
     } else if constexpr (std::is_floating_point_v<T>) {
         std::snprintf(out, room, "%.17g", static_cast<double>(value));
     } else if constexpr (thefblas::detail::is_fixed_v<T>) {
-        std::snprintf(out, room, "%.17g (raw %lld)", value.template to_float<double>(),
-                      static_cast<long long>(value.raw()));
+        std::snprintf(out, room, "%.17g (raw ", value.template to_float<double>());
+        append(buf, size, value.raw());
+        append(buf, size, ")");
     } else if constexpr (is_complex<T>::value) {
         append(buf, size, "(");
         append(buf, size, value.real());
