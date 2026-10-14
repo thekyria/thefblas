@@ -1,5 +1,7 @@
-# Tests check behavior with assert(); keep it active in every configuration,
-# including Release presets that define NDEBUG.
+# The tests check results with tests/test_support.hpp, which does not depend on
+# assert(). The library's own assertions (the `checked` overflow policy) are
+# kept active in every configuration, including Release presets that define
+# NDEBUG, because some tests rely on them being enabled.
 add_compile_options($<IF:$<CXX_COMPILER_ID:MSVC>,/UNDEBUG,-UNDEBUG>)
 # Bit-identity checks against reference Netlib-order loops need the compiler not
 # to fuse multiplies and adds differently in the two (GCC's GNU-mode default).

@@ -91,6 +91,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- The tests use a small in-repo helper (`tests/test_support.hpp`) instead of
+  `assert()`. A failed check prints the expression, the values involved and the
+  active parameters (routine, options, element index) and the test continues;
+  each test ends with a summary line and a non-zero exit code on failure.
 - Every public BLAS routine is now `noexcept`.
 - `sqrt` for `fixed` and the compound assignments `+=`, `-=`, `*=`, `/=` are
   now `constexpr`.

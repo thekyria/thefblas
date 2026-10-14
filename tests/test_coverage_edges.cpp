@@ -1,7 +1,7 @@
 #include "thefblas/thefblas.h"
+#include "test_support.hpp"
 
 #include <array>
-#include <cassert>
 #include <complex>
 #include <cstdint>
 #include <limits>
@@ -22,27 +22,27 @@ void test_level1_empty_inputs() {
     thefblas::axpy(2, 1.0, x.data(), 1, y.data(), 0);
     thefblas::scal(0, 2.0, x.data(), 1);
     thefblas::scal(2, 2.0, x.data(), 0);
-    assert(thefblas::dot(0, x.data(), 1, y.data(), 1) == 0.0);
-    assert(thefblas::dot(2, x.data(), 0, y.data(), 1) == 0.0);
-    assert(thefblas::nrm2(0, x.data(), 1) == 0.0);
-    assert(thefblas::nrm2(2, x.data(), 0) == 0.0);
-    assert(thefblas::asum(0, x.data(), 1) == 0.0);
-    assert(thefblas::asum(2, x.data(), 0) == 0.0);
-    assert(thefblas::iamax(2, x.data(), 0) == 0);
+    CHECK(thefblas::dot(0, x.data(), 1, y.data(), 1) == 0.0);
+    CHECK(thefblas::dot(2, x.data(), 0, y.data(), 1) == 0.0);
+    CHECK(thefblas::nrm2(0, x.data(), 1) == 0.0);
+    CHECK(thefblas::nrm2(2, x.data(), 0) == 0.0);
+    CHECK(thefblas::asum(0, x.data(), 1) == 0.0);
+    CHECK(thefblas::asum(2, x.data(), 0) == 0.0);
+    CHECK(thefblas::iamax(2, x.data(), 0) == 0);
 
     using complex = std::complex<double>;
     std::array<complex, 2> cx = {complex(1.0, 2.0), complex(3.0, 4.0)};
     const std::array<complex, 2> cy = {complex(2.0, 1.0), complex(4.0, 3.0)};
-    assert(thefblas::dotu(0, cx.data(), 1, cy.data(), 1) == complex{});
-    assert(thefblas::dotc(0, cx.data(), 1, cy.data(), 1) == complex{});
-    assert(thefblas::iamax(2, cx.data(), 0) == 0);
-    assert(thefblas::iamax(2, cx.data(), 1) == 2);
-    assert(thefblas::nrm2(0, cx.data(), 1) == 0.0);
-    assert(thefblas::asum(0, cx.data(), 1) == 0.0);
+    CHECK(thefblas::dotu(0, cx.data(), 1, cy.data(), 1) == complex{});
+    CHECK(thefblas::dotc(0, cx.data(), 1, cy.data(), 1) == complex{});
+    CHECK(thefblas::iamax(2, cx.data(), 0) == 0);
+    CHECK(thefblas::iamax(2, cx.data(), 1) == 2);
+    CHECK(thefblas::nrm2(0, cx.data(), 1) == 0.0);
+    CHECK(thefblas::asum(0, cx.data(), 1) == 0.0);
 
     std::array<complex, 2> cy_scaled = cy;
     thefblas::scal(2, 2.0, cy_scaled.data(), 0);
-    assert(cy_scaled == cy);
+    CHECK(cy_scaled == cy);
     thefblas::rot(0, cx.data(), 1, cy_scaled.data(), 1, 1.0, 0.0);
 
     const double givens[5] = {-2.0, 0.0, 0.0, 0.0, 0.0};
@@ -54,55 +54,55 @@ void test_level1_empty_inputs() {
     double c = 0.0;
     double s = 0.0;
     thefblas::rotg(&a, &b, &c, &s);
-    assert(c > 0.0 && s > 0.0);
+    CHECK(c > 0.0 && s > 0.0);
 }
 
 void test_fixed_arithmetic_paths() {
     const fixed16 a(2);
     const fixed16 b(1);
-    assert((a + b) == fixed16(3));
-    assert((a - b) == fixed16(1));
-    assert((a * b) == fixed16(2));
-    assert((a / b) == fixed16(2));
+    CHECK((a + b) == fixed16(3));
+    CHECK((a - b) == fixed16(1));
+    CHECK((a * b) == fixed16(2));
+    CHECK((a / b) == fixed16(2));
     fixed16 accum = a;
     accum += b;
     accum -= b;
     accum *= b;
     accum /= b;
-    assert(accum == a);
+    CHECK(accum == a);
 
     using saturated32 = thefblas::fixed<std::int32_t, 20, thefblas::saturate>;
     const saturated32 raw_min =
         saturated32::from_raw((std::numeric_limits<std::int32_t>::min)());
-    assert(thefblas::asum(1, &raw_min, 1).raw() ==
+    CHECK(thefblas::asum(1, &raw_min, 1).raw() ==
            (std::numeric_limits<std::int32_t>::max)());
-    assert(thefblas::nrm2(1, &a, 1) == a);
+    CHECK(thefblas::nrm2(1, &a, 1) == a);
     const fixed8 whole(2);
-    assert((whole * whole) == fixed8(4));
+    CHECK((whole * whole) == fixed8(4));
 
     using saturating16 = thefblas::fixed<std::int16_t, 15, thefblas::saturate>;
     const saturating16 half(0.5);
-    assert((half + half) == saturating16(1));
-    assert((half - half) == saturating16(0));
-    assert((half * half) == saturating16(0.25));
+    CHECK((half + half) == saturating16(1));
+    CHECK((half - half) == saturating16(0));
+    CHECK((half * half) == saturating16(0.25));
     saturating16 accumulated = half;
     accumulated += half;
     accumulated -= half;
     accumulated *= half;
     accumulated /= half;
-    assert(accumulated == half);
+    CHECK(accumulated == half);
 
     using saturating8 = thefblas::fixed<std::int16_t, 8, thefblas::saturate>;
     const saturating8 eighth(0.125);
-    assert((eighth + eighth) == saturating8(0.25));
-    assert((eighth - eighth) == saturating8(0));
-    assert((eighth * eighth) == saturating8(0.015625));
+    CHECK((eighth + eighth) == saturating8(0.25));
+    CHECK((eighth - eighth) == saturating8(0));
+    CHECK((eighth * eighth) == saturating8(0.015625));
     saturating8 accumulated8 = eighth;
     accumulated8 += eighth;
     accumulated8 -= eighth;
     accumulated8 *= eighth;
     accumulated8 /= eighth;
-    assert(accumulated8 == eighth);
+    CHECK(accumulated8 == eighth);
 
     const fixed32 checked64(3);
     fixed32 mutable64 = checked64;
@@ -110,7 +110,7 @@ void test_fixed_arithmetic_paths() {
     mutable64 -= fixed32(1);
     mutable64 *= fixed32(1);
     mutable64 /= fixed32(1);
-    assert(mutable64 != fixed32(0));
+    CHECK(mutable64 != fixed32(0));
 #if defined(__SIZEOF_INT128__)
     using fixed64 = thefblas::fixed<std::int64_t, 32>;
     fixed64 accum64(3);
@@ -118,15 +118,15 @@ void test_fixed_arithmetic_paths() {
     accum64 -= fixed64(1);
     accum64 *= fixed64(1);
     accum64 /= fixed64(1);
-    assert(accum64 != fixed64(0));
+    CHECK(accum64 != fixed64(0));
 #endif
 
     using saturating32 = thefblas::fixed<std::int32_t, 20, thefblas::saturate>;
-    assert(saturating32(10000).raw() == (std::numeric_limits<std::int32_t>::max)());
+    CHECK(saturating32(10000).raw() == (std::numeric_limits<std::int32_t>::max)());
 
     thefblas::detail::real_mac<saturating16> mac;
     mac.add(half);
-    assert(mac.value() == half);
+    CHECK(mac.value() == half);
 }
 
 void test_level2_zero_scalars() {
@@ -137,7 +137,7 @@ void test_level2_zero_scalars() {
     double output[2] = {5.0, 6.0};
 
     thefblas::gemv('N', 2, 2, zero, matrix, 2, vector, 1, 2.0, output, 1);
-    assert(output[0] == 10.0 && output[1] == 12.0);
+    CHECK(output[0] == 10.0 && output[1] == 12.0);
     thefblas::symv('U', 2, zero, matrix, 2, vector, 1, one, output, 1);
     thefblas::gbmv('N', 2, 2, 1, 1, zero, matrix, 3, vector, 1, one, output, 1);
     thefblas::sbmv('U', 2, 1, zero, matrix, 2, vector, 1, one, output, 1);
@@ -236,10 +236,10 @@ void test_fixed_triangular_transposes() {
     const complex32 cdiag[2] = {complex32(one, one), complex32(one, fixed32(2))};
     complex32 cq[1] = {complex32(fixed32(3), one)};
     thefblas::trsv('U', 'N', 'N', 1, &cdiag[0], 1, cq, 1);
-    assert(cq[0] == complex32(fixed32(2), fixed32(-1)));
+    CHECK(cq[0] == complex32(fixed32(2), fixed32(-1)));
     cq[0] = complex32(fixed32(5), zero);
     thefblas::trsv('U', 'N', 'N', 1, &cdiag[1], 1, cq, 1);
-    assert(cq[0] == complex32(one, fixed32(-2)));
+    CHECK(cq[0] == complex32(one, fixed32(-2)));
 
     const double real_dense[4] = {2.0, 0.0, 1.0, 3.0};
     double real_x[2] = {5.0, 6.0};
@@ -371,5 +371,5 @@ int main() {
     test_level2_zero_scalars();
     test_fixed_triangular_transposes();
     test_remaining_fixed_types_and_zero_alpha();
-    return 0;
+    return thefblas_test::finish();
 }

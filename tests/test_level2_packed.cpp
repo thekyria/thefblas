@@ -1,9 +1,9 @@
+#include "test_support.hpp"
 #include "thefblas/fixed.hpp"
 #include "thefblas/level2.hpp"
 #include "thefblas/level2_packed.hpp"
 
 #include <array>
-#include <cassert>
 #include <complex>
 #include <cstdint>
 #include <vector>
@@ -74,6 +74,7 @@ template <typename T> std::vector<T> make_packed_real(char uplo, int n) {
 void test_spmv_matches_symv() {
     const int n = 4;
     for (const char uplo : {'U', 'L'}) {
+        TEST_CONTEXT(__func__, " uplo=", uplo);
         const std::vector<float> ap = make_packed_real<float>(uplo, n);
         const std::vector<float> dense = expand_packed(uplo, n, ap);
         const std::array<float, 4> x = {1.0F, -2.0F, 3.0F, 0.5F};
@@ -82,7 +83,8 @@ void test_spmv_matches_symv() {
         thefblas::spmv(uplo, n, 1.5F, ap.data(), x.data(), 1, 0.25F, y_packed.data(), 1);
         thefblas::symv(uplo, n, 1.5F, dense.data(), n, x.data(), 1, 0.25F, y_dense.data(), 1);
         for (int i = 0; i < n; ++i) {
-            assert(almost_equal_scalar(y_packed[uz(i)], y_dense[uz(i)]));
+            TEST_CONTEXT("i=", i);
+            CHECK_PRED(almost_equal_scalar, y_packed[uz(i)], y_dense[uz(i)]);
         }
     }
 }
@@ -94,18 +96,19 @@ void test_spmv_fixed_and_invalid_args() {
     const std::array<fixed32, 2> x = {fixed32(1), fixed32(1)};
     std::array<fixed32, 2> y = {fixed32(0), fixed32(0)};
     thefblas::spmv('U', n, fixed32(1), ap.data(), x.data(), 1, fixed32(0), y.data(), 1);
-    assert(almost_equal_scalar(y[0], fixed32(3)));
-    assert(almost_equal_scalar(y[1], fixed32(5)));
+    CHECK_PRED(almost_equal_scalar, y[0], fixed32(3));
+    CHECK_PRED(almost_equal_scalar, y[1], fixed32(5));
 
     thefblas::spmv('X', n, fixed32(1), ap.data(), x.data(), 1, fixed32(0), y.data(), 1);
     thefblas::spmv('U', n, fixed32(1), ap.data(), x.data(), 0, fixed32(0), y.data(), 1);
-    assert(almost_equal_scalar(y[0], fixed32(3)));
-    assert(almost_equal_scalar(y[1], fixed32(5)));
+    CHECK_PRED(almost_equal_scalar, y[0], fixed32(3));
+    CHECK_PRED(almost_equal_scalar, y[1], fixed32(5));
 }
 
 void test_hpmv_matches_hemv() {
     const int n = 3;
     for (const char uplo : {'U', 'L'}) {
+        TEST_CONTEXT(__func__, " uplo=", uplo);
         std::vector<cfloat> ap(static_cast<std::size_t>(n) * (uz(n) + 1) / 2, cfloat(0.0F, 0.0F));
         for (int j = 0; j < n; ++j) {
             const int first = (uplo == 'U') ? 0 : j;
@@ -127,7 +130,8 @@ void test_hpmv_matches_hemv() {
         thefblas::hemv(uplo, n, cfloat(2.0F, 1.0F), dense.data(), n, x.data(), 1,
                        cfloat(0.5F, 0.0F), y_dense.data(), 1);
         for (int i = 0; i < n; ++i) {
-            assert(almost_equal_scalar(y_packed[uz(i)], y_dense[uz(i)]));
+            TEST_CONTEXT("i=", i);
+            CHECK_PRED(almost_equal_scalar, y_packed[uz(i)], y_dense[uz(i)]);
         }
     }
 }
@@ -141,13 +145,14 @@ void test_hpmv_complex_fixed() {
     std::array<cfixed, 2> y = {cfixed(fixed32(0), fixed32(0)), cfixed(fixed32(0), fixed32(0))};
     thefblas::hpmv('U', 2, cfixed(fixed32(1), fixed32(0)), ap.data(), x.data(), 1,
                    cfixed(fixed32(0), fixed32(0)), y.data(), 1);
-    assert(almost_equal_scalar(y[0], cfixed(fixed32(1), fixed32(1))));
-    assert(almost_equal_scalar(y[1], cfixed(fixed32(2), fixed32(-1))));
+    CHECK_PRED(almost_equal_scalar, y[0], cfixed(fixed32(1), fixed32(1)));
+    CHECK_PRED(almost_equal_scalar, y[1], cfixed(fixed32(2), fixed32(-1)));
 }
 
 void test_tpmv_and_tpsv_match_dense() {
     const int n = 4;
     for (const char uplo : {'U', 'L'}) {
+        TEST_CONTEXT(__func__, " uplo=", uplo);
         std::vector<float> ap = make_packed_real<float>(uplo, n);
         // Make the diagonal dominant so the triangular solve is well conditioned.
         for (int j = 0; j < n; ++j) {
@@ -155,19 +160,23 @@ void test_tpmv_and_tpsv_match_dense() {
         }
         const std::vector<float> dense = expand_packed(uplo, n, ap);
         for (const char diag : {'N', 'U'}) {
+            TEST_CONTEXT(__func__, " diag=", diag);
             for (const char trans : {'N', 'T', 'C'}) {
+                TEST_CONTEXT(__func__, " trans=", trans);
                 const std::array<float, 4> x0 = {1.0F, -2.0F, 3.0F, 0.5F};
                 std::array<float, 4> x_packed = x0;
                 std::array<float, 4> x_dense = x0;
                 thefblas::tpmv(uplo, trans, diag, n, ap.data(), x_packed.data(), 1);
                 thefblas::trmv(uplo, trans, diag, n, dense.data(), n, x_dense.data(), 1);
                 for (int i = 0; i < n; ++i) {
-                    assert(almost_equal_scalar(x_packed[uz(i)], x_dense[uz(i)]));
+                    TEST_CONTEXT("i=", i);
+                    CHECK_PRED(almost_equal_scalar, x_packed[uz(i)], x_dense[uz(i)]);
                 }
 
                 thefblas::tpsv(uplo, trans, diag, n, ap.data(), x_packed.data(), 1);
                 for (int i = 0; i < n; ++i) {
-                    assert(almost_equal_scalar(x_packed[uz(i)], x0[uz(i)], 1e-4));
+                    TEST_CONTEXT("i=", i);
+                    CHECK_PRED(almost_equal_scalar, x_packed[uz(i)], x0[uz(i)], 1e-4);
                 }
             }
         }
@@ -184,7 +193,8 @@ void test_tpmv_negative_stride_and_complex() {
     thefblas::tpmv('L', 'N', 'N', n, ap.data(), x_packed.data(), -1);
     thefblas::trmv('L', 'N', 'N', n, dense.data(), n, x_dense.data(), -1);
     for (int i = 0; i < n; ++i) {
-        assert(almost_equal_scalar(x_packed[uz(i)], x_dense[uz(i)]));
+        TEST_CONTEXT("i=", i);
+        CHECK_PRED(almost_equal_scalar, x_packed[uz(i)], x_dense[uz(i)]);
     }
 
     // Conjugate-transpose solve against the dense equivalent.
@@ -195,7 +205,8 @@ void test_tpmv_negative_stride_and_complex() {
     thefblas::tpsv('U', 'C', 'N', 2, ap_c.data(), xc_packed.data(), 1);
     thefblas::trsv('U', 'C', 'N', 2, dense_c.data(), 2, xc_dense.data(), 1);
     for (int i = 0; i < 2; ++i) {
-        assert(almost_equal_scalar(xc_packed[uz(i)], xc_dense[uz(i)]));
+        TEST_CONTEXT("i=", i);
+        CHECK_PRED(almost_equal_scalar, xc_packed[uz(i)], xc_dense[uz(i)]);
     }
 
     // Invalid characters leave the vector untouched.
@@ -203,13 +214,15 @@ void test_tpmv_negative_stride_and_complex() {
     thefblas::tpmv('U', 'X', 'N', 2, ap_c.data(), xc_packed.data(), 1);
     thefblas::tpsv('Z', 'N', 'N', 2, ap_c.data(), xc_packed.data(), 1);
     for (int i = 0; i < 2; ++i) {
-        assert(almost_equal_scalar(xc_packed[uz(i)], before[uz(i)]));
+        TEST_CONTEXT("i=", i);
+        CHECK_PRED(almost_equal_scalar, xc_packed[uz(i)], before[uz(i)]);
     }
 }
 
 void test_spr_and_spr2_match_dense() {
     const int n = 3;
     for (const char uplo : {'U', 'L'}) {
+        TEST_CONTEXT(__func__, " uplo=", uplo);
         std::vector<float> ap = make_packed_real<float>(uplo, n);
         std::vector<float> dense = expand_packed(uplo, n, ap);
         const std::array<float, 3> x = {1.0F, -2.0F, 0.5F};
@@ -224,9 +237,10 @@ void test_spr_and_spr2_match_dense() {
             const int first = (uplo == 'U') ? 0 : j;
             const int last = (uplo == 'U') ? j : (n - 1);
             for (int i = first; i <= last; ++i) {
-                assert(almost_equal_scalar(
-                    ap[static_cast<std::size_t>(packed_index(uplo, i, j, n))],
-                    dense[static_cast<std::size_t>(i) + static_cast<std::size_t>(j) * uz(n)]));
+                TEST_CONTEXT("i=", i);
+                CHECK_PRED(
+                    almost_equal_scalar, ap[static_cast<std::size_t>(packed_index(uplo, i, j, n))],
+                    dense[static_cast<std::size_t>(i) + static_cast<std::size_t>(j) * uz(n)]);
             }
         }
     }
@@ -237,21 +251,22 @@ void test_spr_fixed_and_invalid_args() {
     std::vector<fixed32> ap = {fixed32(0), fixed32(0), fixed32(0)};
     const std::array<fixed32, 2> x = {fixed32(1), fixed32(2)};
     thefblas::spr('L', 2, fixed32(2), x.data(), 1, ap.data());
-    assert(almost_equal_scalar(ap[0], fixed32(2))); // a(0,0) = 2 * 1 * 1
-    assert(almost_equal_scalar(ap[1], fixed32(4))); // a(1,0) = 2 * 2 * 1
-    assert(almost_equal_scalar(ap[2], fixed32(8))); // a(1,1) = 2 * 2 * 2
+    CHECK_PRED(almost_equal_scalar, ap[0], fixed32(2)); // a(0,0) = 2 * 1 * 1
+    CHECK_PRED(almost_equal_scalar, ap[1], fixed32(4)); // a(1,0) = 2 * 2 * 1
+    CHECK_PRED(almost_equal_scalar, ap[2], fixed32(8)); // a(1,1) = 2 * 2 * 2
 
     thefblas::spr('X', 2, fixed32(2), x.data(), 1, ap.data());
     thefblas::spr('L', 2, fixed32(0), x.data(), 1, ap.data());
     thefblas::spr2('L', 2, fixed32(2), x.data(), 0, x.data(), 1, ap.data());
-    assert(almost_equal_scalar(ap[0], fixed32(2)));
-    assert(almost_equal_scalar(ap[1], fixed32(4)));
-    assert(almost_equal_scalar(ap[2], fixed32(8)));
+    CHECK_PRED(almost_equal_scalar, ap[0], fixed32(2));
+    CHECK_PRED(almost_equal_scalar, ap[1], fixed32(4));
+    CHECK_PRED(almost_equal_scalar, ap[2], fixed32(8));
 }
 
 void test_hpr_and_hpr2_match_dense() {
     const int n = 3;
     for (const char uplo : {'U', 'L'}) {
+        TEST_CONTEXT(__func__, " uplo=", uplo);
         std::vector<cfloat> ap(static_cast<std::size_t>(n) * (uz(n) + 1) / 2, cfloat(0.0F, 0.0F));
         for (int j = 0; j < n; ++j) {
             const int first = (uplo == 'U') ? 0 : j;
@@ -277,15 +292,17 @@ void test_hpr_and_hpr2_match_dense() {
             const int first = (uplo == 'U') ? 0 : j;
             const int last = (uplo == 'U') ? j : (n - 1);
             for (int i = first; i <= last; ++i) {
-                assert(almost_equal_scalar(
-                    ap[static_cast<std::size_t>(packed_index(uplo, i, j, n))],
-                    dense[static_cast<std::size_t>(i) + static_cast<std::size_t>(j) * uz(n)]));
+                TEST_CONTEXT("i=", i);
+                CHECK_PRED(
+                    almost_equal_scalar, ap[static_cast<std::size_t>(packed_index(uplo, i, j, n))],
+                    dense[static_cast<std::size_t>(i) + static_cast<std::size_t>(j) * uz(n)]);
             }
         }
         // The Hermitian diagonal must stay real.
         for (int j = 0; j < n; ++j) {
-            assert(almost_equal_scalar(
-                ap[static_cast<std::size_t>(packed_index(uplo, j, j, n))].imag(), 0.0F));
+            TEST_CONTEXT("j=", j);
+            CHECK_PRED(almost_equal_scalar,
+                       ap[static_cast<std::size_t>(packed_index(uplo, j, j, n))].imag(), 0.0F);
         }
     }
 }
@@ -297,9 +314,9 @@ void test_hpr_complex_fixed() {
     const std::array<cfixed, 2> x = {cfixed(fixed32(1), fixed32(0)),
                                      cfixed(fixed32(0), fixed32(1))};
     thefblas::hpr('U', 2, fixed32(1), x.data(), 1, ap.data());
-    assert(almost_equal_scalar(ap[0], cfixed(fixed32(1), fixed32(0))));  // a(0,0) = 1
-    assert(almost_equal_scalar(ap[1], cfixed(fixed32(0), fixed32(-1)))); // a(0,1) = -i
-    assert(almost_equal_scalar(ap[2], cfixed(fixed32(1), fixed32(0))));  // a(1,1) = 1
+    CHECK_PRED(almost_equal_scalar, ap[0], cfixed(fixed32(1), fixed32(0)));  // a(0,0) = 1
+    CHECK_PRED(almost_equal_scalar, ap[1], cfixed(fixed32(0), fixed32(-1))); // a(0,1) = -i
+    CHECK_PRED(almost_equal_scalar, ap[2], cfixed(fixed32(1), fixed32(0)));  // a(1,1) = 1
 }
 
 } // namespace
@@ -315,4 +332,5 @@ int main() {
     test_spr_fixed_and_invalid_args();
     test_hpr_and_hpr2_match_dense();
     test_hpr_complex_fixed();
+    return thefblas_test::finish();
 }

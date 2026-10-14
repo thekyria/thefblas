@@ -1,10 +1,10 @@
 // API-level properties: every public routine is noexcept, the Level-1
 // contiguous-range overloads forward to the pointer API, and fixed-point sqrt
 // is usable in constant expressions.
+#include "test_support.hpp"
 #include "thefblas/thefblas.h"
 
 #include <array>
-#include <cassert>
 #include <cmath>
 #include <complex>
 #include <utility>
@@ -104,64 +104,64 @@ void test_noexcept() {
 void test_range_overloads_real() {
     std::vector<double> x = {1.0, -3.0, 2.0};
     std::vector<double> y = {4.0, 5.0, 6.0};
-    assert(thefblas::dot(x, y) == 1.0 * 4.0 - 3.0 * 5.0 + 2.0 * 6.0);
-    assert(thefblas::asum(x) == 6.0);
-    assert(thefblas::iamax(x) == 2); // 1-based, as in the pointer API
-    assert(std::fabs(thefblas::nrm2(x) - std::sqrt(14.0)) < 1e-12);
+    CHECK(thefblas::dot(x, y) == 1.0 * 4.0 - 3.0 * 5.0 + 2.0 * 6.0);
+    CHECK(thefblas::asum(x) == 6.0);
+    CHECK(thefblas::iamax(x) == 2); // 1-based, as in the pointer API
+    CHECK(std::fabs(thefblas::nrm2(x) - std::sqrt(14.0)) < 1e-12);
 
     thefblas::axpy(2.0, x, y);
-    assert((y == std::vector<double>{6.0, -1.0, 10.0}));
+    CHECK((y == std::vector<double>{6.0, -1.0, 10.0}));
     thefblas::scal(0.5, y);
-    assert((y == std::vector<double>{3.0, -0.5, 5.0}));
+    CHECK((y == std::vector<double>{3.0, -0.5, 5.0}));
     thefblas::copy(x, y);
-    assert(y == x);
+    CHECK(y == x);
 
     // Rotation by 90 degrees: (x, y) -> (y, -x).
     std::array<double, 2> a = {1.0, 2.0};
     double b[2] = {3.0, 4.0};
     thefblas::rot(a, b, 0.0, 1.0);
-    assert(a[0] == 3.0 && a[1] == 4.0);
-    assert(b[0] == -1.0 && b[1] == -2.0);
+    CHECK(a[0] == 3.0 && a[1] == 4.0);
+    CHECK(b[0] == -1.0 && b[1] == -2.0);
 
     // rotm with flag -1: full H = [[2, 0], [0, 3]].
     const double param[5] = {-1.0, 2.0, 0.0, 0.0, 3.0};
     thefblas::rotm(a, b, param);
-    assert(a[0] == 6.0 && a[1] == 8.0);
-    assert(b[0] == -3.0 && b[1] == -6.0);
+    CHECK(a[0] == 6.0 && a[1] == 8.0);
+    CHECK(b[0] == -3.0 && b[1] == -6.0);
 
     // Read-only ranges may be const.
     const std::array<float, 2> f = {3.0F, 4.0F};
-    assert(thefblas::nrm2(f) == 5.0F);
+    CHECK(thefblas::nrm2(f) == 5.0F);
 
     // Empty ranges are no-ops, as with n == 0.
     std::vector<double> empty;
-    assert(thefblas::dot(empty, empty) == 0.0);
-    assert(thefblas::iamax(empty) == 0);
+    CHECK(thefblas::dot(empty, empty) == 0.0);
+    CHECK(thefblas::iamax(empty) == 0);
 }
 
 void test_range_overloads_complex() {
     std::vector<C> x = {C(1.0, 2.0), C(3.0, -1.0)};
     std::vector<C> y = {C(2.0, 0.0), C(0.0, 1.0)};
-    assert(thefblas::dotu(x, y) == x[0] * y[0] + x[1] * y[1]);
-    assert(thefblas::dotc(x, y) == std::conj(x[0]) * y[0] + std::conj(x[1]) * y[1]);
-    assert(thefblas::asum(x) == 7.0);
-    assert(thefblas::iamax(x) == 2);
-    assert(std::fabs(thefblas::nrm2(x) - std::sqrt(15.0)) < 1e-12);
+    CHECK(thefblas::dotu(x, y) == x[0] * y[0] + x[1] * y[1]);
+    CHECK(thefblas::dotc(x, y) == std::conj(x[0]) * y[0] + std::conj(x[1]) * y[1]);
+    CHECK(thefblas::asum(x) == 7.0);
+    CHECK(thefblas::iamax(x) == 2);
+    CHECK(std::fabs(thefblas::nrm2(x) - std::sqrt(15.0)) < 1e-12);
 
     // A real alpha scales both parts; a complex alpha multiplies.
     thefblas::scal(2.0, x);
-    assert(x[0] == C(2.0, 4.0));
+    CHECK(x[0] == C(2.0, 4.0));
     thefblas::scal(C(0.0, 1.0), x);
-    assert(x[0] == C(-4.0, 2.0));
+    CHECK(x[0] == C(-4.0, 2.0));
 }
 
 void test_range_overloads_fixed() {
     using F = thefblas::q16_16;
     const std::vector<F> x = {F(1.5), F(-2.0)};
     const std::vector<F> y = {F(2.0), F(0.25)};
-    assert(thefblas::dot(x, y) == F(2.5));
+    CHECK(thefblas::dot(x, y) == F(2.5));
     const std::vector<F> none;
-    assert(thefblas::dot(none, none) == F(0.0));
+    CHECK(thefblas::dot(none, none) == F(0.0));
 }
 
 void test_constexpr_sqrt() {
@@ -187,5 +187,5 @@ int main() {
     test_range_overloads_complex();
     test_range_overloads_fixed();
     test_constexpr_sqrt();
-    return 0;
+    return thefblas_test::finish();
 }

@@ -1,8 +1,8 @@
+#include "test_support.hpp"
 #include "thefblas/fixed.hpp"
 #include "thefblas/level2.hpp"
 
 #include <array>
-#include <cassert>
 #include <complex>
 #include <cstdint>
 
@@ -34,8 +34,8 @@ bool almost_equal_scalar(std::complex<T> lhs, std::complex<T> rhs, double eps = 
 
 template <typename T>
 void assert_complex_real(T expected, std::complex<T> actual, double eps = 1e-5) {
-    assert(almost_equal_scalar(actual.real(), expected, eps));
-    assert(almost_equal_scalar(actual.imag(), T(0), eps));
+    CHECK_PRED(almost_equal_scalar, actual.real(), expected, eps);
+    CHECK_PRED(almost_equal_scalar, actual.imag(), T(0), eps);
 }
 
 void test_gemv_float() {
@@ -43,9 +43,9 @@ void test_gemv_float() {
     std::array<float, 2> x = {1.0F, 1.0F};
     std::array<float, 3> y = {0.0F, 0.0F, 0.0F};
     thefblas::gemv('N', 3, 2, 1.0F, a.data(), 3, x.data(), 1, 0.0F, y.data(), 1);
-    assert(almost_equal_scalar(y[0], 3.0F));
-    assert(almost_equal_scalar(y[1], 7.0F));
-    assert(almost_equal_scalar(y[2], 11.0F));
+    CHECK_PRED(almost_equal_scalar, y[0], 3.0F);
+    CHECK_PRED(almost_equal_scalar, y[1], 7.0F);
+    CHECK_PRED(almost_equal_scalar, y[2], 11.0F);
 }
 
 void test_gemv_fixed_transpose() {
@@ -54,8 +54,8 @@ void test_gemv_fixed_transpose() {
     std::array<fixed32, 3> x = {fixed32(1), fixed32(1), fixed32(1)};
     std::array<fixed32, 2> y = {fixed32(0), fixed32(0)};
     thefblas::gemv('T', 3, 2, fixed32(1), a.data(), 3, x.data(), 1, fixed32(0), y.data(), 1);
-    assert(almost_equal_scalar(y[0], fixed32(9)));
-    assert(almost_equal_scalar(y[1], fixed32(12)));
+    CHECK_PRED(almost_equal_scalar, y[0], fixed32(9));
+    CHECK_PRED(almost_equal_scalar, y[1], fixed32(12));
 }
 
 void test_gemv_complex_conjugate_transpose() {
@@ -65,8 +65,8 @@ void test_gemv_complex_conjugate_transpose() {
     std::array<cfloat, 2> y = {cfloat(0.0F, 0.0F), cfloat(0.0F, 0.0F)};
     thefblas::gemv('C', 2, 2, cfloat(1.0F, 0.0F), a.data(), 2, x.data(), 1, cfloat(0.0F, 0.0F),
                    y.data(), 1);
-    assert(almost_equal_scalar(y[0], cfloat(1.0F, -1.0F)));
-    assert(almost_equal_scalar(y[1], cfloat(2.0F, -1.0F)));
+    CHECK_PRED(almost_equal_scalar, y[0], cfloat(1.0F, -1.0F));
+    CHECK_PRED(almost_equal_scalar, y[1], cfloat(2.0F, -1.0F));
 }
 
 void test_gemv_complex_fixed_and_invalid_char() {
@@ -76,12 +76,12 @@ void test_gemv_complex_fixed_and_invalid_char() {
     std::array<cfixed, 2> y = {cfixed(fixed32(9), fixed32(9)), cfixed(fixed32(8), fixed32(8))};
     thefblas::gemv('X', 2, 2, cfixed(fixed32(1), fixed32(0)), a.data(), 2, x.data(), 1,
                    cfixed(fixed32(0), fixed32(0)), y.data(), 1);
-    assert(almost_equal_scalar(y[0], cfixed(fixed32(9), fixed32(9))));
-    assert(almost_equal_scalar(y[1], cfixed(fixed32(8), fixed32(8))));
+    CHECK_PRED(almost_equal_scalar, y[0], cfixed(fixed32(9), fixed32(9)));
+    CHECK_PRED(almost_equal_scalar, y[1], cfixed(fixed32(8), fixed32(8)));
     thefblas::gemv('N', 2, 2, cfixed(fixed32(1), fixed32(0)), a.data(), 2, x.data(), 1,
                    cfixed(fixed32(0), fixed32(0)), y.data(), 1);
-    assert(almost_equal_scalar(y[0], x[0]));
-    assert(almost_equal_scalar(y[1], x[1]));
+    CHECK_PRED(almost_equal_scalar, y[0], x[0]);
+    CHECK_PRED(almost_equal_scalar, y[1], x[1]);
 }
 
 void test_ger_float() {
@@ -89,10 +89,10 @@ void test_ger_float() {
     std::array<float, 2> y = {3.0F, 4.0F};
     std::array<float, 4> a = {0.0F, 0.0F, 0.0F, 0.0F};
     thefblas::ger(2, 2, 1.0F, x.data(), 1, y.data(), 1, a.data(), 2);
-    assert(almost_equal_scalar(a[0], 3.0F));
-    assert(almost_equal_scalar(a[1], 6.0F));
-    assert(almost_equal_scalar(a[2], 4.0F));
-    assert(almost_equal_scalar(a[3], 8.0F));
+    CHECK_PRED(almost_equal_scalar, a[0], 3.0F);
+    CHECK_PRED(almost_equal_scalar, a[1], 6.0F);
+    CHECK_PRED(almost_equal_scalar, a[2], 4.0F);
+    CHECK_PRED(almost_equal_scalar, a[3], 8.0F);
 }
 
 void test_geru_and_gerc_complex() {
@@ -103,8 +103,8 @@ void test_geru_and_gerc_complex() {
     std::array<cfloat, 4> ac = au;
     thefblas::geru(2, 2, cfloat(1.0F, 0.0F), x.data(), 1, y.data(), 1, au.data(), 2);
     thefblas::gerc(2, 2, cfloat(1.0F, 0.0F), x.data(), 1, y.data(), 1, ac.data(), 2);
-    assert(almost_equal_scalar(au[0], cfloat(2.0F, 0.0F)));
-    assert(almost_equal_scalar(ac[0], cfloat(0.0F, 2.0F)));
+    CHECK_PRED(almost_equal_scalar, au[0], cfloat(2.0F, 0.0F));
+    CHECK_PRED(almost_equal_scalar, ac[0], cfloat(0.0F, 2.0F));
 }
 
 void test_symv_upper_float() {
@@ -112,8 +112,8 @@ void test_symv_upper_float() {
     std::array<float, 2> x = {1.0F, 2.0F};
     std::array<float, 2> y = {0.0F, 0.0F};
     thefblas::symv('U', 2, 1.0F, a.data(), 2, x.data(), 1, 0.0F, y.data(), 1);
-    assert(almost_equal_scalar(y[0], 4.0F));
-    assert(almost_equal_scalar(y[1], 7.0F));
+    CHECK_PRED(almost_equal_scalar, y[0], 4.0F);
+    CHECK_PRED(almost_equal_scalar, y[1], 7.0F);
 }
 
 void test_symv_lower_fixed() {
@@ -121,8 +121,8 @@ void test_symv_lower_fixed() {
     std::array<fixed32, 2> x = {fixed32(1), fixed32(2)};
     std::array<fixed32, 2> y = {fixed32(0), fixed32(0)};
     thefblas::symv('L', 2, fixed32(1), a.data(), 2, x.data(), 1, fixed32(0), y.data(), 1);
-    assert(almost_equal_scalar(y[0], fixed32(4)));
-    assert(almost_equal_scalar(y[1], fixed32(7)));
+    CHECK_PRED(almost_equal_scalar, y[0], fixed32(4));
+    CHECK_PRED(almost_equal_scalar, y[1], fixed32(7));
 }
 
 void test_hemv_upper_complex_float() {
@@ -132,8 +132,8 @@ void test_hemv_upper_complex_float() {
     std::array<cfloat, 2> y = {cfloat(0.0F, 0.0F), cfloat(0.0F, 0.0F)};
     thefblas::hemv('U', 2, cfloat(1.0F, 0.0F), a.data(), 2, x.data(), 1, cfloat(0.0F, 0.0F),
                    y.data(), 1);
-    assert(almost_equal_scalar(y[0], cfloat(3.0F, 1.0F)));
-    assert(almost_equal_scalar(y[1], cfloat(4.0F, -1.0F)));
+    CHECK_PRED(almost_equal_scalar, y[0], cfloat(3.0F, 1.0F));
+    CHECK_PRED(almost_equal_scalar, y[1], cfloat(4.0F, -1.0F));
 }
 
 void test_hemv_lower_complex_fixed() {
@@ -143,24 +143,24 @@ void test_hemv_lower_complex_fixed() {
     std::array<cfixed, 2> y = {cfixed(fixed32(0), fixed32(0)), cfixed(fixed32(0), fixed32(0))};
     thefblas::hemv('L', 2, cfixed(fixed32(1), fixed32(0)), a.data(), 2, x.data(), 1,
                    cfixed(fixed32(0), fixed32(0)), y.data(), 1);
-    assert(almost_equal_scalar(y[0], cfixed(fixed32(3), fixed32(1))));
-    assert(almost_equal_scalar(y[1], cfixed(fixed32(4), fixed32(-1))));
+    CHECK_PRED(almost_equal_scalar, y[0], cfixed(fixed32(3), fixed32(1)));
+    CHECK_PRED(almost_equal_scalar, y[1], cfixed(fixed32(4), fixed32(-1)));
 }
 
 void test_syr_float_and_fixed() {
     std::array<float, 4> a1 = {0.0F, 0.0F, 0.0F, 0.0F};
     std::array<float, 2> x1 = {1.0F, 2.0F};
     thefblas::syr('U', 2, 1.0F, x1.data(), 1, a1.data(), 2);
-    assert(almost_equal_scalar(a1[0], 1.0F));
-    assert(almost_equal_scalar(a1[2], 2.0F));
-    assert(almost_equal_scalar(a1[3], 4.0F));
+    CHECK_PRED(almost_equal_scalar, a1[0], 1.0F);
+    CHECK_PRED(almost_equal_scalar, a1[2], 2.0F);
+    CHECK_PRED(almost_equal_scalar, a1[3], 4.0F);
 
     std::array<fixed32, 4> a2 = {fixed32(0), fixed32(0), fixed32(0), fixed32(0)};
     std::array<fixed32, 2> x2 = {fixed32(1), fixed32(2)};
     thefblas::syr('L', 2, fixed32(1), x2.data(), 1, a2.data(), 2);
-    assert(almost_equal_scalar(a2[0], fixed32(1)));
-    assert(almost_equal_scalar(a2[1], fixed32(2)));
-    assert(almost_equal_scalar(a2[3], fixed32(4)));
+    CHECK_PRED(almost_equal_scalar, a2[0], fixed32(1));
+    CHECK_PRED(almost_equal_scalar, a2[1], fixed32(2));
+    CHECK_PRED(almost_equal_scalar, a2[3], fixed32(4));
 }
 
 void test_her_complex_float_and_fixed() {
@@ -169,7 +169,7 @@ void test_her_complex_float_and_fixed() {
     std::array<cfloat, 2> x1 = {cfloat(1.0F, 1.0F), cfloat(2.0F, 0.0F)};
     thefblas::her('U', 2, 1.0F, x1.data(), 1, a1.data(), 2);
     assert_complex_real(2.0F, a1[0]);
-    assert(almost_equal_scalar(a1[2], cfloat(2.0F, 2.0F)));
+    CHECK_PRED(almost_equal_scalar, a1[2], cfloat(2.0F, 2.0F));
     assert_complex_real(4.0F, a1[3]);
 
     std::array<cfixed, 4> a2 = {cfixed(fixed32(0), fixed32(1)), cfixed(fixed32(0), fixed32(0)),
@@ -177,7 +177,7 @@ void test_her_complex_float_and_fixed() {
     std::array<cfixed, 2> x2 = {cfixed(fixed32(1), fixed32(1)), cfixed(fixed32(2), fixed32(0))};
     thefblas::her('L', 2, fixed32(1), x2.data(), 1, a2.data(), 2);
     assert_complex_real(fixed32(2), a2[0]);
-    assert(almost_equal_scalar(a2[1], cfixed(fixed32(2), fixed32(-2))));
+    CHECK_PRED(almost_equal_scalar, a2[1], cfixed(fixed32(2), fixed32(-2)));
     assert_complex_real(fixed32(4), a2[3]);
 }
 
@@ -186,17 +186,17 @@ void test_syr2_float_and_fixed() {
     std::array<float, 2> x1 = {1.0F, 0.0F};
     std::array<float, 2> y1 = {0.0F, 1.0F};
     thefblas::syr2('U', 2, 1.0F, x1.data(), 1, y1.data(), 1, a1.data(), 2);
-    assert(almost_equal_scalar(a1[0], 0.0F));
-    assert(almost_equal_scalar(a1[2], 1.0F));
-    assert(almost_equal_scalar(a1[3], 0.0F));
+    CHECK_PRED(almost_equal_scalar, a1[0], 0.0F);
+    CHECK_PRED(almost_equal_scalar, a1[2], 1.0F);
+    CHECK_PRED(almost_equal_scalar, a1[3], 0.0F);
 
     std::array<fixed32, 4> a2 = {fixed32(0), fixed32(0), fixed32(0), fixed32(0)};
     std::array<fixed32, 2> x2 = {fixed32(1), fixed32(0)};
     std::array<fixed32, 2> y2 = {fixed32(0), fixed32(1)};
     thefblas::syr2('L', 2, fixed32(1), x2.data(), 1, y2.data(), 1, a2.data(), 2);
-    assert(almost_equal_scalar(a2[0], fixed32(0)));
-    assert(almost_equal_scalar(a2[1], fixed32(1)));
-    assert(almost_equal_scalar(a2[3], fixed32(0)));
+    CHECK_PRED(almost_equal_scalar, a2[0], fixed32(0));
+    CHECK_PRED(almost_equal_scalar, a2[1], fixed32(1));
+    CHECK_PRED(almost_equal_scalar, a2[3], fixed32(0));
 }
 
 void test_her2_complex_float_and_fixed() {
@@ -205,7 +205,7 @@ void test_her2_complex_float_and_fixed() {
     std::array<cfloat, 2> x1 = {cfloat(1.0F, 0.0F), cfloat(0.0F, 0.0F)};
     std::array<cfloat, 2> y1 = {cfloat(0.0F, 0.0F), cfloat(1.0F, 0.0F)};
     thefblas::her2('U', 2, cfloat(1.0F, 0.0F), x1.data(), 1, y1.data(), 1, a1.data(), 2);
-    assert(almost_equal_scalar(a1[2], cfloat(1.0F, 0.0F)));
+    CHECK_PRED(almost_equal_scalar, a1[2], cfloat(1.0F, 0.0F));
     assert_complex_real(0.0F, a1[0]);
     assert_complex_real(0.0F, a1[3]);
 
@@ -215,7 +215,7 @@ void test_her2_complex_float_and_fixed() {
     std::array<cfixed, 2> y2 = {cfixed(fixed32(0), fixed32(0)), cfixed(fixed32(1), fixed32(0))};
     thefblas::her2('L', 2, cfixed(fixed32(1), fixed32(0)), x2.data(), 1, y2.data(), 1, a2.data(),
                    2);
-    assert(almost_equal_scalar(a2[1], cfixed(fixed32(1), fixed32(0))));
+    CHECK_PRED(almost_equal_scalar, a2[1], cfixed(fixed32(1), fixed32(0)));
     assert_complex_real(fixed32(0), a2[0]);
     assert_complex_real(fixed32(0), a2[3]);
 }
@@ -224,16 +224,16 @@ void test_trmv_float() {
     std::array<float, 4> a = {2.0F, 0.0F, 3.0F, 4.0F};
     std::array<float, 2> x = {1.0F, 2.0F};
     thefblas::trmv('U', 'N', 'N', 2, a.data(), 2, x.data(), 1);
-    assert(almost_equal_scalar(x[0], 8.0F));
-    assert(almost_equal_scalar(x[1], 8.0F));
+    CHECK_PRED(almost_equal_scalar, x[0], 8.0F);
+    CHECK_PRED(almost_equal_scalar, x[1], 8.0F);
 }
 
 void test_trmv_fixed_unit_transpose() {
     std::array<fixed32, 4> a = {fixed32(1), fixed32(5), fixed32(0), fixed32(1)};
     std::array<fixed32, 2> x = {fixed32(2), fixed32(3)};
     thefblas::trmv('L', 'T', 'U', 2, a.data(), 2, x.data(), 1);
-    assert(almost_equal_scalar(x[0], fixed32(17)));
-    assert(almost_equal_scalar(x[1], fixed32(3)));
+    CHECK_PRED(almost_equal_scalar, x[0], fixed32(17));
+    CHECK_PRED(almost_equal_scalar, x[1], fixed32(3));
 }
 
 void test_trmv_complex_conjugate_transpose() {
@@ -241,24 +241,24 @@ void test_trmv_complex_conjugate_transpose() {
                                cfloat(3.0F, 0.0F)};
     std::array<cfloat, 2> x = {cfloat(1.0F, 0.0F), cfloat(1.0F, 0.0F)};
     thefblas::trmv('U', 'C', 'N', 2, a.data(), 2, x.data(), 1);
-    assert(almost_equal_scalar(x[0], cfloat(1.0F, 0.0F)));
-    assert(almost_equal_scalar(x[1], cfloat(5.0F, -1.0F)));
+    CHECK_PRED(almost_equal_scalar, x[0], cfloat(1.0F, 0.0F));
+    CHECK_PRED(almost_equal_scalar, x[1], cfloat(5.0F, -1.0F));
 }
 
 void test_trsv_float() {
     std::array<float, 4> a = {2.0F, 0.0F, 3.0F, 4.0F};
     std::array<float, 2> x = {8.0F, 8.0F};
     thefblas::trsv('U', 'N', 'N', 2, a.data(), 2, x.data(), 1);
-    assert(almost_equal_scalar(x[0], 1.0F));
-    assert(almost_equal_scalar(x[1], 2.0F));
+    CHECK_PRED(almost_equal_scalar, x[0], 1.0F);
+    CHECK_PRED(almost_equal_scalar, x[1], 2.0F);
 }
 
 void test_trsv_fixed() {
     std::array<fixed32, 4> a = {fixed32(2), fixed32(3), fixed32(0), fixed32(4)};
     std::array<fixed32, 2> x = {fixed32(2), fixed32(11)};
     thefblas::trsv('L', 'N', 'N', 2, a.data(), 2, x.data(), 1);
-    assert(almost_equal_scalar(x[0], fixed32(1)));
-    assert(almost_equal_scalar(x[1], fixed32(2)));
+    CHECK_PRED(almost_equal_scalar, x[0], fixed32(1));
+    CHECK_PRED(almost_equal_scalar, x[1], fixed32(2));
 }
 
 void test_trsv_complex_conjugate_transpose() {
@@ -266,8 +266,8 @@ void test_trsv_complex_conjugate_transpose() {
                                cfloat(3.0F, 0.0F)};
     std::array<cfloat, 2> x = {cfloat(2.0F, 0.0F), cfloat(4.0F, -1.0F)};
     thefblas::trsv('U', 'C', 'N', 2, a.data(), 2, x.data(), 1);
-    assert(almost_equal_scalar(x[0], cfloat(1.0F, 0.0F)));
-    assert(almost_equal_scalar(x[1], cfloat(1.0F, 0.0F)));
+    CHECK_PRED(almost_equal_scalar, x[0], cfloat(1.0F, 0.0F));
+    CHECK_PRED(almost_equal_scalar, x[1], cfloat(1.0F, 0.0F));
 }
 
 // A leading dimension smaller than the number of rows is invalid: every dense
@@ -279,25 +279,25 @@ void test_invalid_lda_is_noop() {
 
     auto y = y0;
     thefblas::gemv('N', 2, 2, 1.0F, a.data(), 1, x.data(), 1, 0.0F, y.data(), 1);
-    assert(y == y0);
+    CHECK(y == y0);
     thefblas::gemv('T', 2, 2, 1.0F, a.data(), 1, x.data(), 1, 0.0F, y.data(), 1);
-    assert(y == y0);
+    CHECK(y == y0);
     thefblas::symv('U', 2, 1.0F, a.data(), 1, x.data(), 1, 0.0F, y.data(), 1);
-    assert(y == y0);
+    CHECK(y == y0);
 
     auto v = y0;
     thefblas::trmv('U', 'N', 'N', 2, a.data(), 1, v.data(), 1);
-    assert(v == y0);
+    CHECK(v == y0);
     thefblas::trsv('L', 'T', 'N', 2, a.data(), 1, v.data(), 1);
-    assert(v == y0);
+    CHECK(v == y0);
 
     auto m = a;
     thefblas::ger(2, 2, 1.0F, x.data(), 1, x.data(), 1, m.data(), 1);
-    assert(m == a);
+    CHECK(m == a);
     thefblas::syr('U', 2, 1.0F, x.data(), 1, m.data(), 1);
-    assert(m == a);
+    CHECK(m == a);
     thefblas::syr2('L', 2, 1.0F, x.data(), 1, x.data(), 1, m.data(), 0);
-    assert(m == a);
+    CHECK(m == a);
 
     const std::array<cfloat, 4> ca = {cfloat(1.0F, 0.0F), cfloat(2.0F, 1.0F), cfloat(2.0F, -1.0F),
                                       cfloat(4.0F, 0.0F)};
@@ -308,19 +308,19 @@ void test_invalid_lda_is_noop() {
 
     auto cy = cy0;
     thefblas::gemv('C', 2, 2, one, ca.data(), 1, cx.data(), 1, zero, cy.data(), 1);
-    assert(cy == cy0);
+    CHECK(cy == cy0);
     thefblas::hemv('L', 2, one, ca.data(), 1, cx.data(), 1, zero, cy.data(), 1);
-    assert(cy == cy0);
+    CHECK(cy == cy0);
 
     auto cm = ca;
     thefblas::geru(2, 2, one, cx.data(), 1, cx.data(), 1, cm.data(), 1);
-    assert(cm == ca);
+    CHECK(cm == ca);
     thefblas::gerc(2, 2, one, cx.data(), 1, cx.data(), 1, cm.data(), -2);
-    assert(cm == ca);
+    CHECK(cm == ca);
     thefblas::her('U', 2, 1.0F, cx.data(), 1, cm.data(), 1);
-    assert(cm == ca);
+    CHECK(cm == ca);
     thefblas::her2('U', 2, one, cx.data(), 1, cx.data(), 1, cm.data(), 1);
-    assert(cm == ca);
+    CHECK(cm == ca);
 
     using fixed_array = std::array<fixed32, 2>;
     const fixed_array fy0 = {fixed32(1.5), fixed32(-2.5)};
@@ -328,14 +328,14 @@ void test_invalid_lda_is_noop() {
     auto fy = fy0;
     thefblas::gemv('N', 2, 2, fixed32(1.0), fa.data(), 1, fy0.data(), 1, fixed32(0.0), fy.data(),
                    1);
-    assert(fy == fy0);
+    CHECK(fy == fy0);
 
     // A valid leading dimension larger than the row count is still accepted.
     const std::array<float, 6> padded = {1.0F, 3.0F, -99.0F, 2.0F, 4.0F, -99.0F};
     y = y0;
     thefblas::gemv('N', 2, 2, 1.0F, padded.data(), 3, x.data(), 1, 0.0F, y.data(), 1);
-    assert(almost_equal_scalar(y[0], 3.0F));
-    assert(almost_equal_scalar(y[1], 7.0F));
+    CHECK_PRED(almost_equal_scalar, y[0], 3.0F);
+    CHECK_PRED(almost_equal_scalar, y[1], 7.0F);
 }
 
 } // namespace
@@ -362,4 +362,5 @@ int main() {
     test_trsv_fixed();
     test_trsv_complex_conjugate_transpose();
     test_invalid_lda_is_noop();
+    return thefblas_test::finish();
 }
