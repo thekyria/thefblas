@@ -5,6 +5,7 @@
 
 #include <climits>
 #include <complex>
+#include <limits>
 #include <type_traits>
 
 namespace thefblas {
@@ -69,6 +70,25 @@ template <typename T> struct value_constants<std::complex<T>> {
     static std::complex<T> zero() { return std::complex<T>(T{}, T{}); }
     static std::complex<T> one() { return std::complex<T>(T{1}, T{}); }
 };
+
+/// True when `value` is exactly 1. Unlike a comparison with
+/// `value_constants<T>::one()`, this does not construct 1, which fixed-point
+/// formats without integer bits (`q7`, `q15`, `q31`) cannot represent: there
+/// `checked` would assert, although such a `value` simply is never 1.
+template <typename T> inline bool is_one(const T &value) {
+    if constexpr (is_complex_v<T>) {
+        return is_one(value.real()) && value.imag() == typename T::value_type{};
+    } else if constexpr (is_fixed_v<T>) {
+        using Rep = typename T::rep;
+        if constexpr (T::frac_bits >= std::numeric_limits<Rep>::digits) {
+            return false;
+        } else {
+            return value.raw() == static_cast<Rep>(Rep(1) << T::frac_bits);
+        }
+    } else {
+        return value == T(1);
+    }
+}
 
 /// `numerator / denominator`, also for `std::complex` of fixed-point types.
 ///
@@ -156,7 +176,7 @@ inline T acc_scale_add_and_narrow(const T &beta, const T &y, const T &alpha,
                                   const accumulator_t<T> &value) {
     using Acc = accumulator_t<T>;
     Acc scaled_y = value_constants<Acc>::zero();
-    if (beta == value_constants<T>::one()) {
+    if (is_one(beta)) {
         scaled_y = to_accumulator(y);
     } else if (beta != value_constants<T>::zero()) {
         scaled_y = to_accumulator(y) * to_accumulator(beta);
@@ -402,7 +422,7 @@ inline T acc_scale_add2_and_narrow(const T &beta, const T &y, const T &alpha1,
                                    const accumulator_t<T> &w2) {
     using Acc = accumulator_t<T>;
     Acc scaled_y = value_constants<Acc>::zero();
-    if (beta == value_constants<T>::one()) {
+    if (is_one(beta)) {
         scaled_y = to_accumulator(y);
     } else if (beta != value_constants<T>::zero()) {
         scaled_y = to_accumulator(y) * to_accumulator(beta);
@@ -432,7 +452,7 @@ inline T rank1_element(const T &a, const T &alpha, const T &x, const T &y) {
     } else {
         product.add_product(x, y);
     }
-    return acc_scale_add_and_narrow(value_constants<T>::one(), a, alpha, product.wide_value());
+    return from_accumulator<T>(to_accumulator(a) + to_accumulator(alpha) * product.wide_value());
 }
 
 /// `a + alpha * (x1 * y1 + x2 * y2)`, the symmetric rank-2 update element.
@@ -442,20 +462,24 @@ inline T rank2_element(const T &a, const T &alpha, const T &x1, const T &y1, con
     mac_t<T> sum;
     sum.add_product(x1, y1);
     sum.add_product(x2, y2);
-    return acc_scale_add_and_narrow(value_constants<T>::one(), a, alpha, sum.wide_value());
+    return from_accumulator<T>(to_accumulator(a) + to_accumulator(alpha) * sum.wide_value());
 }
 
 /// `a + alpha * x1 * conj(y1) + conj(alpha) * x2 * conj(y2)`, the Hermitian
-/// rank-2 update element.
+/// rank-2 update element. The second term is formed as
+/// `conj(alpha * conj(x2) * y2)` in the accumulator type, so `conj(alpha)` is
+/// never materialized in the element type, where it would overflow for an
+/// imaginary part equal to the minimum.
 template <typename T>
 inline T hermitian_rank2_element(const T &a, const T &alpha, const T &x1, const T &y1, const T &x2,
                                  const T &y2) {
     mac_t<T> first;
     first.add_conj_product(y1, x1);
     mac_t<T> second;
-    second.add_conj_product(y2, x2);
-    return acc_scale_add2_and_narrow(value_constants<T>::one(), a, alpha, first.wide_value(),
-                                     conj_value(alpha), second.wide_value());
+    second.add_conj_product(x2, y2);
+    const auto scaled_alpha = to_accumulator(alpha);
+    return from_accumulator<T>(to_accumulator(a) + scaled_alpha * first.wide_value() +
+                               conj_value(scaled_alpha * second.wide_value()));
 }
 
 } // namespace detail

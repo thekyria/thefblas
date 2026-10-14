@@ -61,7 +61,7 @@ template <typename T> inline void scale_vector(int n, T beta, T *y, int incy) {
             y[iy] = value_constants<T>::zero();
             iy += incy;
         }
-    } else if (beta != value_constants<T>::one()) {
+    } else if (!is_one(beta)) {
         for (int i = 0; i < n; ++i) {
             y[iy] *= beta;
             iy += incy;

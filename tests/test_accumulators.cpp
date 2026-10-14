@@ -484,6 +484,97 @@ void test_norm_accumulator_overflow() {
 #endif
 }
 
+// Formats without integer bits (q15 covers [-1, 1)) cannot represent 1, so
+// beta == 1 must be recognised without constructing 1, and the rank updates
+// must not depend on it.
+void test_formats_without_unity() {
+    using thefblas::q15;
+    using C = std::complex<q15>;
+    const q15 half(0.5);
+    const q15 a[1] = {half};
+    const q15 x[1] = {half};
+    for (const char trans : {'N', 'T', 'C'}) {
+        q15 y[1] = {q15(0.25)};
+        thefblas::gemv(trans, 1, 1, half, a, 1, x, 1, q15(0), y, 1);
+        CHECK_EQ(y[0].raw(), q15(0.125).raw());
+        thefblas::gemv(trans, 1, 1, half, a, 1, x, 1, half, y, 1);
+        CHECK_EQ(y[0].raw(), q15(0.1875).raw());
+        // alpha == 0 scales y by beta alone.
+        thefblas::gemv(trans, 1, 1, q15(0), a, 1, x, 1, half, y, 1);
+        CHECK_EQ(y[0].raw(), q15(0.09375).raw());
+        y[0] = q15(0.25);
+        thefblas::gbmv(trans, 1, 1, 0, 0, half, a, 1, x, 1, q15(0), y, 1);
+        CHECK_EQ(y[0].raw(), q15(0.125).raw());
+        thefblas::gbmv(trans, 1, 1, 0, 0, q15(0), a, 1, x, 1, half, y, 1);
+        CHECK_EQ(y[0].raw(), q15(0.0625).raw());
+    }
+    q15 r[1] = {q15(0)};
+    thefblas::ger(1, 1, half, x, 1, x, 1, r, 1);
+    CHECK_EQ(r[0].raw(), q15(0.125).raw());
+    r[0] = q15(0);
+    thefblas::syr('U', 1, half, x, 1, r, 1);
+    CHECK_EQ(r[0].raw(), q15(0.125).raw());
+    r[0] = q15(0);
+    thefblas::syr2('U', 1, half, x, 1, x, 1, r, 1);
+    CHECK_EQ(r[0].raw(), q15(0.25).raw());
+    const C cx[1] = {C(half, q15(0))};
+    C h[1] = {C(q15(0), q15(0))};
+    thefblas::her2('U', 1, C(half, q15(0)), cx, 1, cx, 1, h, 1);
+    CHECK_EQ(h[0].real().raw(), q15(0.25).raw());
+    CHECK_EQ(h[0].imag().raw(), 0);
+}
+
+// Empty reductions return zero for the 16-bit formats used above.
+void test_empty_reductions() {
+    const Q7_8 q[1] = {Q7_8(0.5)};
+    CHECK_EQ(thefblas::dot(0, q, 1, q, 1).raw(), 0);
+    using S15 = fixed<std::int16_t, 15, thefblas::saturate>;
+    const S15 s15[1] = {S15(0.5)};
+    CHECK_EQ(thefblas::dot(0, s15, 1, s15, 1).raw(), 0);
+    using S8 = fixed<std::int16_t, 8, thefblas::saturate>;
+    const S8 s8[1] = {S8(0.5)};
+    CHECK_EQ(thefblas::dot(0, s8, 1, s8, 1).raw(), 0);
+}
+
+// her2/hpr2 scale their second term by conj(alpha). With alpha = -8i, the most
+// negative imaginary part of Q3.4, conj(alpha) is not representable, but
+// a(0,1) = conj(alpha) * y(0) * conj(x(1)) = 8i * 1.5 * 0.5 = 6i is.
+template <typename F> void check_hermitian_rank2_min_alpha() {
+    using C = std::complex<F>;
+    const C alpha(F(0), F::from_raw((std::numeric_limits<typename F::rep>::min)()));
+    const C x[2] = {C(F(0), F(0)), C(F(0.5), F(0))};
+    const C y[2] = {C(F(1.5), F(0)), C(F(0), F(0))};
+    C a[4] = {};
+    thefblas::her2('U', 2, alpha, x, 1, y, 1, a, 2);
+    CHECK_EQ(a[2].real().raw(), 0);
+    CHECK_EQ(a[2].imag().raw(), F(6.0).raw());
+    C ap[3] = {};
+    thefblas::hpr2('U', 2, alpha, x, 1, y, 1, ap);
+    CHECK_EQ(ap[1].real().raw(), 0);
+    CHECK_EQ(ap[1].imag().raw(), F(6.0).raw());
+}
+
+void test_hermitian_rank2_min_alpha() {
+    check_hermitian_rank2_min_alpha<fixed<std::int8_t, 4>>();
+    check_hermitian_rank2_min_alpha<fixed<std::int8_t, 4, thefblas::wrap>>();
+    check_hermitian_rank2_min_alpha<fixed<std::int8_t, 4, thefblas::saturate>>();
+}
+
+// A tall banded matrix has empty rows below its band. Their x offset must not
+// be formed: with incx = INT_MAX, row 2 would compute 2 * INT_MAX (signed
+// overflow, reported by the sanitizer build). beta still applies to them.
+void test_gbmv_empty_band_rows() {
+    using F = fixed<std::int32_t, 20>;
+    const F a[1] = {F(2.0)};
+    const F x[1] = {F(3.0)};
+    F y[3] = {F(1.0), F(2.0), F(3.0)};
+    thefblas::gbmv('N', 3, 1, 0, 0, F(1.0), a, 1, x, (std::numeric_limits<int>::max)(), F(0.5), y,
+                   1);
+    CHECK_EQ(y[0].raw(), F(6.5).raw());
+    CHECK_EQ(y[1].raw(), F(1.0).raw());
+    CHECK_EQ(y[2].raw(), F(1.5).raw());
+}
+
 #if defined(__SIZEOF_INT128__)
 // 64-bit fixed-point reductions accumulate in the same-width Q format, since
 // `__int128` has no wider type of its own; the sums are still formed exactly
@@ -520,6 +611,10 @@ int main() {
     test_from_integer_overflow();
     test_round_shift_limits();
     test_norm_accumulator_overflow();
+    test_formats_without_unity();
+    test_hermitian_rank2_min_alpha();
+    test_gbmv_empty_band_rows();
+    test_empty_reductions();
     test_symv_cancellation();
     test_symmetric_variants_cancellation();
     test_output_cancellation();

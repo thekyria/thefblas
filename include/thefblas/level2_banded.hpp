@@ -77,10 +77,15 @@ inline void gbmv_impl(char trans, int m, int n, int kl, int ku, T alpha, const T
                 mac_t<T> temp;
                 const int first = (i - kl > 0) ? (i - kl) : 0;
                 const int last = (i + ku < n - 1) ? (i + ku) : (n - 1);
-                int jx = x0 + first * incx;
-                for (int j = first; j <= last; ++j) {
-                    temp.add_product(a[(ku + i - j) + j * lda], x[jx]);
-                    jx += incx;
+                // Rows below the band of a tall matrix are empty (first > last);
+                // the offset is formed only for a row with entries, where it
+                // stays within x.
+                if (first <= last) {
+                    int jx = x0 + first * incx;
+                    for (int j = first; j <= last; ++j) {
+                        temp.add_product(a[(ku + i - j) + j * lda], x[jx]);
+                        jx += incx;
+                    }
                 }
                 y[iy] = acc_scale_add_and_narrow(beta, y[iy], alpha, temp.wide_value());
                 iy += incy;

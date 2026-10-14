@@ -80,7 +80,7 @@ inline void gemm_impl(char transa, char transb, int m, int n, int k, T alpha, co
         return;
     }
     const T zero = value_constants<T>::zero();
-    if ((alpha == zero || k == 0) && beta == value_constants<T>::one()) {
+    if ((alpha == zero || k == 0) && is_one(beta)) {
         return;
     }
     if (alpha == zero) {
@@ -130,7 +130,7 @@ inline void rank_k_update(char uplo, char trans, int n, int k, T alpha, const T 
     const bool upper = to_upper(uplo) == 'U';
     const bool no_trans = to_upper(trans) == 'N';
     const T zero = value_constants<T>::zero();
-    if ((alpha == zero || k == 0) && beta == value_constants<T>::one()) {
+    if ((alpha == zero || k == 0) && is_one(beta)) {
         return;
     }
 
@@ -206,7 +206,7 @@ inline void symm_like(char side, char uplo, int m, int n, T alpha, const T *a, i
         return;
     }
     const T zero = value_constants<T>::zero();
-    if (alpha == zero && beta == value_constants<T>::one()) {
+    if (alpha == zero && is_one(beta)) {
         return;
     }
     if (alpha == zero) {
@@ -257,7 +257,7 @@ inline void rank_2k_update(char uplo, char trans, int n, int k, T alpha, const T
     const bool upper = to_upper(uplo) == 'U';
     const bool no_trans = to_upper(trans) == 'N';
     const T zero = value_constants<T>::zero();
-    if ((alpha == zero || k == 0) && beta == value_constants<T>::one()) {
+    if ((alpha == zero || k == 0) && is_one(beta)) {
         return;
     }
     // With alpha == 0 the sums are empty, a and b are not read and C <- beta * C.

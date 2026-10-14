@@ -119,6 +119,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- With the formats that have no integer bits (`q7`, `q15`, `q31` and other
+  `FracBits == digits` types), routines taking a `beta` (`gemv`, `gbmv`,
+  `symv` and the other Level 2 matrix-vector products, and the Level 3
+  routines) compared it with a constructed 1, which these formats cannot
+  represent, so the `checked` policy asserted for any `beta`. They now test
+  for 1 without constructing it.
+
 - Fixed-point `gemv` and `gbmv` with `trans = 'N'`, and the rank-1 and rank-2
   updates (`ger`, `geru`, `gerc`, `syr`, `spr`, `her`, `hpr`, `syr2`, `spr2`,
   `her2`, `hpr2`), rounded `alpha * x(j)` (or `alpha * y(j)`) before
