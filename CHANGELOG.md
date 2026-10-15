@@ -119,6 +119,23 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- With the formats that have no integer bits (`q7`, `q15`, `q31` and other
+  `FracBits == digits` types), routines taking a `beta` (`gemv`, `gbmv`,
+  `symv` and the other Level 2 matrix-vector products, and the Level 3
+  routines) compared it with a constructed 1, which these formats cannot
+  represent, so the `checked` policy asserted for any `beta`. They now test
+  for 1 without constructing it.
+
+- Fixed-point `gemv` and `gbmv` with `trans = 'N'`, and the rank-1 and rank-2
+  updates (`ger`, `geru`, `gerc`, `syr`, `spr`, `her`, `hpr`, `syr2`, `spr2`,
+  `her2`, `hpr2`), rounded `alpha * x(j)` (or `alpha * y(j)`) before
+  multiplying by the other operand, so their error grew with that operand's
+  magnitude: up to about 390 ulps for `fixed<int64_t, 32>` inputs near 256.
+  They now round once per element, like the other Level 2 and Level 3
+  routines, and stay within a few ulps. `gemv`/`gbmv` walk the rows of `A` for
+  this, so no temporary is needed. Floating-point results are unchanged
+  (bit-identical).
+
 - Fixed-point `nrm2` rounded the sum of squares to the element's fractional
   bits before taking the square root, so small norms lost up to half of their
   bits (`nrm2` of `[0.125]` in `fixed<int8_t, 4>` was 0). It now takes the

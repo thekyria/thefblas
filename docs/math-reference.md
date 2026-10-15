@@ -46,9 +46,10 @@ Internal reductions — the sums in `dot`, `dotu`, `dotc`, `nrm2`, `asum`, and
 the row/column sums of the Level 2 routines — are accumulated in a type twice
 as wide as the element type and narrowed exactly once, at the end. Intermediate
 values therefore do not overflow, and in the Level 1 reductions the products
-are accumulated unshifted, so no per-product rounding occurs either. The one
-exception is the non-transposed form of `gemv` and `gbmv`, which accumulates
-in place in `y` to avoid an `O(m)` temporary.
+are accumulated unshifted, so no per-product rounding occurs either. The
+rank-1 and rank-2 updates (`ger*`, `syr`, `spr`, `her`, `hpr`, `syr2`, `spr2`,
+`her2`, `hpr2`) form each element's products exactly as well, scale their sum
+by $\alpha$ in the accumulator and round once per element.
 
 ---
 

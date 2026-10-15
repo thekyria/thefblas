@@ -82,6 +82,12 @@ void test_gemv_complex_fixed_and_invalid_char() {
                    cfixed(fixed32(0), fixed32(0)), y.data(), 1);
     CHECK_PRED(almost_equal_scalar, y[0], x[0]);
     CHECK_PRED(almost_equal_scalar, y[1], x[1]);
+    // alpha == 0: y <- beta * y, without reading a or x.
+    const cfixed *unread = nullptr;
+    thefblas::gemv('N', 2, 2, cfixed(fixed32(0), fixed32(0)), unread, 2, unread, 1,
+                   cfixed(fixed32(0.5), fixed32(0)), y.data(), 1);
+    CHECK_PRED(almost_equal_scalar, y[0], cfixed(fixed32(1.5), fixed32(0.5)));
+    CHECK_PRED(almost_equal_scalar, y[1], cfixed(fixed32(2), fixed32(-1)));
 }
 
 void test_ger_float() {

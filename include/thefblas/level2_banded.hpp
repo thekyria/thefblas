@@ -50,21 +50,45 @@ inline void gbmv_impl(char trans, int m, int n, int kl, int ku, T alpha, const T
     }
 
     if (tr == 'N') {
-        scale_vector(leny, beta, y, incy);
-        int jx = start_index(lenx, incx);
-        int ky = start_index(leny, incy);
-        for (int j = 0; j < n; ++j) {
-            const T temp = alpha * x[jx];
-            const int first = (j - ku > 0) ? (j - ku) : 0;
-            const int last = (j + kl < m - 1) ? (j + kl) : (m - 1);
-            int iy = ky;
-            for (int i = first; i <= last; ++i) {
-                y[iy] += temp * a[(ku + i - j) + j * lda];
-                iy += incy;
+        if constexpr (is_floating_v<T>) {
+            scale_vector(leny, beta, y, incy);
+            int jx = start_index(lenx, incx);
+            int ky = start_index(leny, incy);
+            for (int j = 0; j < n; ++j) {
+                const T temp = alpha * x[jx];
+                const int first = (j - ku > 0) ? (j - ku) : 0;
+                const int last = (j + kl < m - 1) ? (j + kl) : (m - 1);
+                int iy = ky;
+                for (int i = first; i <= last; ++i) {
+                    y[iy] += temp * a[(ku + i - j) + j * lda];
+                    iy += incy;
+                }
+                jx += incx;
+                if (j >= ku) {
+                    ky += incy;
+                }
             }
-            jx += incx;
-            if (j >= ku) {
-                ky += incy;
+        } else {
+            // Fixed point: one widened reduction per output element, along the
+            // band of its row (columns i - kl to i + ku), as in gemv_impl.
+            const int x0 = start_index(lenx, incx);
+            int iy = start_index(leny, incy);
+            for (int i = 0; i < m; ++i) {
+                mac_t<T> temp;
+                const int first = (i - kl > 0) ? (i - kl) : 0;
+                const int last = (i + ku < n - 1) ? (i + ku) : (n - 1);
+                // Rows below the band of a tall matrix are empty (first > last);
+                // the offset is formed only for a row with entries, where it
+                // stays within x.
+                if (first <= last) {
+                    int jx = x0 + first * incx;
+                    for (int j = first; j <= last; ++j) {
+                        temp.add_product(a[(ku + i - j) + j * lda], x[jx]);
+                        jx += incx;
+                    }
+                }
+                y[iy] = acc_scale_add_and_narrow(beta, y[iy], alpha, temp.wide_value());
+                iy += incy;
             }
         }
     } else {

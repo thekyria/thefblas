@@ -337,13 +337,23 @@ template <typename T> inline void spr_impl(char uplo, int n, T alpha, const T *x
 
     int jx = start_index(n, incx);
     for (int j = 0; j < n; ++j) {
-        const T temp = alpha * x[jx];
         const int first = upper ? 0 : j;
         const int last = upper ? j : (n - 1);
         int ix = upper ? start_index(n, incx) : jx;
-        for (int i = first; i <= last; ++i) {
-            ap[packed_index(upper, i, j, n)] += x[ix] * temp;
-            ix += incx;
+        if constexpr (is_floating_v<T>) {
+            const T temp = alpha * x[jx];
+            for (int i = first; i <= last; ++i) {
+                ap[packed_index(upper, i, j, n)] += x[ix] * temp;
+                ix += incx;
+            }
+        } else {
+            // As in syr_impl: x(i) * x(j) exact, scaled by alpha and added with
+            // one rounding (see rank1_element).
+            for (int i = first; i <= last; ++i) {
+                T &aij = ap[packed_index(upper, i, j, n)];
+                aij = rank1_element<false>(aij, alpha, x[ix], x[jx]);
+                ix += incx;
+            }
         }
         jx += incx;
     }
@@ -361,22 +371,25 @@ inline void hpr_impl(char uplo, int n, T alpha, const std::complex<T> *x, int in
 
     int jx = start_index(n, incx);
     for (int j = 0; j < n; ++j) {
-        const C temp = C(alpha) * conj_value(x[jx]);
-        const int diag = packed_index(upper, j, j, n);
-        if (upper) {
-            int ix = start_index(n, incx);
-            for (int i = 0; i < j; ++i) {
-                ap[packed_index_upper(i, j)] += x[ix] * temp;
+        const int first = upper ? 0 : j + 1;
+        const int last = upper ? j - 1 : n - 1;
+        int ix = upper ? start_index(n, incx) : jx + incx;
+        C &ajj = ap[packed_index(upper, j, j, n)];
+        if constexpr (is_floating_v<C>) {
+            const C temp = C(alpha) * conj_value(x[jx]);
+            for (int i = first; i <= last; ++i) {
+                ap[packed_index(upper, i, j, n)] += x[ix] * temp;
                 ix += incx;
             }
-            ap[diag] = C(ap[diag].real() + (x[jx] * temp).real(), T{});
+            ajj = C(ajj.real() + (x[jx] * temp).real(), T{});
         } else {
-            ap[diag] = C(ap[diag].real() + (x[jx] * temp).real(), T{});
-            int ix = jx;
-            for (int i = j + 1; i < n; ++i) {
+            const C calpha(alpha, T{});
+            for (int i = first; i <= last; ++i) {
+                C &aij = ap[packed_index(upper, i, j, n)];
+                aij = rank1_element<true>(aij, calpha, x[ix], x[jx]);
                 ix += incx;
-                ap[packed_index_lower(i, j, n)] += x[ix] * temp;
             }
+            ajj = C(rank1_element<true>(C(ajj.real(), T{}), calpha, x[jx], x[jx]).real(), T{});
         }
         jx += incx;
     }
@@ -395,16 +408,25 @@ inline void spr2_impl(char uplo, int n, T alpha, const T *x, int incx, const T *
     int jx = start_index(n, incx);
     int jy = start_index(n, incy);
     for (int j = 0; j < n; ++j) {
-        const T temp1 = alpha * y[jy];
-        const T temp2 = alpha * x[jx];
         const int first = upper ? 0 : j;
         const int last = upper ? j : (n - 1);
         int ix = upper ? start_index(n, incx) : jx;
         int iy = upper ? start_index(n, incy) : jy;
-        for (int i = first; i <= last; ++i) {
-            ap[packed_index(upper, i, j, n)] += x[ix] * temp1 + y[iy] * temp2;
-            ix += incx;
-            iy += incy;
+        if constexpr (is_floating_v<T>) {
+            const T temp1 = alpha * y[jy];
+            const T temp2 = alpha * x[jx];
+            for (int i = first; i <= last; ++i) {
+                ap[packed_index(upper, i, j, n)] += x[ix] * temp1 + y[iy] * temp2;
+                ix += incx;
+                iy += incy;
+            }
+        } else {
+            for (int i = first; i <= last; ++i) {
+                T &aij = ap[packed_index(upper, i, j, n)];
+                aij = rank2_element(aij, alpha, x[ix], y[jy], y[iy], x[jx]);
+                ix += incx;
+                iy += incy;
+            }
         }
         jx += incx;
         jy += incy;
@@ -425,27 +447,30 @@ inline void hpr2_impl(char uplo, int n, std::complex<T> alpha, const std::comple
     int jx = start_index(n, incx);
     int jy = start_index(n, incy);
     for (int j = 0; j < n; ++j) {
-        const C temp1 = alpha * conj_value(y[jy]);
-        const C temp2 = conj_value(alpha * x[jx]);
-        const int diag = packed_index(upper, j, j, n);
-        if (upper) {
-            int ix = start_index(n, incx);
-            int iy = start_index(n, incy);
-            for (int i = 0; i < j; ++i) {
-                ap[packed_index_upper(i, j)] += x[ix] * temp1 + y[iy] * temp2;
+        const int first = upper ? 0 : j + 1;
+        const int last = upper ? j - 1 : n - 1;
+        int ix = upper ? start_index(n, incx) : jx + incx;
+        int iy = upper ? start_index(n, incy) : jy + incy;
+        C &ajj = ap[packed_index(upper, j, j, n)];
+        if constexpr (is_floating_v<C>) {
+            const C temp1 = alpha * conj_value(y[jy]);
+            const C temp2 = conj_value(alpha * x[jx]);
+            for (int i = first; i <= last; ++i) {
+                ap[packed_index(upper, i, j, n)] += x[ix] * temp1 + y[iy] * temp2;
                 ix += incx;
                 iy += incy;
             }
-            ap[diag] = C((ap[diag] + x[jx] * temp1 + y[jy] * temp2).real(), T{});
+            ajj = C((ajj + x[jx] * temp1 + y[jy] * temp2).real(), T{});
         } else {
-            ap[diag] = C((ap[diag] + x[jx] * temp1 + y[jy] * temp2).real(), T{});
-            int ix = jx;
-            int iy = jy;
-            for (int i = j + 1; i < n; ++i) {
+            for (int i = first; i <= last; ++i) {
+                C &aij = ap[packed_index(upper, i, j, n)];
+                aij = hermitian_rank2_element(aij, alpha, x[ix], y[jy], y[iy], x[jx]);
                 ix += incx;
                 iy += incy;
-                ap[packed_index_lower(i, j, n)] += x[ix] * temp1 + y[iy] * temp2;
             }
+            ajj = C(hermitian_rank2_element(C(ajj.real(), T{}), alpha, x[jx], y[jy], y[jy], x[jx])
+                        .real(),
+                    T{});
         }
         jx += incx;
         jy += incy;
