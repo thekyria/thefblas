@@ -91,6 +91,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- `llms.txt` describes the current library: header-only templates over
+  `float`, `double`, `fixed` and `std::complex`, Levels 1 to 3, and the files,
+  tests, options, presets and workflows that exist. It previously described
+  `s`/`d`/`c`/`z` variants, Level 1 only, and source files and examples that
+  are not in the repository.
 - The tests use a small in-repo helper (`tests/test_support.hpp`) instead of
   `assert()`. A failed check prints its location, the expression and the active
   parameters (routine, options, element index), plus the values involved for
