@@ -177,6 +177,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `float`/`double`, rescaling of the magnitudes of nonzero `d1`/`d2` into
   [2^-24, 2^24]; a valid negative `d2` keeps its sign). This also removes the
   hard-coded `1e-30` floor it used.
+- The release workflow created the tag before pushing the release commit, so
+  the tagged `CHANGELOG.md`, `Doxyfile` and `conanfile.py` were the previous
+  versions. It now pushes them first and tags that commit. The vcpkg port is
+  still updated in a commit after the tag, since it records the tag's tarball
+  hash.
+- The README now documents that offsets are computed in `int`, with the
+  resulting size limits, and the Copilot instructions no longer describe the
+  project as a scaffold.
 
 ## [0.1.0] - 2026-09-25
 

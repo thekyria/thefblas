@@ -79,6 +79,19 @@ jobs:
         if: steps.release_check.outputs.exists == 'false'
         run: python3 scripts/prepare-release.py ${{ steps.version.outputs.version }}
 
+      # Commit and push the release files first, so the tag below points at a
+      # commit whose CHANGELOG.md, Doxyfile and conanfile.py match the release.
+      - name: Commit release files
+        if: steps.release_check.outputs.exists == 'false'
+        id: release_commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md Doxyfile conanfile.py
+          git diff --cached --quiet || git commit -m "chore(release): update changelog for ${{ steps.version.outputs.tag }} [skip ci]"
+          git push
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
       - name: Create GitHub Release
         if: steps.release_check.outputs.exists == 'false'
         id: create_release
@@ -88,7 +101,10 @@ jobs:
           gh release create "${{ steps.version.outputs.tag }}" \
             --title "thefblas ${{ steps.version.outputs.tag }}" \
             --notes-file /tmp/release-notes.md \
-            --target main
+            --target "${{ steps.release_commit.outputs.sha }}"
+
+      # The vcpkg port records the SHA512 of the tagged tarball, so it can only
+      # be updated after the tag exists, in a commit that follows it.
 
       - name: Update vcpkg port files
         if: steps.release_check.outputs.exists == 'false'
@@ -140,11 +156,9 @@ jobs:
               f.write("\n")
           EOF
 
-      - name: Commit updated files
+      - name: Commit vcpkg port
         if: steps.release_check.outputs.exists == 'false'
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add CHANGELOG.md Doxyfile conanfile.py ports/ versions/
-          git diff --cached --quiet || git commit -m "chore(release): update changelog and vcpkg port for ${{ steps.version.outputs.tag }} [skip ci]"
+          git add ports/ versions/
+          git diff --cached --quiet || git commit -m "chore(release): update vcpkg port for ${{ steps.version.outputs.tag }} [skip ci]"
           git push
