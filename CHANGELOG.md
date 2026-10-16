@@ -14,6 +14,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Releases now get their SPDX and CycloneDX SBOMs attached: the Release workflow uploads
+  them itself, because a release created with `GITHUB_TOKEN` never triggered the SBOM
+  workflow's `release` event. Running the Release workflow manually re-uploads them for
+  the current version's existing release.
+
 ## [0.2.1] - 2026-10-16
 
 ### Fixed

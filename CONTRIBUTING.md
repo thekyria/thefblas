@@ -118,7 +118,8 @@ Suggested PR description format:
    sets the version in `CMakeLists.txt`, `Doxyfile` and `conanfile.py`, and
    moves the `[Unreleased]` changelog entries into a `[<VERSION>]` section.
 2. Merge it. The Release workflow tags the merge commit `v<VERSION>` and
-   creates the GitHub Release, with that changelog section as the notes.
+   creates the GitHub Release, with that changelog section as the notes and
+   SPDX and CycloneDX SBOMs attached.
 3. In a follow-up pull request, run
    `python3 scripts/update-vcpkg-port.py <VERSION>` to point the vcpkg port
    and versions database at the new tag.
