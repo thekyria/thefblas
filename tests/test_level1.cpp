@@ -562,13 +562,14 @@ void test_rotations_without_integer_bits() {
         CHECK(b == s);
     }
     // |a| <= |b|: z = 1/c exceeds the range and is resolved by the policy.
+    // Negative inputs: r takes the sign of b.
     {
-        thefblas::q15_sat a(0.3);
-        thefblas::q15_sat b(0.4);
+        thefblas::q15_sat a(-0.3);
+        thefblas::q15_sat b(-0.4);
         thefblas::q15_sat c;
         thefblas::q15_sat s;
         thefblas::rotg(&a, &b, &c, &s);
-        CHECK(std::fabs(a.to_float() - 0.5) < 1e-4);
+        CHECK(std::fabs(a.to_float() + 0.5) < 1e-4);
         CHECK(std::fabs(c.to_float() - 0.6) < 1e-4);
         CHECK(std::fabs(s.to_float() - 0.8) < 1e-4);
         CHECK(b == (std::numeric_limits<thefblas::q15_sat>::max)());

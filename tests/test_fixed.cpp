@@ -249,6 +249,9 @@ void test_float_conversion_rounding() {
     CHECK(BWrap(127.5).raw() == 127);
     CHECK(BWrap(-128.5).raw() == -128);
     CHECK(BWrap(1e300).raw() == 127);
+    using W31 = fixed<std::int32_t, 31, thefblas::wrap>;
+    CHECK(W31(1.0).raw() == (std::numeric_limits<std::int32_t>::max)());
+    CHECK(W31(-1.5).raw() == (std::numeric_limits<std::int32_t>::min)());
 
     // Fractional formats: half a unit rounds away from zero.
     using Q = fixed<std::int16_t, 4>;
