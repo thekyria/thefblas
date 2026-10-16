@@ -5,7 +5,7 @@ import os
 
 class TheFBlasConan(ConanFile):
     name = "thefblas"
-    version = "0.2.1"
+    version = "0.3.0"
     description = (
         "A minimal, templated, header-only C++17 fixed-point BLAS-style library"
     )
