@@ -26,6 +26,10 @@ jobs:
   release:
     name: Create Release
     runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      tagged: ${{ steps.check.outputs.tagged }}
+      release: ${{ steps.check.outputs.release }}
 
     steps:
       - name: Checkout repository
@@ -52,6 +56,7 @@ jobs:
         run: |
           if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null; then
             echo "release=false" >> "$GITHUB_OUTPUT"
+            echo "tagged=true" >> "$GITHUB_OUTPUT"
             echo "${TAG} already exists; nothing to release."
           elif ! grep -qF "## [${VERSION}]" CHANGELOG.md; then
             echo "release=false" >> "$GITHUB_OUTPUT"
@@ -80,3 +85,48 @@ jobs:
             echo "Next, update the vcpkg port in a pull request:"
             echo "\`python3 scripts/update-vcpkg-port.py ${{ steps.version.outputs.version }}\`"
           } >> "$GITHUB_STEP_SUMMARY"
+
+  # Attach SBOMs to the release here rather than in sbom.yml: a release created
+  # with GITHUB_TOKEN does not trigger other workflows' `release` events.
+  # Running this workflow manually re-uploads the SBOMs of the current
+  # version's existing release.
+  sbom:
+    name: Attach SBOMs to Release
+    needs: release
+    if: >-
+      needs.release.outputs.release == 'true' ||
+      (github.event_name == 'workflow_dispatch' && needs.release.outputs.tagged == 'true')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.release.outputs.tag }}
+
+      - name: Generate SBOM (SPDX JSON)
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          path: .
+          format: spdx-json
+          output-file: ${{ runner.temp }}/thefblas-${{ needs.release.outputs.tag }}.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+
+      - name: Generate SBOM (CycloneDX JSON)
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          path: .
+          format: cyclonedx-json
+          output-file: ${{ runner.temp }}/thefblas-${{ needs.release.outputs.tag }}.cyclonedx.json
+          upload-artifact: false
+          upload-release-assets: false
+
+      - name: Upload SBOMs to the release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.release.outputs.tag }}
+        run: |
+          gh release upload "${TAG}" --clobber \
+            "${RUNNER_TEMP}/thefblas-${TAG}.spdx.json" \
+            "${RUNNER_TEMP}/thefblas-${TAG}.cyclonedx.json"
