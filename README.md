@@ -1,5 +1,15 @@
 # thefblas
 
+[![Build](https://github.com/thekyria/thefblas/actions/workflows/build.yml/badge.svg)](https://github.com/thekyria/thefblas/actions/workflows/build.yml)
+[![MSVC](https://github.com/thekyria/thefblas/actions/workflows/msvc.yml/badge.svg)](https://github.com/thekyria/thefblas/actions/workflows/msvc.yml)
+[![Coverage](https://github.com/thekyria/thefblas/actions/workflows/coverage.yml/badge.svg)](https://github.com/thekyria/thefblas/actions/workflows/coverage.yml)
+[![Coverage %](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/thekyria/a185989268c41acbeab350a25cd6b9ae/raw/thefblas-coverage.json)](https://github.com/thekyria/thefblas/actions/workflows/coverage.yml)
+[![CodeQL](https://github.com/thekyria/thefblas/actions/workflows/codeql.yml/badge.svg)](https://github.com/thekyria/thefblas/actions/workflows/codeql.yml)
+[![Release](https://img.shields.io/github/v/release/thekyria/thefblas)](https://github.com/thekyria/thefblas/releases/latest)
+[![C++17](https://img.shields.io/badge/C%2B%2B-17-blue.svg)](https://en.cppreference.com/w/cpp/17)
+[![CMake](https://img.shields.io/badge/CMake-3.21%2B-blue.svg)](https://cmake.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 Minimal, value-type-generic (templated), header-only C++17 BLAS-style library
 implementing the Level 1, Level 2 and Level 3 BLAS routines for real and
 complex types, including a generic fixed-point number type.
