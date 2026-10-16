@@ -43,7 +43,10 @@ by instantiating with `float`, `double`, `thefblas::fixed<IntType, FracBits, Pol
   precision-prefixed symbols.
 - **Complex support**: `std::complex<fixed<...>>` is fully in scope, including
   the Hermitian/conjugated routine families (`dotc`, `hemv`, `her`, `her2`,
-  `gerc`, conjugate-transpose in `gemv`/`trmv`/`trsv`).
+  `gerc`, conjugate-transpose in `gemv`/`trmv`/`trsv`). The C++ standard
+  leaves `std::complex` of non-floating-point types unspecified, and MSVC's
+  library warns about it (STL4037); MSVC users of `std::complex<fixed<...>>`
+  define `_SILENCE_NONFLOATING_COMPLEX_DEPRECATION_WARNING`, as the tests do.
 - **Header-only**: no build step is required to consume the library; just add
   `include/` to your include path, or link against the `thefblas::thefblas`
   CMake interface target.

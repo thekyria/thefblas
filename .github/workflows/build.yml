@@ -104,6 +104,29 @@ jobs:
     - name: Test
       run: ctest --test-dir build -C ${{ matrix.build_type }} --output-on-failure
 
+  msvc:
+    # MSVC with the default Visual Studio generator, warnings as errors. MSVC
+    # has no 128-bit integer, so 64-bit fixed point is compiled out as on
+    # 32-bit ARM. msvc.yml only runs code analysis; this builds and runs tests.
+    name: test (msvc, ${{ matrix.build_type }})
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        build_type: [ Debug, Release ]
+
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+    - name: Configure CMake
+      run: cmake -B build -DTHEFBLAS_WARNINGS_AS_ERRORS=ON
+
+    - name: Build
+      run: cmake --build build --config ${{ matrix.build_type }} --parallel
+
+    - name: Test
+      run: ctest --test-dir build -C ${{ matrix.build_type }} --output-on-failure
+
   sanitizers:
     # AddressSanitizer + UndefinedBehaviorSanitizer via THEFBLAS_ENABLE_SANITIZERS
     # (applied to Debug builds only, see CMakeLists.txt).

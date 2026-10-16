@@ -99,6 +99,18 @@ if(THEFBLAS_ENABLE_STRICT_WARNINGS)
   endif()
 endif()
 
+# The tests use std::complex<fixed<...>>. The standard leaves std::complex of
+# non-floating-point types unspecified, and MSVC's library deprecates it
+# (STL4037); thefblas relies on it deliberately, so silence the warning here.
+# The tests also read their seed with the portable std::getenv, which MSVC's
+# CRT deprecates in favour of _dupenv_s.
+if(MSVC)
+  target_compile_definitions(
+    thefblas_build_options
+    INTERFACE _SILENCE_NONFLOATING_COMPLEX_DEPRECATION_WARNING
+              _CRT_SECURE_NO_WARNINGS)
+endif()
+
 if(THEFBLAS_ENABLE_SANITIZERS)
   if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
     target_compile_options(

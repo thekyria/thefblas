@@ -4,6 +4,12 @@ on: [pull_request_target, issues]
 
 jobs:
   greeting:
+    # Only greet people from outside the repository: the action's own
+    # first-time check also greeted the owner on every pull request.
+    if: >-
+      !contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'),
+      github.event_name == 'issues' && github.event.issue.author_association ||
+      github.event.pull_request.author_association)
     runs-on: ubuntu-latest
     permissions:
       issues: write

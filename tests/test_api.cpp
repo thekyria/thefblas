@@ -24,7 +24,7 @@ constexpr const double *cp = nullptr;
 constexpr const C *cq = nullptr;
 constexpr const float *fp = nullptr;
 constexpr double d = 0.0;
-constexpr C w{};
+constexpr C cw{};
 
 void test_noexcept() {
 
@@ -48,40 +48,40 @@ void test_noexcept() {
     THEFBLAS_CHECK_NOEXCEPT(thefblas::rot(1, p, 1, p, 1, 1.0, 0.0));
     THEFBLAS_CHECK_NOEXCEPT(thefblas::rot(1, q, 1, q, 1, 1.0, 0.0));
     THEFBLAS_CHECK_NOEXCEPT(thefblas::rotg(p, p, p, p));
-    THEFBLAS_CHECK_NOEXCEPT(thefblas::rotg(q, w, p, q));
+    THEFBLAS_CHECK_NOEXCEPT(thefblas::rotg(q, cw, p, q));
     THEFBLAS_CHECK_NOEXCEPT(thefblas::rotm(1, p, 1, p, 1, cp));
     THEFBLAS_CHECK_NOEXCEPT(thefblas::rotmg(p, p, p, d, p));
 
     // Level 2, dense
     THEFBLAS_CHECK_NOEXCEPT(thefblas::gemv('N', 1, 1, 1.0, cp, 1, cp, 1, 0.0, p, 1));
     THEFBLAS_CHECK_NOEXCEPT(thefblas::ger(1, 1, 1.0, cp, 1, cp, 1, p, 1));
-    THEFBLAS_CHECK_NOEXCEPT(thefblas::geru(1, 1, w, cq, 1, cq, 1, q, 1));
-    THEFBLAS_CHECK_NOEXCEPT(thefblas::gerc(1, 1, w, cq, 1, cq, 1, q, 1));
+    THEFBLAS_CHECK_NOEXCEPT(thefblas::geru(1, 1, cw, cq, 1, cq, 1, q, 1));
+    THEFBLAS_CHECK_NOEXCEPT(thefblas::gerc(1, 1, cw, cq, 1, cq, 1, q, 1));
     THEFBLAS_CHECK_NOEXCEPT(thefblas::symv('U', 1, 1.0, cp, 1, cp, 1, 0.0, p, 1));
-    THEFBLAS_CHECK_NOEXCEPT(thefblas::hemv('U', 1, w, cq, 1, cq, 1, w, q, 1));
+    THEFBLAS_CHECK_NOEXCEPT(thefblas::hemv('U', 1, cw, cq, 1, cq, 1, cw, q, 1));
     THEFBLAS_CHECK_NOEXCEPT(thefblas::syr('U', 1, 1.0, cp, 1, p, 1));
     THEFBLAS_CHECK_NOEXCEPT(thefblas::her('U', 1, 1.0, cq, 1, q, 1));
     THEFBLAS_CHECK_NOEXCEPT(thefblas::syr2('U', 1, 1.0, cp, 1, cp, 1, p, 1));
-    THEFBLAS_CHECK_NOEXCEPT(thefblas::her2('U', 1, w, cq, 1, cq, 1, q, 1));
+    THEFBLAS_CHECK_NOEXCEPT(thefblas::her2('U', 1, cw, cq, 1, cq, 1, q, 1));
     THEFBLAS_CHECK_NOEXCEPT(thefblas::trmv('U', 'N', 'N', 1, cp, 1, p, 1));
     THEFBLAS_CHECK_NOEXCEPT(thefblas::trsv('U', 'N', 'N', 1, cp, 1, p, 1));
 
     // Level 2, banded
     THEFBLAS_CHECK_NOEXCEPT(thefblas::gbmv('N', 1, 1, 0, 0, 1.0, cp, 1, cp, 1, 0.0, p, 1));
     THEFBLAS_CHECK_NOEXCEPT(thefblas::sbmv('U', 1, 0, 1.0, cp, 1, cp, 1, 0.0, p, 1));
-    THEFBLAS_CHECK_NOEXCEPT(thefblas::hbmv('U', 1, 0, w, cq, 1, cq, 1, w, q, 1));
+    THEFBLAS_CHECK_NOEXCEPT(thefblas::hbmv('U', 1, 0, cw, cq, 1, cq, 1, cw, q, 1));
     THEFBLAS_CHECK_NOEXCEPT(thefblas::tbmv('U', 'N', 'N', 1, 0, cp, 1, p, 1));
     THEFBLAS_CHECK_NOEXCEPT(thefblas::tbsv('U', 'N', 'N', 1, 0, cp, 1, p, 1));
 
     // Level 2, packed
     THEFBLAS_CHECK_NOEXCEPT(thefblas::spmv('U', 1, 1.0, cp, cp, 1, 0.0, p, 1));
-    THEFBLAS_CHECK_NOEXCEPT(thefblas::hpmv('U', 1, w, cq, cq, 1, w, q, 1));
+    THEFBLAS_CHECK_NOEXCEPT(thefblas::hpmv('U', 1, cw, cq, cq, 1, cw, q, 1));
     THEFBLAS_CHECK_NOEXCEPT(thefblas::tpmv('U', 'N', 'N', 1, cp, p, 1));
     THEFBLAS_CHECK_NOEXCEPT(thefblas::tpsv('U', 'N', 'N', 1, cp, p, 1));
     THEFBLAS_CHECK_NOEXCEPT(thefblas::spr('U', 1, 1.0, cp, 1, p));
     THEFBLAS_CHECK_NOEXCEPT(thefblas::hpr('U', 1, 1.0, cq, 1, q));
     THEFBLAS_CHECK_NOEXCEPT(thefblas::spr2('U', 1, 1.0, cp, 1, cp, 1, p));
-    THEFBLAS_CHECK_NOEXCEPT(thefblas::hpr2('U', 1, w, cq, 1, cq, 1, q));
+    THEFBLAS_CHECK_NOEXCEPT(thefblas::hpr2('U', 1, cw, cq, 1, cq, 1, q));
 
     // Level 3
     THEFBLAS_CHECK_NOEXCEPT(thefblas::gemm('N', 'N', 1, 1, 1, 1.0, cp, 1, cp, 1, 0.0, p, 1));
@@ -89,9 +89,9 @@ void test_noexcept() {
     THEFBLAS_CHECK_NOEXCEPT(thefblas::herk('U', 'N', 1, 1, 1.0, cq, 1, 0.0, q, 1));
     THEFBLAS_CHECK_NOEXCEPT(thefblas::trsm('L', 'U', 'N', 'N', 1, 1, 1.0, cp, 1, p, 1));
     THEFBLAS_CHECK_NOEXCEPT(thefblas::symm('L', 'U', 1, 1, 1.0, cp, 1, cp, 1, 0.0, p, 1));
-    THEFBLAS_CHECK_NOEXCEPT(thefblas::hemm('L', 'U', 1, 1, w, cq, 1, cq, 1, w, q, 1));
+    THEFBLAS_CHECK_NOEXCEPT(thefblas::hemm('L', 'U', 1, 1, cw, cq, 1, cq, 1, cw, q, 1));
     THEFBLAS_CHECK_NOEXCEPT(thefblas::syr2k('U', 'N', 1, 1, 1.0, cp, 1, cp, 1, 0.0, p, 1));
-    THEFBLAS_CHECK_NOEXCEPT(thefblas::her2k('U', 'N', 1, 1, w, cq, 1, cq, 1, 0.0, q, 1));
+    THEFBLAS_CHECK_NOEXCEPT(thefblas::her2k('U', 'N', 1, 1, cw, cq, 1, cq, 1, 0.0, q, 1));
     THEFBLAS_CHECK_NOEXCEPT(thefblas::trmm('L', 'U', 'N', 'N', 1, 1, 1.0, cp, 1, p, 1));
 
     // Range overloads
