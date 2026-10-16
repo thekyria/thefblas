@@ -14,6 +14,26 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- `sqrt` for `fixed` failed in formats without integer bits (`q7`, `q15`,
+  `q31`): its first Newton step formed `f / f = 1`, which these formats cannot
+  represent, so `checked` asserted for every positive argument and `wrap`
+  returned negative roots (`sqrt(0.25)` gave -0.5). It is now the integer
+  square root of `raw * 2^FracBits`, rounded to nearest, which needs no
+  intermediate value in range and is exact for every format.
+- Real `rotg` constructed 1 on every call, so with the default `checked`
+  policy it asserted for every nonzero input in `q7`, `q15` and `q31`. 1 is
+  now only formed on the branches that return it.
+- `rotm` and `rotmg` cannot work in formats without integer bits, which do not
+  hold their flag values -2 and 1; they asserted (`checked`) or silently
+  misread the flag. Such formats are now rejected at compile time.
+- Conversion from `double` rounded twice: `v * 2^FracBits + 0.5` was rounded
+  before the truncation, so e.g. 0.49999999999999994 converted to 1 in
+  `fixed<int32_t, 0>`. The fractional part is now compared instead. Values
+  that round onto the end of the range (e.g. -128.3 in `fixed<int8_t, 0>`) are
+  now accepted rather than treated as out of range.
+
 ## [0.2.0] - 2026-10-16
 
 ### Added

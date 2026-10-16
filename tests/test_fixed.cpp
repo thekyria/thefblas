@@ -77,6 +77,48 @@ void test_sqrt() {
     CHECK(thefblas::sqrt(I(10000.0)) == I(100.0));
 }
 
+// sqrt(raw * 2^-F) on the grid is the integer nearest to sqrt(raw * 2^F): with
+// root = result.raw(), 4 * raw * 2^F must lie in [(2 root - 1)^2, (2 root + 1)^2).
+template <typename F> bool is_rounded_root(F value, F root) {
+    const std::uint64_t radicand = static_cast<std::uint64_t>(value.raw()) << F::frac_bits;
+    const auto r = static_cast<std::uint64_t>(root.raw());
+    const std::uint64_t below = (2 * r - 1) * (2 * r - 1);
+    const std::uint64_t above = (2 * r + 1) * (2 * r + 1);
+    return r > 0 && 4 * radicand >= below && 4 * radicand < above;
+}
+
+// Formats without integer bits: the root of a value in (0, 1) is in (0, 1) and
+// representable, but 1 (which a Newton step `f / x` with x = f reaches) is not.
+// Every positive value of the 8- and 16-bit formats, under every policy.
+template <typename Policy> void check_sqrt_without_integer_bits() {
+    using Q7 = fixed<std::int8_t, 7, Policy>;
+    for (int raw = 1; raw <= 127; ++raw) {
+        const Q7 value = Q7::from_raw(static_cast<std::int8_t>(raw));
+        CHECK_MSG(is_rounded_root(value, thefblas::sqrt(value)), "q7 raw ", raw);
+    }
+    using Q15 = fixed<std::int16_t, 15, Policy>;
+    for (int raw = 1; raw <= 32767; ++raw) {
+        const Q15 value = Q15::from_raw(static_cast<std::int16_t>(raw));
+        CHECK_MSG(is_rounded_root(value, thefblas::sqrt(value)), "q15 raw ", raw);
+    }
+    using Q31 = fixed<std::int32_t, 31, Policy>;
+    CHECK(thefblas::sqrt(Q31(0.25)) == Q31(0.5));
+    const Q31 value(0.81);
+    CHECK(std::fabs(thefblas::sqrt(value).to_float() - std::sqrt(value.to_float())) <=
+          std::ldexp(1.0, -31));
+    // The largest value: its root rounds to the largest value, not past it.
+    const Q31 top = Q31::from_raw((std::numeric_limits<std::int32_t>::max)());
+    CHECK(thefblas::sqrt(top) == top);
+}
+
+void test_sqrt_without_integer_bits() {
+    check_sqrt_without_integer_bits<thefblas::checked>();
+    check_sqrt_without_integer_bits<thefblas::wrap>();
+    check_sqrt_without_integer_bits<thefblas::saturate>();
+    static_assert(thefblas::sqrt(thefblas::q15::from_raw(8192)) == thefblas::q15::from_raw(16384),
+                  "sqrt(0.25) == 0.5 in Q1.15, in a constant expression");
+}
+
 void test_different_widths() {
     fixed<std::int8_t, 4> small(2.0);
     CHECK_PRED(almost_equal, small + small, fixed<std::int8_t, 4>(4.0));
@@ -181,6 +223,46 @@ void test_policy_aliases() {
     static_assert(
         std::is_same<thefblas::q15_sat, fixed<std::int16_t, 15, thefblas::saturate>>::value,
         "q15_sat");
+}
+
+// Conversion from double rounds to nearest, ties away from zero, exactly once.
+void test_float_conversion_rounding() {
+    using I = fixed<std::int32_t, 0>;
+    // The largest double below 0.5: adding 0.5 before truncating rounds it up.
+    CHECK(I(0.49999999999999994).raw() == 0);
+    CHECK(I(-0.49999999999999994).raw() == 0);
+    CHECK(I(0.5).raw() == 1);
+    CHECK(I(-0.5).raw() == -1);
+    CHECK(I(2.5).raw() == 3);
+    CHECK(I(-2.5).raw() == -3);
+    CHECK(I(1.4999999999999998).raw() == 1);
+
+    // Values that round onto the ends of the range are in range...
+    using B = fixed<std::int8_t, 0>;
+    CHECK(B(-128.3).raw() == -128);
+    CHECK(B(127.4).raw() == 127);
+    // ...and those that round past them are clamped under every policy.
+    using BSat = fixed<std::int8_t, 0, thefblas::saturate>;
+    using BWrap = fixed<std::int8_t, 0, thefblas::wrap>;
+    CHECK(BSat(127.5).raw() == 127);
+    CHECK(BSat(-128.5).raw() == -128);
+    CHECK(BWrap(127.5).raw() == 127);
+    CHECK(BWrap(-128.5).raw() == -128);
+    CHECK(BWrap(1e300).raw() == 127);
+
+    // Fractional formats: half a unit rounds away from zero.
+    using Q = fixed<std::int16_t, 4>;
+    CHECK(Q(0.03125).raw() == 1);
+    CHECK(Q(-0.03125).raw() == -1);
+    CHECK(Q(0.031249999999999997).raw() == 0);
+
+#if defined(__SIZEOF_INT128__)
+    // 64-bit limits: no out-of-range floating-point-to-integer cast.
+    using L = fixed<std::int64_t, 0, thefblas::saturate>;
+    CHECK(L(-9223372036854775808.0).raw() == (std::numeric_limits<std::int64_t>::min)());
+    CHECK(L(9223372036854775808.0).raw() == (std::numeric_limits<std::int64_t>::max)());
+    CHECK(L(-1e19).raw() == (std::numeric_limits<std::int64_t>::min)());
+#endif
 }
 
 void test_q31_conversion_and_sqrt() {
@@ -307,6 +389,7 @@ int main() {
     test_comparisons();
     test_negation_and_abs();
     test_sqrt();
+    test_sqrt_without_integer_bits();
     test_different_widths();
     test_wrap_policy();
     test_saturate_policy();
@@ -314,6 +397,7 @@ int main() {
     test_nan_construction();
     test_rounding();
     test_policy_aliases();
+    test_float_conversion_rounding();
     test_q31_conversion_and_sqrt();
     test_q_format_conversion();
     test_numeric_limits();

@@ -51,6 +51,17 @@ template <typename T> inline T sqrt_value(const T &value) {
     return sqrt(value);
 }
 
+/// True when `T` holds the `rotm`/`rotmg` flag values -2, -1, 0 and 1: every
+/// supported type except fixed-point formats without an integer bit (`q7`,
+/// `q15`, `q31`, whose range is [-1, 1)).
+template <typename T> constexpr bool holds_rotm_flags() noexcept {
+    if constexpr (is_fixed_v<T>) {
+        return std::numeric_limits<typename T::rep>::digits - T::frac_bits >= 1;
+    } else {
+        return true;
+    }
+}
+
 template <typename T> inline T abs1(const std::complex<T> &value) {
     return abs_value(value.real()) + abs_value(value.imag());
 }
@@ -669,11 +680,16 @@ inline void rotg(T *a, T *b, T *c, T *s) noexcept {
     r = detail::signed_magnitude(r, roe);
     *c = *a / r;
     *s = *b / r;
-    T z = T(1);
+    // 1 is only constructed on the branches that return it (or its quotient):
+    // fixed-point formats without integer bits (q15) cannot represent it, and
+    // there the policy resolves such a z, while z = s is always representable.
+    T z{};
     if (abs_a > abs_b) {
         z = *s;
     } else if (*c != T(0)) {
         z = T(1) / *c;
+    } else {
+        z = T(1);
     }
     *a = r;
     *b = z;
@@ -742,6 +758,9 @@ inline void rotg(std::complex<T> *a, std::complex<T> b, T *c, std::complex<T> *s
  */
 template <typename T, detail::enable_if_real_t<T> = 0>
 inline void rotm(int n, T *x, int incx, T *y, int incy, const T *param) noexcept {
+    static_assert(detail::holds_rotm_flags<T>(),
+                  "rotm: the element type must represent the flag values -2 and 1; "
+                  "use a fixed-point format with at least one integer bit");
     if (n <= 0 || incx == 0 || incy == 0) {
         return;
     }
@@ -801,6 +820,9 @@ inline void rotm(int n, T *x, int incx, T *y, int incy, const T *param) noexcept
  */
 template <typename T, detail::enable_if_real_t<T> = 0>
 inline void rotmg(T *d1, T *d2, T *b1, T b2, T *param) noexcept {
+    static_assert(detail::holds_rotm_flags<T>(),
+                  "rotmg: the element type must represent the flag values -2 and 1; "
+                  "use a fixed-point format with at least one integer bit");
     const T zero(0);
     const T one(1);
     T flag = -one;

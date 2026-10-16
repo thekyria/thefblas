@@ -546,6 +546,45 @@ void test_netlib_conventions() {
     CHECK_PRED(almost_equal, fb1, fixed32(19.0 / 6.0), 1e-5);
 }
 
+// Formats without integer bits (range [-1, 1)) cannot represent 1.
+void test_rotations_without_integer_bits() {
+    // |a| > |b|: every output, z = s included, is representable, so the default
+    // checked policy must not assert.
+    {
+        thefblas::q15 a(0.4);
+        thefblas::q15 b(0.3);
+        thefblas::q15 c;
+        thefblas::q15 s;
+        thefblas::rotg(&a, &b, &c, &s);
+        CHECK(std::fabs(a.to_float() - 0.5) < 1e-4);
+        CHECK(std::fabs(c.to_float() - 0.8) < 1e-4);
+        CHECK(std::fabs(s.to_float() - 0.6) < 1e-4);
+        CHECK(b == s);
+    }
+    // |a| <= |b|: z = 1/c exceeds the range and is resolved by the policy.
+    {
+        thefblas::q15_sat a(0.3);
+        thefblas::q15_sat b(0.4);
+        thefblas::q15_sat c;
+        thefblas::q15_sat s;
+        thefblas::rotg(&a, &b, &c, &s);
+        CHECK(std::fabs(a.to_float() - 0.5) < 1e-4);
+        CHECK(std::fabs(c.to_float() - 0.6) < 1e-4);
+        CHECK(std::fabs(s.to_float() - 0.8) < 1e-4);
+        CHECK(b == (std::numeric_limits<thefblas::q15_sat>::max)());
+    }
+
+    // rotm/rotmg reject (at compile time) the formats that cannot hold their
+    // flag values -2 and 1.
+    static_assert(!thefblas::detail::holds_rotm_flags<thefblas::q7>(), "Q1.7");
+    static_assert(!thefblas::detail::holds_rotm_flags<thefblas::q15_sat>(), "Q1.15");
+    static_assert(!thefblas::detail::holds_rotm_flags<thefblas::q31>(), "Q1.31");
+    static_assert(thefblas::detail::holds_rotm_flags<thefblas::fixed<std::int16_t, 14>>(),
+                  "Q2.14 holds [-2, 2)");
+    static_assert(thefblas::detail::holds_rotm_flags<fixed32>(), "Q12.20");
+    static_assert(thefblas::detail::holds_rotm_flags<float>(), "float");
+}
+
 void test_extended_dot() {
     // float: 1e8 + 1 - 1e8 loses the 1 when summed in float, not in double.
     const float x[3] = {1e8F, 1.0F, -1e8F};
@@ -615,6 +654,7 @@ int main() {
     test_complex_fixed();
     test_nrm2_scaling();
     test_netlib_conventions();
+    test_rotations_without_integer_bits();
     test_extended_dot();
     return thefblas_test::finish();
 }
