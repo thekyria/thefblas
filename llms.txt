@@ -66,12 +66,13 @@ For fixed point, overflow is resolved by a compile-time policy (`checked`, the d
 - [conanfile.py](conanfile.py): Conan 2.x recipe for a header-only package with the `thefblas::thefblas` target
 - [test_package/](test_package/conanfile.py): Conan test package that builds and runs a small consumer
 - [ports/thefblas/](ports/thefblas/portfile.cmake): vcpkg port (`vcpkg_from_github` on the release tarball)
-- [versions/baseline.json](versions/baseline.json), [versions/t-/thefblas.json](versions/t-/thefblas.json): vcpkg versions database, so the repository can be used as a vcpkg git registry; updated by the release workflow
+- [versions/baseline.json](versions/baseline.json), [versions/t-/thefblas.json](versions/t-/thefblas.json): vcpkg versions database, so the repository can be used as a vcpkg git registry; updated by `scripts/update-vcpkg-port.py` after each release
 
 ## Release Automation
 
-- [scripts/extract-changelog.py](scripts/extract-changelog.py): Prints the `[Unreleased]` section of the changelog, used as the release notes
-- [scripts/prepare-release.py](scripts/prepare-release.py): Moves `[Unreleased]` into a versioned changelog section
+- [scripts/prepare-release.py](scripts/prepare-release.py): Sets the version and moves `[Unreleased]` into a versioned changelog section; run in the release pull request
+- [scripts/extract-changelog.py](scripts/extract-changelog.py): Prints a changelog section, used as the release notes
+- [scripts/update-vcpkg-port.py](scripts/update-vcpkg-port.py): Points the vcpkg port and versions database at a published release tag
 
 ## Static Analysis and Code Quality
 
@@ -89,7 +90,7 @@ For fixed point, overflow is resolved by a compile-time policy (`checked`, the d
 - [grype.yml](.github/workflows/grype.yml), [sbom.yml](.github/workflows/sbom.yml): SBOM generation and vulnerability scanning
 - [conan-test.yml](.github/workflows/conan-test.yml), [vcpkg-test.yml](.github/workflows/vcpkg-test.yml): Package-manager integration tests on Ubuntu and macOS (the vcpkg test uses this repository as a git registry)
 - [docs.yml](.github/workflows/docs.yml): GitHub Pages site with the Doxygen API reference and the math reference rendered by pandoc and MathJax
-- [release.yml](.github/workflows/release.yml): On a `VERSION` bump in CMakeLists.txt, creates the tag and GitHub Release from the changelog and updates the vcpkg port and versions database
+- [release.yml](.github/workflows/release.yml): When the version in CMakeLists.txt has no tag yet and CHANGELOG.md has a section for it, tags the commit and creates the GitHub Release from that section; never pushes to `main`
 - [claude.yml](.github/workflows/claude.yml), [claude-code-review.yml](.github/workflows/claude-code-review.yml), [copilot-setup-steps.yml](.github/workflows/copilot-setup-steps.yml): AI assistant automation
 - [greetings.yml](.github/workflows/greetings.yml), [stale.yml](.github/workflows/stale.yml), [summary.yml](.github/workflows/summary.yml): Repository housekeeping
 

@@ -112,6 +112,17 @@ Suggested PR description format:
 - Testing
 - Notes on compatibility or API impact
 
+## Releasing
+
+1. In a pull request, run `python3 scripts/prepare-release.py <VERSION>`. It
+   sets the version in `CMakeLists.txt`, `Doxyfile` and `conanfile.py`, and
+   moves the `[Unreleased]` changelog entries into a `[<VERSION>]` section.
+2. Merge it. The Release workflow tags the merge commit `v<VERSION>` and
+   creates the GitHub Release, with that changelog section as the notes.
+3. In a follow-up pull request, run
+   `python3 scripts/update-vcpkg-port.py <VERSION>` to point the vcpkg port
+   and versions database at the new tag.
+
 ## Reporting Issues
 
 When opening an issue, include:

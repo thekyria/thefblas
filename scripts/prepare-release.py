@@ -3,7 +3,7 @@
 
 Usage: prepare-release.py <VERSION>
 
-Called by semantic-release during the 'prepare' lifecycle step.
+Run in the release pull request; see CONTRIBUTING.md, "Releasing".
 """
 import re
 import subprocess
