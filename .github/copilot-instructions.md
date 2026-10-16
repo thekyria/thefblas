@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-This repository contains a minimal C++ library scaffold named thefblas.
+thefblas is a header-only C++17 BLAS (Levels 1, 2 and 3) templated on the element type: `float`, `double`, `std::complex`, and the fixed-point `fixed<>` type with selectable overflow policies (`wrap`, `saturate`, `checked`). It targets embedded systems, including bare-metal ARM Cortex-M, so routines never allocate or throw.
 Focus on correctness, portability, and maintainability while keeping changes small and testable.
 
 ## Tech Stack

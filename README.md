@@ -216,6 +216,13 @@ Every public routine is `noexcept`. The supported element types never throw
 and the routines never allocate, so an element type whose operations do throw
 would terminate the program rather than propagate the exception.
 
+Sizes, strides and leading dimensions are `int`, as in the reference BLAS, and
+offsets are computed in `int` without overflow checks. Every offset a call
+forms must therefore fit in `int`: roughly, `(n - 1) * |inc|` for a vector,
+`lda * n` for a dense matrix and `ldab * n` for a banded one. The packed
+routines form `j * (j + 1)` or `j * (2n - j + 1)` before halving, which limits
+them to `n` of about 46 000. Larger problems are undefined behaviour.
+
 ### Range overloads
 
 The Level 1 routines also accept whole contiguous ranges with unit stride:
