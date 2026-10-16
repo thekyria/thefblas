@@ -97,6 +97,7 @@ jobs:
         cmake -B build
         -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
         -DTHEFBLAS_WARNINGS_AS_ERRORS=ON
+        -DTHEFBLAS_BUILD_BENCHMARKS=ON
 
     - name: Build
       run: cmake --build build --config ${{ matrix.build_type }} --parallel
@@ -119,7 +120,7 @@ jobs:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
     - name: Configure CMake
-      run: cmake -B build -DTHEFBLAS_WARNINGS_AS_ERRORS=ON
+      run: cmake -B build -DTHEFBLAS_WARNINGS_AS_ERRORS=ON -DTHEFBLAS_BUILD_BENCHMARKS=ON
 
     - name: Build
       run: cmake --build build --config ${{ matrix.build_type }} --parallel
@@ -236,6 +237,18 @@ jobs:
 
     - name: Build
       run: cmake --build build --parallel
+
+    - name: Size report
+      # embedded_q15 is linked with --gc-sections and uses no iostream, so its
+      # size is the code it uses; fixed_point_ops is shown for comparison.
+      run: |
+        {
+          echo "### Code size, ${{ matrix.target.name }}"
+          echo '```'
+          arm-none-eabi-size build/examples/thefblas_example_embedded_q15 \
+            build/examples/thefblas_example_fixed_point_ops
+          echo '```'
+        } | tee -a "$GITHUB_STEP_SUMMARY"
 
   docs:
     runs-on: ubuntu-latest

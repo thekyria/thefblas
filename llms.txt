@@ -8,7 +8,8 @@ For fixed point, overflow is resolved by a compile-time policy (`checked`, the d
 
 ## Documentation
 
-- [README](README.md): Overview, design, the `fixed` type and its overflow policies, wide accumulators and their limits, the full list of routines, build and test instructions, CMake options and presets, cross-compilation, static analysis, packaging and Doxygen
+- [Documentation site](https://thekyria.github.io/thefblas/): Doxygen API reference and the mathematical reference, published from `docs/` and the headers
+- [README](README.md): Overview, quick start, design, the `fixed` type and its overflow policies, wide accumulators and their limits, the full list of routines, build and test instructions, CMake options and presets, cross-compilation, static analysis, packaging and Doxygen
 - [docs/math-reference.md](docs/math-reference.md): Mathematical definition of every routine, with the fixed-point rounding and overflow behaviour where it differs from floating point
 - [CHANGELOG](CHANGELOG.md): Version history in Keep a Changelog format
 - [CONTRIBUTING](CONTRIBUTING.md): Contribution guidelines, code style, how to write tests with the in-repo test helper, and the pull request process
@@ -44,14 +45,17 @@ For fixed point, overflow is resolved by a compile-time policy (`checked`, the d
 ## Examples
 
 - [examples/fixed_point_ops.cpp](examples/fixed_point_ops.cpp): Level 1 (`axpy`, `dot`, `nrm2`, `asum`, `iamax`) and Level 2 (`gemv`, `gbmv`, `spmv`, `tpsv`) routines on a Q11.20 `fixed` type
+- [examples/embedded_q15.cpp](examples/embedded_q15.cpp): Firmware-style use: `q15_sat`, no iostream, no heap, no run-time floating point; `dot`, `gemv` and `nrm2`, checked through the exit status
+- [benchmarks/bench_blas.cpp](benchmarks/bench_blas.cpp): `std::chrono` micro-benchmarks of `dot`, `axpy`, `gemv` and `gemm` for `float`, `double`, `q15_sat` and `q16_16_sat`
 
 ## Build and Configuration
 
-- [CMakeLists.txt](CMakeLists.txt): `INTERFACE` library target `thefblas::thefblas`, install and export rules, and the options `THEFBLAS_BUILD_TESTS`, `THEFBLAS_BUILD_EXAMPLES`, `THEFBLAS_ENABLE_STRICT_WARNINGS`, `THEFBLAS_WARNINGS_AS_ERRORS`, `THEFBLAS_ENABLE_SANITIZERS`, `THEFBLAS_ENABLE_COVERAGE`, `THEFBLAS_ENABLE_IPO`, `THEFBLAS_ENABLE_REFERENCE_TESTS`, `THEFBLAS_ENABLE_RELEASE_HARDENING`; warning, sanitizer and coverage flags apply only to the project's own tests and examples
+- [CMakeLists.txt](CMakeLists.txt): `INTERFACE` library target `thefblas::thefblas`, install and export rules, and the options `THEFBLAS_BUILD_TESTS`, `THEFBLAS_BUILD_EXAMPLES`, `THEFBLAS_ENABLE_STRICT_WARNINGS`, `THEFBLAS_WARNINGS_AS_ERRORS`, `THEFBLAS_ENABLE_SANITIZERS`, `THEFBLAS_ENABLE_COVERAGE`, `THEFBLAS_ENABLE_IPO`, `THEFBLAS_ENABLE_REFERENCE_TESTS`, `THEFBLAS_ENABLE_RELEASE_HARDENING`, `THEFBLAS_BUILD_BENCHMARKS`, `THEFBLAS_INSTALL` (install and export rules, on only for a top-level build); warning, sanitizer and coverage flags apply only to the project's own tests and examples
 - [CMakePresets.json](CMakePresets.json): Presets `gcc-debug`, `gcc-release`, `gcc-debug-sanitized`, `gcc-debug-coverage`, `clang-debug`, `clang-debug-sanitized`, `clang-release`, `msvc-release`, `arm-linux-debug`, `arm-linux-release`, `arm-none-eabi-debug`, `arm-none-eabi-release`
 - [cmake/thefblasConfig.cmake.in](cmake/thefblasConfig.cmake.in): Package config template for `find_package(thefblas)`
 - [tests/CMakeLists.txt](tests/CMakeLists.txt): One CTest executable per test file
-- [examples/CMakeLists.txt](examples/CMakeLists.txt): The `thefblas_example_fixed_point_ops` target
+- [examples/CMakeLists.txt](examples/CMakeLists.txt): The `thefblas_example_fixed_point_ops` and `thefblas_example_embedded_q15` targets (the latter also a test, linked with `--gc-sections` on bare metal)
+- [benchmarks/CMakeLists.txt](benchmarks/CMakeLists.txt): The `thefblas_bench` target (`THEFBLAS_BUILD_BENCHMARKS`) and its `--quick` smoke test
 - [Makefile](Makefile): Wrapper with `configure`, `build`, `test`, `install`, `docs`, `coverage`, `clean` and `rebuild` targets
 
 ## Toolchains
@@ -83,7 +87,7 @@ For fixed point, overflow is resolved by a compile-time policy (`checked`, the d
 
 ## CI/CD Workflows
 
-- [build.yml](.github/workflows/build.yml): Static analysis (cppcheck, clang-tidy, Clang Static Analyzer); GCC/Clang/AppleClang × Debug/Release tests; GCC and Clang sanitizer jobs; arm-linux-gnueabihf tests under qemu; arm-none-eabi Cortex-M0/M4/M4F compile and link; Doxygen
+- [build.yml](.github/workflows/build.yml): Static analysis (cppcheck, clang-tidy, Clang Static Analyzer); GCC/Clang/AppleClang × Debug/Release tests (with the benchmarks built and smoke-run); MSVC Debug/Release tests; GCC and Clang sanitizer jobs; arm-linux-gnueabihf tests under qemu; arm-none-eabi Cortex-M0/M4/M4F compile and link, with a code-size report of the examples; Doxygen
 - [coverage.yml](.github/workflows/coverage.yml): Coverage report; fails below 100% line or function coverage
 - [msvc.yml](.github/workflows/msvc.yml): Microsoft C++ Code Analysis (PREfast) of the MSVC build
 - [codeql.yml](.github/workflows/codeql.yml): CodeQL security analysis for C++
