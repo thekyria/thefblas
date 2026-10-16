@@ -3,7 +3,6 @@
 
 #include "thefblas/fixed.hpp"
 
-#include <climits>
 #include <complex>
 #include <limits>
 #include <type_traits>
@@ -200,29 +199,6 @@ template <typename I> constexpr I wrap_add(I a, I b) noexcept {
 template <typename I> constexpr I wrap_sub(I a, I b) noexcept {
     using U = make_unsigned_integer_t<I>;
     return wrap_narrow<I>(static_cast<U>(static_cast<U>(a) - static_cast<U>(b)));
-}
-
-/// Square root of an unsigned integer, rounded to nearest. Ties cannot occur:
-/// `(r + 1/2)^2 = r^2 + r + 1/4` is never an integer.
-template <typename U> constexpr U isqrt_rounded(U value) noexcept {
-    U rem = value;
-    U root = 0;
-    U bit = static_cast<U>(U(1) << (sizeof(U) * CHAR_BIT - 2));
-    while (bit > rem) {
-        bit = static_cast<U>(bit >> 2U);
-    }
-    while (bit != 0) {
-        if (rem >= root + bit) {
-            rem = static_cast<U>(rem - (root + bit));
-            root = static_cast<U>((root >> 1U) + bit);
-        } else {
-            root = static_cast<U>(root >> 1U);
-        }
-        bit = static_cast<U>(bit >> 2U);
-    }
-    // root = floor(sqrt(value)) and rem = value - root^2; round up when
-    // value > root^2 + root, i.e. when value exceeds (root + 1/2)^2.
-    return rem > root ? static_cast<U>(root + 1) : root;
 }
 
 /// Running sum of products of real values.

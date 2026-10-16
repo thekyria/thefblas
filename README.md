@@ -30,8 +30,8 @@ by instantiating with `float`, `double`, `thefblas::fixed<IntType, FracBits, Pol
   `fixed<std::int32_t, 31>` ~ Q1.31). Multiplication and division round to
   nearest, ties away from zero; overflow behaviour is selected by the `Policy`
   template parameter (see [Overflow policies](#overflow-policies)).
-  Square root uses an integer-only Newton iteration and, like the arithmetic,
-  is `constexpr`; no external dependencies
+  Square root is a single integer square root, rounded to nearest, and, like
+  the arithmetic, is `constexpr`; no external dependencies
   beyond the STL are required, keeping the library portable to bare-metal
   targets (e.g. ARM Cortex-M without an FPU).
 - **Wide accumulators**: internal reductions are performed in a type twice as
@@ -202,7 +202,11 @@ keep the Netlib column-update order.
   widened fixed-point type for `fixed`), and `sdsdot` sums `sb` with the
   products in that type before narrowing once. They accept `float`, and
   fixed-point types with 8- or 16-bit storage, or 32-bit storage where the
-  compiler has a 128-bit integer.
+  compiler has a 128-bit integer. `rotm` and `rotmg` store the flag values -2
+  and 1 in the element type, so they need a fixed-point format with at least
+  one integer bit (not `q7`, `q15` or `q31`); other formats are rejected at
+  compile time. In those formats `rotg`'s outputs that reach 1 (`c` when
+  `b = 0`, and `z = 1/c` when `|a| <= |b|`) are resolved by the overflow policy.
 - **Level 2, dense** (`include/thefblas/level2.hpp`): `gemv`, `ger`, `geru`,
   `gerc`, `symv`, `hemv`, `syr`, `her`, `syr2`, `her2`, `trmv`, `trsv`.
 - **Level 2, banded** (`include/thefblas/level2_banded.hpp`): `gbmv`, `sbmv`,

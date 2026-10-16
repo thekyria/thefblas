@@ -4,6 +4,7 @@
 #include "thefblas/overflow.hpp"
 
 #include <cassert>
+#include <climits>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
@@ -115,6 +116,29 @@ template <typename Wide> constexpr Wide round_shift(Wide value, int shift) noexc
     // With shift >= 1, `rounded` is at most 2^(bits - 2) + 1 and fits in `Wide`.
     return value < 0 ? static_cast<Wide>(-static_cast<Wide>(rounded))
                      : static_cast<Wide>(rounded);
+}
+
+/// Square root of an unsigned integer, rounded to nearest. Ties cannot occur:
+/// `(r + 1/2)^2 = r^2 + r + 1/4` is never an integer.
+template <typename U> constexpr U isqrt_rounded(U value) noexcept {
+    U rem = value;
+    U root = 0;
+    U bit = static_cast<U>(U(1) << (sizeof(U) * CHAR_BIT - 2));
+    while (bit > rem) {
+        bit = static_cast<U>(bit >> 2U);
+    }
+    while (bit != 0) {
+        if (rem >= root + bit) {
+            rem = static_cast<U>(rem - (root + bit));
+            root = static_cast<U>((root >> 1U) + bit);
+        } else {
+            root = static_cast<U>(root >> 1U);
+        }
+        bit = static_cast<U>(bit >> 2U);
+    }
+    // root = floor(sqrt(value)) and rem = value - root^2; round up when
+    // value > root^2 + root, i.e. when value exceeds (root + 1/2)^2.
+    return rem > root ? static_cast<U>(root + 1) : root;
 }
 
 /// Scales by 2^shift without left-shifting a signed negative value.
@@ -251,19 +275,41 @@ template <typename IntType, int FracBits, typename Policy = checked> class fixed
     // NaN (the only value not equal to itself) maps to zero. Comparing `v != v`
     // avoids <cmath>, whose classification helpers are not constexpr.
     static constexpr IntType from_float(double v) noexcept {
-        return v != v ? IntType(0) : from_scaled(v * scale() + (v >= 0.0 ? 0.5 : -0.5));
+        return v != v ? IntType(0) : from_scaled(v * scale());
     }
 
-    // `scaled` is already rounded; clamp before converting so no out-of-range
-    // floating-point-to-integer cast is attempted, including at 64-bit limits.
+    // Rounds `scaled` to nearest, ties away from zero. Adding 0.5 before
+    // truncating would round twice (0.49999999999999994 + 0.5 is 1.0 in double),
+    // so the fractional part is compared instead; truncation, the fractional
+    // part and the power-of-two bounds are all exact. Values far out of range
+    // are clamped before any cast, including at the 64-bit limits; the range
+    // check proper is done on the rounded integer.
     static constexpr IntType from_scaled(double scaled) noexcept {
         using unsigned_rep = typename std::make_unsigned<IntType>::type;
-        const double abs_limit = static_cast<double>(
-            static_cast<unsigned_rep>(unsigned_rep(1) << std::numeric_limits<IntType>::digits));
-        return scaled < -abs_limit
-                   ? Policy::template from_out_of_range<IntType>(false)
-                   : (scaled >= abs_limit ? Policy::template from_out_of_range<IntType>(true)
-                                          : static_cast<IntType>(scaled));
+        // 2^(digits + 1): twice the raw range, and within the range of `wide`.
+        const double cast_limit =
+            2.0 * static_cast<double>(static_cast<unsigned_rep>(
+                      unsigned_rep(1) << std::numeric_limits<IntType>::digits));
+        if (scaled < -cast_limit) {
+            return Policy::template from_out_of_range<IntType>(false);
+        }
+        if (scaled >= cast_limit) {
+            return Policy::template from_out_of_range<IntType>(true);
+        }
+        wide rounded = static_cast<wide>(scaled);
+        const double fraction = scaled - static_cast<double>(rounded);
+        if (fraction >= 0.5) {
+            ++rounded;
+        } else if (fraction <= -0.5) {
+            --rounded;
+        }
+        if (rounded > static_cast<wide>((std::numeric_limits<IntType>::max)())) {
+            return Policy::template from_out_of_range<IntType>(true);
+        }
+        if (rounded < static_cast<wide>((std::numeric_limits<IntType>::min)())) {
+            return Policy::template from_out_of_range<IntType>(false);
+        }
+        return static_cast<IntType>(rounded);
     }
 
     // Scaling `v` by 2^FracBits could overflow `wide` before the policy sees
@@ -326,9 +372,9 @@ constexpr fixed<IntType, FracBits, Policy> abs(fixed<IntType, FracBits, Policy> 
     return f < fixed<IntType, FracBits, Policy>::from_raw(0) ? -f : f;
 }
 
-/// Integer-only Newton's method square root on the fixed-point grid. Usable in
-/// constant expressions; a negative argument asserts (and is not a constant
-/// expression) and otherwise returns zero.
+/// Square root on the fixed-point grid, rounded to nearest. Integer-only and
+/// usable in constant expressions; a negative argument asserts (and is not a
+/// constant expression) and otherwise returns zero.
 template <typename IntType, int FracBits, typename Policy>
 constexpr fixed<IntType, FracBits, Policy> sqrt(fixed<IntType, FracBits, Policy> f) noexcept {
     using F = fixed<IntType, FracBits, Policy>;
@@ -336,21 +382,16 @@ constexpr fixed<IntType, FracBits, Policy> sqrt(fixed<IntType, FracBits, Policy>
     if (f <= F::from_raw(0)) {
         return F::from_raw(0);
     }
-    // Initial guess: the value itself (or one raw unit if it's tiny), refined via Newton
-    // iterations x_{k+1} = (x_k + f / x_k) / 2. The halving is done on the (non-negative)
-    // raw values with round-half-up, so it neither depends on 0.5 being representable
-    // (FracBits == 0) nor overflows when x_k + f / x_k exceeds the representable range.
-    F x = f > F::from_raw(1) ? f : F::from_raw(1);
-    for (int i = 0; i < 32; ++i) {
-        const IntType a = x.raw();
-        const IntType b = (f / x).raw();
-        const F next = F::from_raw(static_cast<IntType>(a / 2 + b / 2 + ((a % 2) + (b % 2) + 1) / 2));
-        if (next == x) {
-            break;
-        }
-        x = next;
-    }
-    return x;
+    // With f = raw * 2^-FracBits, sqrt(f) * 2^FracBits = sqrt(raw * 2^FracBits): one
+    // integer square root of the exact radicand, which fits the unsigned wide type
+    // (raw < 2^(bits - 1) and FracBits < bits). Unlike a Newton iteration on `fixed`,
+    // no intermediate value has to be representable, so formats without integer
+    // bits (Q1.15) work too, and the root never exceeds the largest raw value.
+    using wide = detail::widen_t<IntType>;
+    using U = detail::make_unsigned_integer_t<wide>;
+    const U radicand = static_cast<U>(static_cast<U>(f.raw()) << FracBits);
+    return F::from_raw(
+        Policy::template narrow<IntType>(static_cast<wide>(detail::isqrt_rounded(radicand))));
 }
 
 namespace detail {
