@@ -14,6 +14,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-16
+
 ### Added
 
 - Compile-time overflow policies for `thefblas::fixed`: the new third template
@@ -177,10 +179,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `float`/`double`, rescaling of the magnitudes of nonzero `d1`/`d2` into
   [2^-24, 2^24]; a valid negative `d2` keeps its sign). This also removes the
   hard-coded `1e-30` floor it used.
-- The release workflow created the tag before pushing the release commit, so
-  the tagged `CHANGELOG.md`, `Doxyfile` and `conanfile.py` were the previous
-  versions. It now pushes them first and tags that commit. The vcpkg port is
-  still updated in a commit after the tag, since it records the tag's tarball
+- The release workflow tagged a commit whose `CHANGELOG.md`, `Doxyfile` and
+  `conanfile.py` were the previous versions, and pushed to `main` directly,
+  which its rules reject. Releases are now prepared in a pull request with
+  `scripts/prepare-release.py`; once merged, the workflow only tags that
+  commit and creates the GitHub Release. The vcpkg port is updated afterwards
+  with `scripts/update-vcpkg-port.py`, since it records the tag's tarball
   hash.
 - The README now documents that offsets are computed in `int`, with the
   resulting size limits, and the Copilot instructions no longer describe the
@@ -220,5 +224,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   (clang-format, cmake-format, codespell, conventional commit), and CI via
   GitHub Actions.
 
-[Unreleased]: https://github.com/thekyria/thefblas/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/thekyria/thefblas/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/thekyria/thefblas/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/thekyria/thefblas/releases/tag/v0.1.0

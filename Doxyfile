@@ -2,7 +2,7 @@
 
 PROJECT_NAME           = "thefblas"
 PROJECT_BRIEF          = "Minimal, templated, header-only C++17 fixed-point BLAS-style library"
-PROJECT_NUMBER         = "0.1.0"
+PROJECT_NUMBER         = "0.2.0"
 OUTPUT_DIRECTORY       = docs/doxygen
 
 INPUT                  = include README.md
