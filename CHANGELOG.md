@@ -18,6 +18,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - CI builds and runs the tests with MSVC (Debug and Release, warnings as
   errors); `msvc.yml` only ran code analysis.
+- `THEFBLAS_INSTALL` option, on by default only when thefblas is the top-level
+  project, so that projects adding it with `add_subdirectory()` or
+  FetchContent no longer get its install and export rules.
+- Micro-benchmarks (`benchmarks/bench_blas.cpp`, `THEFBLAS_BUILD_BENCHMARKS`)
+  of `dot`, `axpy`, `gemv` and `gemm` for `float`, `double`, `q15_sat` and
+  `q16_16_sat`. CI builds them and runs each once as a smoke test.
+- `examples/embedded_q15.cpp`: firmware-style use (Q1.15 with saturation, no
+  iostream, no heap, no floating point at run time) that checks its own
+  results; it runs as a test, and the Cortex-M CI jobs report its code size.
+- README: a quick start (pointer API on `float` and `q15_sat`, FetchContent)
+  and a link to the documentation site.
 
 ### Fixed
 
@@ -26,7 +37,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   repository.
 - The Claude workflows were the only ones referencing actions by tag; they are
   now pinned to commit SHAs like the rest.
-
+- The mathematical reference's introduction now says it covers Level 3 as well.
 - Releases now get their SPDX and CycloneDX SBOMs attached: the Release workflow uploads
   them itself, because a release created with `GITHUB_TOKEN` never triggered the SBOM
   workflow's `release` event. Running the Release workflow manually re-uploads them for

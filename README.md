@@ -22,6 +22,50 @@ by instantiating with `float`, `double`, `thefblas::fixed<IntType, FracBits, Pol
 (a generic Q-format fixed-point type usable at any integer width), or
 `std::complex<T>` of any of the above.
 
+**[Documentation site](https://thekyria.github.io/thefblas/)**: API reference
+(Doxygen) and the mathematical reference.
+
+## Quick start
+
+```cpp
+#include "thefblas/thefblas.h"
+
+#include <array>
+#include <cstdio>
+
+int main() {
+    // The pointer API follows Netlib BLAS: sizes, strides and leading
+    // dimensions are int, and matrices are column-major.
+    std::array<float, 3> x = {1.0F, 2.0F, 3.0F};
+    std::array<float, 3> y = {4.0F, 5.0F, 6.0F};
+    thefblas::axpy(3, 2.0F, x.data(), 1, y.data(), 1); // y = 2x + y = {6, 9, 12}
+
+    // The same routines on Q1.15 fixed point with saturation; dot sums the
+    // products in a wider type and rounds once.
+    using q15 = thefblas::q15_sat;
+    const std::array<q15, 3> a = {q15(0.5), q15(-0.25), q15(0.125)};
+    const std::array<q15, 3> b = {q15(0.25), q15(0.5), q15(-0.5)};
+    const q15 d = thefblas::dot(3, a.data(), 1, b.data(), 1); // -0.0625
+
+    std::printf("y[0] = %g, dot = %g\n", static_cast<double>(y[0]), d.to_float());
+}
+```
+
+thefblas is header-only: add `include/` to the include path, or use the
+`thefblas::thefblas` CMake target, for example with FetchContent:
+
+```cmake
+include(FetchContent)
+FetchContent_Declare(thefblas GIT_REPOSITORY https://github.com/thekyria/thefblas.git
+                              GIT_TAG v0.2.1)
+FetchContent_MakeAvailable(thefblas)
+target_link_libraries(app PRIVATE thefblas::thefblas)
+```
+
+It is also available as a vcpkg port (this repository is a vcpkg registry, see
+`ports/`) and a Conan recipe (`conanfile.py`); both provide
+`find_package(thefblas CONFIG REQUIRED)` and the same target.
+
 ## Design
 
 - **Fixed-point type**: `thefblas::fixed<IntType, FracBits, Policy>`
@@ -273,7 +317,9 @@ ctest --test-dir build --output-on-failure
 ```
 
 The library itself is header-only (`INTERFACE` CMake target); the build only
-compiles the test suite and the examples.
+compiles the test suite and the examples. Install rules (`cmake --install`) are
+generated when thefblas is the top-level project; set `THEFBLAS_INSTALL` to
+override that, for example to install it from a parent project.
 
 A failed check prints its location, the expression and the parameters it ran
 with (and, for the value-aware checks, the values involved), and the test
@@ -323,3 +369,25 @@ calls on a `fixed<std::int32_t, 20>` (Q11.20) element type:
 ```sh
 ./build/examples/thefblas_example_fixed_point_ops
 ```
+
+`examples/embedded_q15.cpp` is written as firmware would use the library:
+Q1.15 with saturation, no iostream, no heap and no floating point at run time.
+It checks its own results and reports through its exit status (it also runs as
+a test). CI prints its code size for each Cortex-M target.
+
+### Benchmarks
+
+With `-DTHEFBLAS_BUILD_BENCHMARKS=ON`, the build also compiles
+`benchmarks/bench_blas.cpp`, which times `dot`, `axpy`, `gemv` and `gemm` for
+`float`, `double`, `q15_sat` and `q16_16_sat` with `std::chrono` (no benchmark
+framework). Use a Release configuration:
+
+```sh
+cmake -S . -B build-bench -DCMAKE_BUILD_TYPE=Release -DTHEFBLAS_BUILD_BENCHMARKS=ON
+cmake --build build-bench
+./build-bench/benchmarks/thefblas_bench
+```
+
+The numbers depend on the compiler and target; they are meant for comparing
+element types and changes on one machine. CI builds the benchmarks and runs
+each once (`--quick`) as a smoke test.

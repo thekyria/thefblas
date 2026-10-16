@@ -27,6 +27,11 @@ option(THEFBLAS_ENABLE_REFERENCE_TESTS
        "Build randomised tests that compare against a system CBLAS" OFF)
 option(THEFBLAS_ENABLE_RELEASE_HARDENING
        "Enable additional hardening for release configurations on Clang/GCC" ON)
+option(THEFBLAS_BUILD_BENCHMARKS "Build the thefblas micro-benchmarks" OFF)
+# Projects that add thefblas with add_subdirectory() or FetchContent usually do
+# not want its install rules mixed into their own.
+option(THEFBLAS_INSTALL "Generate the thefblas install and export rules"
+       ${PROJECT_IS_TOP_LEVEL})
 
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
@@ -179,30 +184,32 @@ if(THEFBLAS_ENABLE_IPO)
 endif()
 
 # --- Install / export -------------------------------------------------------
-install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+if(THEFBLAS_INSTALL)
+  install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
-install(TARGETS thefblas EXPORT thefblasTargets)
+  install(TARGETS thefblas EXPORT thefblasTargets)
 
-write_basic_package_version_file(
-  ${CMAKE_CURRENT_BINARY_DIR}/thefblasConfigVersion.cmake
-  VERSION ${PROJECT_VERSION}
-  COMPATIBILITY SameMajorVersion
-  ARCH_INDEPENDENT)
+  write_basic_package_version_file(
+    ${CMAKE_CURRENT_BINARY_DIR}/thefblasConfigVersion.cmake
+    VERSION ${PROJECT_VERSION}
+    COMPATIBILITY SameMajorVersion
+    ARCH_INDEPENDENT)
 
-configure_package_config_file(
-  ${CMAKE_CURRENT_SOURCE_DIR}/cmake/thefblasConfig.cmake.in
-  ${CMAKE_CURRENT_BINARY_DIR}/thefblasConfig.cmake
-  INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/thefblas)
+  configure_package_config_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/thefblasConfig.cmake.in
+    ${CMAKE_CURRENT_BINARY_DIR}/thefblasConfig.cmake
+    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/thefblas)
 
-install(FILES ${CMAKE_CURRENT_BINARY_DIR}/thefblasConfig.cmake
-              ${CMAKE_CURRENT_BINARY_DIR}/thefblasConfigVersion.cmake
-        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/thefblas)
+  install(FILES ${CMAKE_CURRENT_BINARY_DIR}/thefblasConfig.cmake
+                ${CMAKE_CURRENT_BINARY_DIR}/thefblasConfigVersion.cmake
+          DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/thefblas)
 
-install(
-  EXPORT thefblasTargets
-  FILE thefblasTargets.cmake
-  NAMESPACE thefblas::
-  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/thefblas)
+  install(
+    EXPORT thefblasTargets
+    FILE thefblasTargets.cmake
+    NAMESPACE thefblas::
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/thefblas)
+endif()
 
 # Link the internal build options into every executable defined in the
 # subdirectories below (tests and examples) without modifying their
@@ -216,4 +223,8 @@ endif()
 
 if(THEFBLAS_BUILD_EXAMPLES)
   add_subdirectory(examples)
+endif()
+
+if(THEFBLAS_BUILD_BENCHMARKS)
+  add_subdirectory(benchmarks)
 endif()

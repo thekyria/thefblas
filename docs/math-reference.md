@@ -1,7 +1,7 @@
 # Mathematical Reference
 
-This page defines the mathematical operation performed by each Level-1 and
-Level-2 BLAS routine in **thefblas**. Notation is introduced first, followed by
+This page defines the mathematical operation performed by each Level-1,
+Level-2 and Level-3 BLAS routine in **thefblas**. Notation is introduced first, followed by
 one section per operation family.
 
 Unlike reference BLAS, **thefblas** exposes a single, unprefixed function
