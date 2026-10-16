@@ -14,7 +14,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- CI builds and runs the tests with MSVC (Debug and Release, warnings as
+  errors); `msvc.yml` only ran code analysis.
+
 ### Fixed
+
+- The greeting workflow welcomed the repository owner as a first-time
+  contributor on every pull request; it now only greets people outside the
+  repository.
+- The Claude workflows were the only ones referencing actions by tag; they are
+  now pinned to commit SHAs like the rest.
 
 - Releases now get their SPDX and CycloneDX SBOMs attached: the Release workflow uploads
   them itself, because a release created with `GITHUB_TOKEN` never triggered the SBOM
