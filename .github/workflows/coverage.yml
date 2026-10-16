@@ -20,7 +20,7 @@ env:
   # ID of the GitHub Gist used for the dynamic coverage badge.
   # Create a secret gist at https://gist.github.com, then paste its ID here.
   # Also add a GitHub PAT with the 'gist' scope as repo secret GIST_TOKEN.
-  COVERAGE_GIST_ID: 8e1037ada9fe1e598aefebfe56b920ca
+  COVERAGE_GIST_ID: a185989268c41acbeab350a25cd6b9ae
 
 jobs:
   coverage:
