@@ -8,9 +8,9 @@ For fixed point, overflow is resolved by a compile-time policy (`checked`, the d
 
 ## Documentation
 
-- [Documentation site](https://thekyria.github.io/thefblas/): The API reference, the mathematical reference and the Doxygen pages, published from `docs/` and the headers
+- [Documentation site](https://thekyria.github.io/thefblas/): The overview, the Doxygen API reference and the mathematical reference, published from `docs/` and the headers
 - [README](README.md): Overview, quick start, design, the `fixed` type and its overflow policies, wide accumulators and their limits, the full list of routines, build and test instructions, CMake options and presets, cross-compilation, static analysis, packaging and Doxygen
-- [docs/api-reference.md](docs/api-reference.md): How to call the library: element types, the `fixed` type (members, aliases, overflow policies, `numeric_limits`), argument conventions, and one table per BLAS level with each routine's signature and the Netlib routines it replaces
+- [docs/overview.md](docs/overview.md): How to call the library: element types, the `fixed` type (members, aliases, overflow policies, `numeric_limits`), argument conventions, and one table per BLAS level with each routine's signature and the Netlib routines it replaces
 - [docs/math-reference.md](docs/math-reference.md): Mathematical definition of every routine, and a closing part on fixed-point arithmetic: Q-format representation, rounding, the overflow policies as maps, the wide accumulators, a rounding-error bound per routine, formats without integer bits, and choosing a Q format
 - [CHANGELOG](CHANGELOG.md): Version history in Keep a Changelog format
 - [CONTRIBUTING](CONTRIBUTING.md): Contribution guidelines, code style, how to write tests with the in-repo test helper, and the pull request process
