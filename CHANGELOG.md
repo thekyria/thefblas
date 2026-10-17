@@ -16,9 +16,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
-- `docs/api-reference.md`, published on the documentation site: element
-  types, the `fixed` type and its overflow policies, the argument conventions,
-  and every routine with its signature and Netlib equivalents.
+- `docs/overview.md`, published as the Overview on the documentation site:
+  element types, the `fixed` type and its overflow policies, the argument
+  conventions, and every routine with its signature and Netlib equivalents.
+  The site's front page now has three entries, as in theblas: Overview, API
+  Reference (the Doxygen pages) and Mathematical Reference.
 - Mathematical reference: a part on fixed-point arithmetic (Q formats,
   rounding, overflow policies, wide accumulators, a rounding-error bound per
   routine, formats without integer bits, choosing a Q format).

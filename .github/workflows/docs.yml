@@ -41,7 +41,7 @@ jobs:
         # --mathjax renders $...$ and $$...$$ notation via MathJax CDN.
         # --toc adds a section navigation sidebar.
         run: |
-          sed 's/(api-reference\.md/(api-reference.html/g' docs/math-reference.md |
+          sed 's/(overview\.md/(overview.html/g' docs/math-reference.md |
             pandoc --from markdown \
               --standalone \
               --mathjax=https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js \
@@ -49,28 +49,28 @@ jobs:
               --metadata title="Mathematical Reference — thefblas" \
               -o math-reference.html
 
-      - name: Convert API reference to HTML
+      - name: Convert overview to HTML
         # The Markdown sources link to each other as .md; the site serves .html.
         run: |
-          sed 's/(math-reference\.md/(math-reference.html/g' docs/api-reference.md |
+          sed 's/(math-reference\.md/(math-reference.html/g' docs/overview.md |
             pandoc --from markdown \
               --standalone \
               --mathjax=https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js \
               --toc --toc-depth=2 \
-              --metadata title="API Reference — thefblas" \
-              -o api-reference.html
+              --metadata title="Overview — thefblas" \
+              -o overview.html
 
       - name: Assemble site
         # site/
         #   index.html            ← landing page
         #   api/                  ← Doxygen HTML
         #   math-reference.html   ← pandoc output
-        #   api-reference.html    ← pandoc output
+        #   overview.html         ← pandoc output
         run: |
           mkdir -p site/api
           cp docs/index.html          site/index.html
           cp math-reference.html      site/math-reference.html
-          cp api-reference.html       site/api-reference.html
+          cp overview.html            site/overview.html
           cp -r docs/doxygen/html/.   site/api/
 
       - name: Configure GitHub Pages
