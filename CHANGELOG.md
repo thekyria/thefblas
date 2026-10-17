@@ -14,6 +14,22 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- `docs/api-reference.md`, published on the documentation site: element
+  types, the `fixed` type and its overflow policies, the argument conventions,
+  and every routine with its signature and Netlib equivalents.
+- Mathematical reference: a part on fixed-point arithmetic (Q formats,
+  rounding, overflow policies, wide accumulators, a rounding-error bound per
+  routine, formats without integer bits, choosing a Q format).
+
+### Fixed
+
+- The README said that `trsv`, `tbsv` and `tpsv` form each element in a
+  single widened sum for every `trans`; with `trans` = `'N'` they keep
+  Netlib's column order in the element type.
+- The documentation landing page described the library as Level 1 and 2 only.
+
 ## [0.3.0] - 2026-10-16
 
 ### Added

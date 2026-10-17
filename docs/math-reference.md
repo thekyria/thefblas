@@ -2,7 +2,9 @@
 
 This page defines the mathematical operation performed by each Level-1,
 Level-2 and Level-3 BLAS routine in **thefblas**. Notation is introduced first, followed by
-one section per operation family.
+one section per operation family, and a closing part on the fixed-point
+arithmetic the routines use. How to call each routine is described in the
+[API Reference](api-reference.md).
 
 Unlike reference BLAS, **thefblas** exposes a single, unprefixed function
 *template* per operation (e.g. `axpy`, `gemv`) that is generic over its value
@@ -43,13 +45,16 @@ result leaves the representable range, by the element type's overflow policy
 (`checked`, `wrap` or `saturate`).
 
 Internal reductions — the sums in `dot`, `dotu`, `dotc`, `nrm2`, `asum`, and
-the row/column sums of the Level 2 routines — are accumulated in a type twice
-as wide as the element type and narrowed exactly once, at the end. Intermediate
-values therefore do not overflow, and in the Level 1 reductions the products
-are accumulated unshifted, so no per-product rounding occurs either. The
+the row and column sums of the Level 2 and Level 3 routines — are accumulated
+exactly in a type twice as wide as the element type, so partial sums neither
+round nor overflow, and narrowed into the element format once, at the end. The
 rank-1 and rank-2 updates (`ger*`, `syr`, `spr`, `her`, `hpr`, `syr2`, `spr2`,
 `her2`, `hpr2`) form each element's products exactly as well, scale their sum
-by $\alpha$ in the accumulator and round once per element.
+by $\alpha$ in the accumulator and round once per element. The exception is
+the non-transposed vector solves (`trsv`, `tbsv`, `tpsv` with `trans` =
+`'N'`), which keep Netlib's column order in the element type. The
+**Fixed-Point Arithmetic** part at the end of this page covers the
+representation, rounding, overflow and the error of each routine in detail.
 
 ---
 
@@ -727,3 +732,299 @@ X\,\operatorname{op}(A) = \alpha\,B \quad (\text{side} = \texttt{'R'})$$
 
 where $A$ is triangular ($m \times m$ for `'L'`, $n \times n$ for `'R'`), with an
 implicit unit diagonal when `diag` is `'U'`. No test for singularity is made.
+
+---
+
+# Fixed-Point Arithmetic
+
+The sections above give the exact result of every routine. This part explains
+how `thefblas::fixed<IntType, FracBits, Policy>` approximates real numbers,
+how its operations round and overflow, and how the routines arrange their
+arithmetic so that each output element is rounded as few times as possible.
+The [API Reference](api-reference.md) lists the members of the type.
+
+---
+
+## Q-format representation
+
+Let $b$ be the width of `IntType` in bits and $F$ = `FracBits`. A value of
+type `fixed<IntType, F, Policy>` is an integer $r$ (its `raw()`) read as
+
+$$x = r \cdot 2^{-F}, \qquad r \in [-2^{b-1},\; 2^{b-1} - 1] \cap \mathbb{Z}.$$
+
+With $I = b - F$ bits for the sign and the integer part, the format is written
+Q$I.F$, and
+
+| Quantity | Value |
+|---|---|
+| Step (one unit in the last place) | $u = 2^{-F}$ |
+| Smallest value, `lowest()` | $-2^{I-1}$ |
+| Largest value, `max()` | $2^{I-1} - u$ |
+| Values representable | $2^b$, evenly spaced |
+
+| Format | Type | Range | $u$ |
+|---|---|---|---|
+| Q1.7 | `fixed<std::int8_t, 7>` | $[-1, 1)$ | $2^{-7} \approx 7.8 \times 10^{-3}$ |
+| Q1.15 | `fixed<std::int16_t, 15>` | $[-1, 1)$ | $2^{-15} \approx 3.1 \times 10^{-5}$ |
+| Q16.16 | `fixed<std::int32_t, 16>` | $[-32768, 32768)$ | $2^{-16} \approx 1.5 \times 10^{-5}$ |
+| Q12.20 | `fixed<std::int32_t, 20>` | $[-2048, 2048)$ | $2^{-20} \approx 9.5 \times 10^{-7}$ |
+| Q1.31 | `fixed<std::int32_t, 31>` | $[-1, 1)$ | $2^{-31} \approx 4.7 \times 10^{-10}$ |
+
+Two properties set fixed point apart from floating point and drive the rest
+of this part:
+
+- **The grid is uniform.** Precision is *absolute*: every value carries an
+  error of up to $u/2$ whatever its magnitude. Floating point keeps a
+  constant *relative* precision instead. A small result therefore has a large
+  relative error in fixed point, and a large one may not be representable at
+  all.
+- **The range is asymmetric and bounded.** $-2^{I-1}$ is representable but
+  $+2^{I-1}$ is not, so negating or taking the absolute value of `lowest()`
+  overflows. In the Q1.$F$ formats (`q7`, `q15`, `q31`) the value $1$ itself
+  is not representable.
+
+---
+
+## Rounding
+
+Every operation that drops fractional bits rounds to the nearest grid point,
+and a tie (a value exactly halfway) goes away from zero:
+
+$$\operatorname{rnd}(t) = \operatorname{sign}(t)\,u\,\Bigl\lfloor \frac{\lvert t \rvert}{u} + \tfrac12 \Bigr\rfloor,
+\qquad \lvert \operatorname{rnd}(t) - t \rvert \le \tfrac{u}{2}.$$
+
+On the integers this is a rounding right shift: an integer $v$ at $F + s$
+fractional bits becomes $\operatorname{sign}(v)\,\lfloor (\lvert v \rvert + 2^{s-1}) / 2^s \rfloor$
+at $F$ bits, computed on the magnitude so that it does not depend on how the
+compiler shifts negative numbers.
+
+Ties away from zero is symmetric, $\operatorname{rnd}(-t) = -\operatorname{rnd}(t)$,
+but it is biased in magnitude: every tie grows $\lvert t \rvert$. In Q1.7,
+$2^{-7} \cdot 0.5 = 2^{-8}$ is a tie and rounds to $2^{-7}$, and $-2^{-8}$
+rounds to $-2^{-7}$. Summing four such products one by one gives $4u$, twice
+the exact $2u$; `dot` rounds once, after the exact sum, and returns $2u$.
+Avoiding repeated rounding is the main purpose of the accumulators described
+below.
+
+---
+
+## Arithmetic operations
+
+For $x = r_x u$ and $y = r_y u$ every operation is evaluated exactly in an
+integer twice as wide as `IntType` (`__int128` for 64-bit storage), rounded
+where stated, and then passed to the overflow policy $N_P$ (next section):
+
+| Operation | Exact integer computation | Result | Rounding error |
+|---|---|---|---|
+| $x \pm y$ | $r_x \pm r_y$ | $N_P(r_x \pm r_y)\,u$ | none |
+| $-x$, $\lvert x \rvert$ | $-r_x$, $\lvert r_x \rvert$ | through $N_P$ | none |
+| $x \cdot y$ | $r_x r_y$ at $2F$ fractional bits, shifted right by $F$ | $N_P(\operatorname{rnd}(xy))$ | $\le u/2$ |
+| $x / y$ | $r_x 2^F / r_y$, rounded to nearest | $N_P(\operatorname{rnd}(x/y))$ | $\le u/2$ |
+| $\sqrt{x}$, $x \ge 0$ | $\sqrt{r_x 2^F}$, integer root rounded to nearest | $\operatorname{rnd}(\sqrt{x})$ | $\le u/2$ |
+
+Notes:
+
+- **Addition is exact**; only multiplication, division, square root and
+  conversions round. A chain of additions can only overflow.
+- **Products lose the low bits.** $r_x r_y$ has $2F$ fractional bits, and the
+  shift keeps $F$ of them. A product smaller than $u/2$ in magnitude becomes
+  zero: in Q1.15, $0.003 \times 0.003 \approx 9 \times 10^{-6}$ rounds to $0$.
+- **Quotients overflow easily.** $\lvert x / y \rvert$ must be below
+  $2^{I-1}$: in Q1.15, $0.25 / 0.5 = 0.5$ is fine, but $0.5 / 0.25 = 2$ is out
+  of range ($0.99997$ under `saturate`). Division by zero is treated as an
+  overflow towards the sign of the dividend.
+- **Square root.** Since $\sqrt{x} = \sqrt{r_x 2^F}\,u$, a single integer
+  square root of the exact radicand gives the result, with no Newton
+  iteration and no intermediate value that has to be representable; ties
+  cannot occur because $(k + \tfrac12)^2$ is never an integer. The result
+  never exceeds the range. In Q1.15, $\sqrt{2^{-15}}$ has raw value
+  $\operatorname{rnd}(\sqrt{2^{15}}) = 181$.
+- **Conversions.** From `double`, $v$ becomes $\operatorname{rnd}(v)$, clamped
+  to the range under every policy (NaN becomes $0$). Between Q formats, the
+  raw value is shifted left (exact) or right with rounding, then passed to the
+  target policy. The conversion is exact when the target has at least as many
+  integer bits and at least as many fractional bits as the source.
+- **Complex values** are pairs of `fixed` values, and
+  $(a + bi)(c + di) = (ac - bd) + i(ad + bc)$ is evaluated with two rounded
+  products per part, so each part of a complex product is within $u$.
+  Complex division in the solves uses Smith's algorithm, which divides by the
+  larger part of the denominator first so that intermediate values stay
+  small.
+
+---
+
+## Overflow policies
+
+Let $r_{\min} = -2^{b-1}$ and $r_{\max} = 2^{b-1} - 1$. The policy is the map
+$N_P$ from the exact wide integer result $v$ back to the raw range:
+
+$$N_{\text{wrap}}(v) = \bigl((v - r_{\min}) \bmod 2^b\bigr) + r_{\min}, \qquad
+N_{\text{saturate}}(v) = \min\bigl(r_{\max}, \max(r_{\min}, v)\bigr),$$
+
+and `checked` asserts $r_{\min} \le v \le r_{\max}$, then behaves like `wrap`
+(with `NDEBUG`). None of them has undefined behaviour.
+
+- **`wrap` is modular arithmetic.** Addition and subtraction become
+  operations in $\mathbb{Z}/2^b\mathbb{Z}$, which are associative and exact
+  modulo $2^b$. A sum or difference of any number of terms is therefore
+  correct whenever the *final* value is in range, even if partial sums
+  overflowed on the way. This does not extend to products, whose rounding
+  shift does not commute with the reduction.
+- **`saturate` is monotone and sign preserving**: a result too large stays at
+  the largest value instead of changing sign, which is why it suits signal
+  processing and control. It is **not associative**: in Q1.7,
+  $(0.78125 + 0.78125) - 0.78125 = 0.2109375$ (the first sum clamps to
+  $0.9921875$), whereas $0.78125 + (0.78125 - 0.78125) = 0.78125$. Neither
+  policy is distributive. The result of a saturating computation depends on
+  its evaluation order, which is why thefblas fixes that order and keeps the
+  intermediate values out of the element format.
+- Every overflow is a loss of information. The policy decides only which
+  wrong answer is returned; choosing a format with enough integer bits is
+  what makes the result right.
+
+---
+
+## Wide accumulators
+
+A reduction such as $S = \sum_{i=1}^n x_i y_i$ fails in a naive fixed-point
+loop in two ways: each product is rounded, so the errors add up to $n u / 2$
+and, with ties away from zero, drift in one direction; and a partial sum can
+leave the range even when $S$ does not. With `saturate` in Q1.15,
+$x = (0.9, 0.9, -0.9)$ and $y = (0.9, 0.9, 0.9)$ give $S = 0.81$, but the
+naive loop clamps $0.81 + 0.81$ to $0.99997$ and returns $0.19$.
+
+thefblas forms every reduction in integers instead:
+
+1. Each product $r_{x_i} r_{y_i}$ is kept **unshifted**, as an exact integer at
+   $2F$ fractional bits.
+2. The products are summed in an integer of width $b_{\text{acc}}$:
+
+   | Element storage | Products | Running sum | Exact for at least $n$ terms |
+   |---|---|---|---|
+   | 8-bit | 16-bit | 32-bit | $2^{17}$ |
+   | 16-bit | 32-bit | 64-bit | $2^{33}$ |
+   | 32-bit, with `__int128` | 64-bit | 128-bit | $2^{65}$ |
+   | 32-bit, without `__int128` | 64-bit | 64-bit | while $\lvert S \rvert < 2^{63 - 2F}$ |
+   | 64-bit (needs `__int128`) | 128-bit | 128-bit | while $\lvert S \rvert < 2^{127 - 2F}$ |
+
+   Each product is at most $2^{2(b-1)}$ in magnitude, so the running sum
+   cannot overflow for $n \le 2^{b_{\text{acc}} - 2b + 1}$, more terms than an
+   `int` can count for the first three rows. In the last two rows the running
+   sum wraps modulo $2^{b_{\text{acc}}}$ (well defined, never undefined
+   behaviour). Because the additions are modular, partial sums may wrap as
+   long as the final sum fits; a final sum beyond $2^{b_{\text{acc}} - 1}$ raw
+   units is not reliably detected.
+3. The exact sum is rounded **once** to $F$ fractional bits and passed through
+   the element policy into the accumulator format `fixed<wider IntType, F,
+   Policy>`, which has $b$ more integer bits: Q1.15 is accumulated as Q17.15,
+   so the range of the intermediate result grows from $[-1, 1)$ to
+   $[-65536, 65536)$. Where no wider `fixed` storage exists (64-bit storage,
+   or 32-bit without `__int128`), this step keeps the element width.
+4. Any scaling by $\alpha$ and $\beta$ happens in the accumulator format, and
+   the final value is narrowed into the element format by the policy, once.
+
+The computed `dot` is therefore $N_P(\operatorname{rnd}(S))$: when $S$ is in
+range, its error is at most $u/2$ **independently of $n$**, and partial sums
+never overflow. In the example above it returns $0.81$. Compare floating
+point, where the usual bound for a recursive dot product is
+$\lvert \hat S - S \rvert \le n\,\varepsilon \sum \lvert x_i y_i \rvert$
+to first order: relative to the terms and growing with $n$, but with no range
+problem.
+
+Sums of squares (`nrm2`, `rotg`, $\lvert z \rvert$ for complex $z$) use the
+same exact accumulation in an unsigned integer, so overflow can be detected;
+the integer square root of the exact sum at $2F$ fractional bits is the raw
+result at $F$ bits, rounded once. A sum that overflows the accumulator means
+a norm far beyond the range of the format; it is clamped to `max()` under
+every policy, and `checked` asserts.
+
+---
+
+## Rounding error by routine
+
+The bounds below are for real fixed-point data, assume that no value
+overflows, and are in units of $u$; for complex data, each real part of a
+complex product rounds separately, roughly doubling the product terms.
+"Rounded sum" stands for $\operatorname{rnd}(S)$ of an exactly accumulated
+reduction.
+
+| Routines | How the result is formed | Error bound |
+|---|---|---|
+| `copy`, `swap` | Moves values | exact |
+| `scal`, `axpy` | One rounded product per element ($\alpha x_i$), exact addition | $u/2$ |
+| `rot`, `rotm` | Two rounded products per element ($c x_i$, $s y_i$), exact addition | $u$ |
+| `dot`, `dotu`, `dotc`, `asum`, `dsdot`, `sdsdot` | Rounded sum | $u/2$ |
+| `nrm2` | Rounded square root of the exact sum of squares | $u/2$ |
+| `trmv`, `tbmv`, `tpmv` | Rounded sum per element | $u/2$ |
+| `gemv`, `gbmv`, `symv`, `sbmv`, `spmv`, `hemv`, `hbmv`, `hpmv` | $N_P\bigl(\operatorname{rnd}(\beta y_i) + \operatorname{rnd}(\alpha \operatorname{rnd}(S_i))\bigr)$ | $\tfrac12(1 + \lvert\alpha\rvert) + \tfrac12$ |
+| `ger`, `syr`, `syr2`, `spr`, `spr2`, `her`, `hpr`, `her2`, `hpr2` | $N_P\bigl(a_{ij} + \operatorname{rnd}(\alpha \operatorname{rnd}(S_{ij}))\bigr)$, $S_{ij}$ the exact product(s) | $\tfrac12(1 + \lvert\alpha\rvert)$ |
+| `gemm`, `symm`, `hemm`, `syrk`, `herk` | As `gemv`, per element of the result | $\tfrac12(1 + \lvert\alpha\rvert) + \tfrac12$ |
+| `syr2k`, `her2k` | Two rounded sums, each scaled by $\alpha$ (or $\bar\alpha$), plus $\operatorname{rnd}(\beta c_{ij})$ | $1 + \lvert\alpha\rvert + \tfrac12$ |
+| `trmm` | $N_P(\operatorname{rnd}(\alpha \operatorname{rnd}(S_{ij})))$ | $\tfrac12(1 + \lvert\alpha\rvert)$ |
+| `trsm`; `trsv`, `tbsv`, `tpsv` with `trans` = `'T'`/`'C'` | Per element: rounded sum (in `trsm` including the exact products $\alpha b_{ij}$), divided by the diagonal in the accumulator, narrowed once | two roundings per element, plus the error of the earlier elements |
+| `trsv`, `tbsv`, `tpsv` with `trans` = `'N'` | Netlib's column order in the element type: $x_i \leftarrow x_i - x_j a_{ij}$, rounded and narrowed at every step | up to $n - 1$ roundings per element, plus propagated error |
+
+Notes:
+
+- The $\beta$ term vanishes when $\beta$ is $0$ or exactly $1$, and the
+  $\alpha$ rounding vanishes when $\alpha$ is exactly $1$ (multiplying by $1$
+  is exact), so `gemv` with $\alpha = 1$, $\beta = 0$ rounds once.
+- In the solves the error of each computed $x_j$ is carried into the later
+  elements through $a_{ij}$ and amplified by the division by $a_{ii}$, so the
+  total error depends on the conditioning of the triangular matrix. For
+  well-conditioned matrices (dominant diagonal) it stays within a few $u$.
+  No test for singularity is made: a zero diagonal is a division by zero and
+  goes through the policy.
+- In the `trans` = `'N'` vector solves the partial values of $x_i$ live in the
+  element format, so they must stay within its range; the transposed forms and
+  `trsm` keep them in the accumulator.
+- For `float` and `double` the floating-point paths are unchanged and match
+  Netlib (bit for bit in Level 1 and Level 2, except `nrm2`).
+
+---
+
+## Formats without integer bits
+
+`q7`, `q15` and `q31` (and every Q1.$F$ format) cover $[-1, 1)$ and cannot
+represent $1$. This is the usual convention for normalised signals, and it has
+some consequences for BLAS routines, whose definitions are full of ones:
+
+- **$\alpha = 1$ cannot be passed.** The largest scalar is $1 - u$, so
+  `gemv('N', m, n, max(), ...)` computes $(1 - u) A x$, which differs from
+  $Ax$ by at most $u \lvert Ax \rvert$. Comparisons with $1$ inside the
+  routines never construct $1$, so they work in these formats.
+- **Unit diagonals** (`diag` = `'U'`) are implicit, so the triangular
+  routines work, but a stored diagonal of ones is not possible.
+- **Rotations.** `rotg` returns $c = 1$ for $b = 0$, and Netlib's $z = 1/c$
+  when $\lvert a \rvert \le \lvert b \rvert$, which is at least $1$; both go
+  through the policy. `rotm` and `rotmg` store the flags $-2$ and $1$, so they
+  are rejected at compile time in these formats.
+- **Norms of complex vectors.** Each part is in $[-1, 1)$, but
+  $\lvert z \rvert$ can reach $\sqrt2$, and $\lVert x \rVert_2$ grows with
+  $\sqrt n$; such results overflow even though every input is valid.
+
+---
+
+## Choosing a Q format
+
+The accumulators protect intermediate sums, but every *result* must fit the
+element format. With $b$ fixed by the storage type, the choice of $F$ trades
+range for precision:
+
+1. **Range.** Bound the largest result and give it enough integer bits:
+   $2^{I-1} > \max \lvert \text{result} \rvert$. For example
+   $\lvert x^T y \rvert \le n \max\lvert x_i\rvert \max\lvert y_i\rvert$, and an
+   element of $\alpha A x + \beta y$ is at most
+   $\lvert\alpha\rvert \max_i \sum_j \lvert a_{ij} \rvert \lvert x_j \rvert + \lvert\beta\rvert \lvert y_i \rvert$.
+   A dot product of 64 elements of magnitude at most 1 can reach 64, which
+   needs $I \ge 8$ (Q8.8 in 16 bits, Q8.24 in 32 bits).
+2. **Precision.** The absolute error of each result is a small multiple of
+   $u = 2^{-F}$ (table above), so $F$ must make $u$ small against the smallest
+   result that matters.
+3. **Scaling.** If both cannot be met, scale the data. Powers of two from $u$
+   up to the range are exact, so $\alpha = 2^{-k}$ divides a result by $2^k$ losing only
+   the $k$ bits shifted out (rounded once), and `fixed_cast` moves values
+   between formats with the same rounding.
+4. **Policy.** Develop with `checked`, which asserts on the first overflow and
+   so shows whether the format is large enough; ship with `saturate`, which
+   degrades gracefully when it is not.

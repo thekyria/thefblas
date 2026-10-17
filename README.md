@@ -22,8 +22,12 @@ by instantiating with `float`, `double`, `thefblas::fixed<IntType, FracBits, Pol
 (a generic Q-format fixed-point type usable at any integer width), or
 `std::complex<T>` of any of the above.
 
-**[Documentation site](https://thekyria.github.io/thefblas/)**: API reference
-(Doxygen) and the mathematical reference.
+**[Documentation site](https://thekyria.github.io/thefblas/)**: the
+[API reference](docs/api-reference.md) (how to call each routine, the `fixed`
+type, Netlib name mapping), the
+[mathematical reference](docs/math-reference.md) (the formula of each
+routine, plus notes on fixed-point rounding, overflow and error bounds), and
+the Doxygen pages generated from the headers.
 
 ## Quick start
 
@@ -188,10 +192,13 @@ through the element type's overflow policy exactly once, at the end:
   the norm does not; the norm is rounded once. `rotg` computes its radius the
   same way.
 - The Level 2 routines (`symv`/`sbmv`/`spmv`, `hemv`/`hbmv`/`hpmv`,
-  `gemv`/`gbmv` in every `trans` form, and `trmv`/`tbmv`/`tpmv`,
-  `trsv`/`tbsv`/`tpsv`) form each output element as a
-  single widened multiply-accumulate over its whole row, again at
-  `2 * FracBits`, and narrow through the policy exactly once per element.
+  `gemv`/`gbmv` in every `trans` form, `trmv`/`tbmv`/`tpmv`, and
+  `trsv`/`tbsv`/`tpsv` with `trans` = `'T'` or `'C'`) form each output
+  element as a single widened multiply-accumulate over its whole row, again
+  at `2 * FracBits`, and narrow through the policy exactly once per element.
+  `trsv`/`tbsv`/`tpsv` with `trans` = `'N'` keep Netlib's column order in the
+  element type, so their partial values round and must fit the format at
+  every step.
   Where the routine computes `alpha * op(A) * x + beta * y`, the `alpha`
   scaling, the `beta` scaling of the `y` element and their sum also happen in
   the accumulator type, before that single narrowing. The
@@ -262,6 +269,10 @@ keep the Netlib column-update order.
   `tpmv`, `tpsv`, `spr`, `hpr`, `spr2`, `hpr2`.
 - **Level 3** (`include/thefblas/level3.hpp`): `gemm`, `symm`, `hemm`, `syrk`,
   `herk`, `syr2k`, `her2k`, `trmm`, `trsm`.
+
+The [API reference](docs/api-reference.md) gives each routine's signature and
+the Netlib routines it replaces (`thefblas::gemm` on `double` is `dgemm`, on
+`std::complex<float>` it is `cgemm`, and so on).
 
 Matrices are column-major. As in Netlib BLAS, a dense routine whose leading
 dimension is smaller than the number of rows (`lda < m` for `gemv`/`ger`/`geru`/`gerc`,
