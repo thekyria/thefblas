@@ -8,9 +8,10 @@ For fixed point, overflow is resolved by a compile-time policy (`checked`, the d
 
 ## Documentation
 
-- [Documentation site](https://thekyria.github.io/thefblas/): Doxygen API reference and the mathematical reference, published from `docs/` and the headers
+- [Documentation site](https://thekyria.github.io/thefblas/): The API reference, the mathematical reference and the Doxygen pages, published from `docs/` and the headers
 - [README](README.md): Overview, quick start, design, the `fixed` type and its overflow policies, wide accumulators and their limits, the full list of routines, build and test instructions, CMake options and presets, cross-compilation, static analysis, packaging and Doxygen
-- [docs/math-reference.md](docs/math-reference.md): Mathematical definition of every routine, with the fixed-point rounding and overflow behaviour where it differs from floating point
+- [docs/api-reference.md](docs/api-reference.md): How to call the library: element types, the `fixed` type (members, aliases, overflow policies, `numeric_limits`), argument conventions, and one table per BLAS level with each routine's signature and the Netlib routines it replaces
+- [docs/math-reference.md](docs/math-reference.md): Mathematical definition of every routine, and a closing part on fixed-point arithmetic: Q-format representation, rounding, the overflow policies as maps, the wide accumulators, a rounding-error bound per routine, formats without integer bits, and choosing a Q format
 - [CHANGELOG](CHANGELOG.md): Version history in Keep a Changelog format
 - [CONTRIBUTING](CONTRIBUTING.md): Contribution guidelines, code style, how to write tests with the in-repo test helper, and the pull request process
 - [Code of Conduct](CODE_OF_CONDUCT.md): Community guidelines
@@ -93,7 +94,7 @@ For fixed point, overflow is resolved by a compile-time policy (`checked`, the d
 - [codeql.yml](.github/workflows/codeql.yml): CodeQL security analysis for C++
 - [grype.yml](.github/workflows/grype.yml), [sbom.yml](.github/workflows/sbom.yml): SBOM generation and vulnerability scanning
 - [conan-test.yml](.github/workflows/conan-test.yml), [vcpkg-test.yml](.github/workflows/vcpkg-test.yml): Package-manager integration tests on Ubuntu and macOS (the vcpkg test uses this repository as a git registry)
-- [docs.yml](.github/workflows/docs.yml): GitHub Pages site with the Doxygen API reference and the math reference rendered by pandoc and MathJax
+- [docs.yml](.github/workflows/docs.yml): GitHub Pages site with the Doxygen pages and the API and math references rendered by pandoc and MathJax
 - [release.yml](.github/workflows/release.yml): When the version in CMakeLists.txt has no tag yet and CHANGELOG.md has a section for it, tags the commit and creates the GitHub Release from that section; never pushes to `main`
 - [claude.yml](.github/workflows/claude.yml), [claude-code-review.yml](.github/workflows/claude-code-review.yml), [copilot-setup-steps.yml](.github/workflows/copilot-setup-steps.yml): AI assistant automation
 - [greetings.yml](.github/workflows/greetings.yml), [stale.yml](.github/workflows/stale.yml), [summary.yml](.github/workflows/summary.yml): Repository housekeeping

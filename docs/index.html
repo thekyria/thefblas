@@ -66,23 +66,31 @@
   <div class="container">
     <header>
       <h1>thefblas <span>docs</span></h1>
-      <p class="tagline">Minimal, templated, header-only C++17 fixed-point BLAS-style Level 1 &amp; Level 2 library</p>
+      <p class="tagline">Minimal, templated, header-only C++17 fixed-point BLAS-style Level 1, 2 and 3 library</p>
     </header>
 
     <div class="cards">
-      <a class="card" href="api/index.html">
+      <a class="card" href="api-reference.html">
         <h2>API Reference</h2>
         <p>
-          Doxygen-generated documentation: classes, functions, parameters,
-          and call graphs for the full public API.
+          How to call the library: element types, the <code>fixed</code> type
+          and its overflow policies, argument conventions, and every routine
+          with its signature and Netlib equivalents.
         </p>
       </a>
       <a class="card" href="math-reference.html">
         <h2>Mathematical Reference</h2>
         <p>
-          Mathematical definitions for every Level-1 and Level-2 BLAS
-          operation: axpy, dot, nrm2, asum, iamax, rotations, gemv, gbmv,
-          symmetric/Hermitian/triangular products, solves, and rank updates.
+          The formula of every Level 1, 2 and 3 operation, and notes on
+          fixed-point arithmetic: Q formats, rounding, overflow policies,
+          wide accumulators and error bounds.
+        </p>
+      </a>
+      <a class="card" href="api/index.html">
+        <h2>Doxygen</h2>
+        <p>
+          Documentation generated from the headers: every function,
+          parameter and type of the public API.
         </p>
       </a>
     </div>
