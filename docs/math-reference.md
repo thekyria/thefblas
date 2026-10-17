@@ -4,7 +4,7 @@ This page defines the mathematical operation performed by each Level-1,
 Level-2 and Level-3 BLAS routine in **thefblas**. Notation is introduced first, followed by
 one section per operation family, and a closing part on the fixed-point
 arithmetic the routines use. How to call each routine is described in the
-[API Reference](api-reference.md).
+[Overview](overview.md).
 
 Unlike reference BLAS, **thefblas** exposes a single, unprefixed function
 *template* per operation (e.g. `axpy`, `gemv`) that is generic over its value
@@ -741,7 +741,7 @@ The sections above give the exact result of every routine. This part explains
 how `thefblas::fixed<IntType, FracBits, Policy>` approximates real numbers,
 how its operations round and overflow, and how the routines arrange their
 arithmetic so that each output element is rounded as few times as possible.
-The [API Reference](api-reference.md) lists the members of the type.
+The [Overview](overview.md) lists the members of the type.
 
 ---
 
