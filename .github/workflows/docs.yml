@@ -60,6 +60,13 @@ jobs:
               --metadata title="Overview — thefblas" \
               -o overview.html
 
+      - name: Drop the polyfill.io script from the pandoc output
+        # pandoc's default HTML template (before 3.2) loads
+        # https://polyfill.io before MathJax. That domain was compromised in
+        # 2024 and is now blocked or unresponsive; the synchronous script can
+        # stall MathJax. MathJax 3 does not need it.
+        run: sed -i '/polyfill\.io/d' math-reference.html overview.html
+
       - name: Assemble site
         # site/
         #   index.html            ← landing page
