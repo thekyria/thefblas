@@ -28,8 +28,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   rounding, overflow policies, wide accumulators, a rounding-error bound per
   routine, formats without integer bits, choosing a Q format).
 
+### Changed
+
+- README states that the project has no subprojects.
+- `CONTRIBUTING.md` links to GitHub Issues for bug reports and explains how to
+  install the pre-commit hooks.
+
 ### Fixed
 
+- `SECURITY.md` listed 0.1.x as the supported version; it now lists 0.3.x.
 - The README said that `trsv`, `tbsv` and `tpsv` form each element in a
   single widened sum for every `trans`; with `trans` = `'N'` they keep
   Netlib's column order in the element type.
