@@ -332,6 +332,16 @@ compiles the test suite and the examples. Install rules (`cmake --install`) are
 generated when thefblas is the top-level project; set `THEFBLAS_INSTALL` to
 override that, for example to install it from a parent project.
 
+### Dependencies
+
+| Dependency | Version | Scope | Declared in |
+| --- | --- | --- | --- |
+| C++ standard library | C++17 | Runtime | — |
+| CMake | 3.21+ | Build (tests, examples, install) | `CMakeLists.txt` |
+| System BLAS with CBLAS (e.g. `libblas-dev`, `libopenblas-dev`) | any | Tests only, when `THEFBLAS_ENABLE_REFERENCE_TESTS=ON` | `tests/CMakeLists.txt` (`find_package(BLAS)`) |
+
+The library itself has no third-party dependencies.
+
 A failed check prints its location, the expression and the parameters it ran
 with (and, for the value-aware checks, the values involved), and the test
 carries on, so one run reports every failure (the first 50 in detail, the rest
