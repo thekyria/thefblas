@@ -19,6 +19,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - README lists the project's dependencies, including the test-only system CBLAS.
 - A Binary Artifacts CI workflow and a `no-binary-files` pre-commit hook reject
   tracked binary files.
+- A `gitleaks` pre-commit hook scans staged changes for secrets.
+- A Gitleaks CI workflow scans pushes and pull requests for secrets, plus a
+  weekly full-history scan.
 - `docs/overview.md`, published as the Overview on the documentation site:
   element types, the `fixed` type and its overflow policies, the argument
   conventions, and every routine with its signature and Netlib equivalents.
