@@ -1,0 +1,3 @@
+# Reviewed gitleaks false positives (fingerprints: commit:file:rule:line).
+# Fake Stripe key used as a "don't hardcode secrets" example.
+168485930192fe60e335f0a6e3d6606e7f85e1cc:.github/instructions/code-review-generic.instructions.md:stripe-access-token:150

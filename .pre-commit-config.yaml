@@ -20,6 +20,21 @@ repos:
       - id: mixed-line-ending
         args: ['--fix=lf']
 
+  # Secret scanning (OSPS-BR-07.01)
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.28.0
+    hooks:
+      - id: gitleaks
+
+  # Forbid binary files (OSPS-QA-05.01 / OSPS-QA-05.02)
+  - repo: local
+    hooks:
+      - id: no-binary-files
+        name: forbid binary files
+        language: fail
+        entry: 'Binary files are not allowed in this repository'
+        types: [binary]
+
   # Spell checking
   - repo: https://github.com/codespell-project/codespell
     rev: v2.2.6

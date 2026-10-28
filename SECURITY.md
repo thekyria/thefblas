@@ -4,7 +4,8 @@
 
 | Version | Supported |
 | ------- | --------- |
-| 0.1.x   | ✅        |
+| 0.3.x   | ✅        |
+| < 0.3   | ❌        |
 
 Only the latest release on `main` receives security fixes.
 
@@ -49,6 +50,8 @@ Static analysis runs on every push and pull request:
 - **scan-build** — Clang Static Analyzer HTML reports
 - **CodeQL** (`security-extended`) — weekly scan; results published to the
   Security tab
+- **gitleaks** — secret scanning on every push and pull request, a weekly
+  full-history scan, and a pre-commit hook
 
 Sanitizer presets are available for local testing:
 

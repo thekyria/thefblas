@@ -1,0 +1,31 @@
+name: Binary Artifacts
+
+# Fails if any tracked file is binary (OSPS-QA-05.01 / OSPS-QA-05.02).
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: No binary files in repository
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Reject tracked binary files
+        run: |
+          # git marks content it detects as binary with "i/-text".
+          binaries=$(git ls-files --eol | awk '$1 == "i/-text" { sub(/^[^\t]*\t/, ""); print }')
+          if [ -n "$binaries" ]; then
+            echo "::error::Binary files are not allowed in this repository:"
+            echo "$binaries"
+            exit 1
+          fi
+          echo "No binary files tracked."

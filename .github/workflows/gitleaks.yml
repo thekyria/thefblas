@@ -1,0 +1,35 @@
+name: Gitleaks
+
+# Scans commits for secrets (OSPS-BR-07.01). Pushes and pull requests scan the
+# new commits; the weekly and manual runs scan the full history.
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+  schedule:
+    - cron: "17 4 * * 1"
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  scan:
+    name: Secret scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Run gitleaks
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Same version as the pre-commit hook.
+          GITLEAKS_VERSION: "8.28.0"
+          GITLEAKS_ENABLE_COMMENTS: "false"

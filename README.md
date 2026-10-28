@@ -319,6 +319,22 @@ Integer division/sqrt algorithms optimized for a specific embedded target
 integer algorithms suitable as a baseline for any target, including bare-metal
 ARM.
 
+## Dependencies
+
+| Dependency | Version | Scope | Declared in |
+| --- | --- | --- | --- |
+| C++ standard library | C++17 | Runtime | — |
+| CMake | 3.21+ | Build (tests, examples, install) | `CMakeLists.txt` |
+| System BLAS with CBLAS (e.g. `libblas-dev`, `libopenblas-dev`) | any | Tests only, when `THEFBLAS_ENABLE_REFERENCE_TESTS=ON` | `tests/CMakeLists.txt` (`find_package(BLAS)`) |
+
+The library itself has no third-party dependencies.
+
+## Subprojects
+
+thefblas has no subprojects or additional repositories. The vcpkg port
+(`ports/`, `versions/`) and the Conan recipe (`conanfile.py`,
+`test_package/`) live in this repository.
+
 ## Building and testing
 
 ```sh

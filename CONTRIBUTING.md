@@ -39,6 +39,18 @@ cmake --build build
 ctest --test-dir build
 ```
 
+### Pre-commit hooks
+
+The hooks in `.pre-commit-config.yaml` (formatting, spelling, secret scanning,
+a binary-file check, conventional commit messages) run on each commit once
+installed:
+
+```bash
+pip install pre-commit
+pre-commit install
+pre-commit install --hook-type commit-msg
+```
+
 ## What to Contribute
 
 Good contributions include:
@@ -125,6 +137,10 @@ Suggested PR description format:
    and versions database at the new tag.
 
 ## Reporting Issues
+
+Report bugs and request features in
+[GitHub Issues](https://github.com/thekyria/thefblas/issues). Report security
+vulnerabilities privately instead, as described in `SECURITY.md`.
 
 When opening an issue, include:
 
